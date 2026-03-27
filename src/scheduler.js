@@ -97,25 +97,25 @@ printBanner();
 // cron format: detik(opsional) menit jam hari-bulan bulan hari-minggu
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Daily — 07:00 WIB
-cron.schedule('0 7 * * *', () => {
-  run('Daily fetch', ['--mode', 'daily']);
-}, { timezone: 'Asia/Jakarta' });
+// // Daily — 07:00 WIB
+// cron.schedule('0 7 * * *', () => {
+//   run('Daily fetch', ['--mode', 'daily']);
+// }, { timezone: 'Asia/Jakarta' });
 
-// Weekly — 07:05 WIB setiap Senin
-cron.schedule('5 7 * * 1', () => {
-  run('Weekly fetch (Senin)', ['--mode', 'weekly']);
-}, { timezone: 'Asia/Jakarta' });
+// // Weekly — 07:05 WIB setiap Senin
+// cron.schedule('5 7 * * 1', () => {
+//   run('Weekly fetch (Senin)', ['--mode', 'weekly']);
+// }, { timezone: 'Asia/Jakarta' });
 
-// Monthly — 07:10 WIB tanggal 1
-cron.schedule('10 7 1 * *', () => {
-  run('Monthly fetch (tgl 1)', ['--mode', 'monthly']);
-}, { timezone: 'Asia/Jakarta' });
+// // Monthly — 07:10 WIB tanggal 1
+// cron.schedule('10 7 1 * *', () => {
+//   run('Monthly fetch (tgl 1)', ['--mode', 'monthly']);
+// }, { timezone: 'Asia/Jakarta' });
 
-// Fed Liquidity — 08:00 WIB Kamis(4) dan Jumat(5)
-cron.schedule('0 8 * * 4,5', () => {
-  run('Fed Liquidity fetch', ['--mode', 'fed']);
-}, { timezone: 'Asia/Jakarta' });
+// // Fed Liquidity — 08:00 WIB Kamis(4) dan Jumat(5)
+// cron.schedule('0 8 * * 4,5', () => {
+//   run('Fed Liquidity fetch', ['--mode', 'fed']);
+// }, { timezone: 'Asia/Jakarta' });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ANALISIS GEMINI + TELEGRAM + DISCORD + PROMPT (MODE=ALL)
