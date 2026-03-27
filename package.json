@@ -1,0 +1,56 @@
+{
+  "name": "crypto-dashboard-fetcher",
+  "version": "1.0.0",
+  "description": "Hedge fund crypto dashboard — 5 AI + Telegram + Discord",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "fetch":                             "node src/index.js",
+    "fetch:telegram":                    "node src/index.js --telegram",
+    "fetch:discord":                     "node src/index.js --discord",
+    "fetch:all-channels":                "node src/index.js --telegram --discord",
+
+    "analyze:claude":                    "node src/index.js --analyze --provider claude",
+    "analyze:chatgpt":                   "node src/index.js --analyze --provider chatgpt",
+    "analyze:gemini":                    "node src/index.js --analyze --provider gemini",
+    "analyze:perplexity":                "node src/index.js --analyze --provider perplexity",
+    "analyze:grok":                      "node src/index.js --analyze --provider grok",
+    "analyze:all":                       "node src/index.js --analyze --provider all",
+
+    "analyze:claude:telegram":           "node src/index.js --analyze --provider claude --telegram",
+    "analyze:chatgpt:telegram":          "node src/index.js --analyze --provider chatgpt --telegram",
+    "analyze:gemini:telegram":           "node src/index.js --analyze --provider gemini --telegram",
+    "analyze:perplexity:telegram":       "node src/index.js --analyze --provider perplexity --telegram",
+    "analyze:grok:telegram":             "node src/index.js --analyze --provider grok --telegram",
+    "analyze:all:telegram":              "node src/index.js --analyze --provider all --telegram",
+
+    "analyze:claude:discord":            "node src/index.js --analyze --provider claude --discord",
+    "analyze:chatgpt:discord":           "node src/index.js --analyze --provider chatgpt --discord",
+    "analyze:gemini:discord":            "node src/index.js --analyze --provider gemini --discord",
+    "analyze:perplexity:discord":        "node src/index.js --analyze --provider perplexity --discord",
+    "analyze:grok:discord":              "node src/index.js --analyze --provider grok --discord",
+    "analyze:all:discord":               "node src/index.js --analyze --provider all --discord",
+
+    "analyze:claude:all-channels":       "node src/index.js --analyze --provider claude --telegram --discord",
+    "analyze:chatgpt:all-channels":      "node src/index.js --analyze --provider chatgpt --telegram --discord",
+    "analyze:gemini:all-channels":       "node src/index.js --analyze --provider gemini --telegram --discord",
+    "analyze:perplexity:all-channels":   "node src/index.js --analyze --provider perplexity --telegram --discord",
+    "analyze:grok:all-channels":         "node src/index.js --analyze --provider grok --telegram --discord",
+    "analyze:all:all-channels":          "node src/index.js --analyze --provider all --telegram --discord",
+
+    "send:prompt":                       "node src/index.js --send-prompt",
+    "send:prompt:analyze":               "node src/index.js --send-prompt --analyze --provider all --telegram --discord",
+
+    "schedule":                          "node src/scheduler.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@google/genai": "^1.0.0",
+    "axios": "^1.6.0",
+    "chalk": "^5.3.0",
+    "dotenv": "^16.3.1",
+    "node-cron": "^3.0.3",
+    "openai": "^4.100.0",
+    "xml2js": "^0.6.2"
+  }
+}

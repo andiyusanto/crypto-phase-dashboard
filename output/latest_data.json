@@ -1,0 +1,207 @@
+{
+  "daily": {
+    "timestamp": "2026-03-27T09:10:09.377Z",
+    "date": "Jumat, 27 Maret 2026",
+    "crypto": {
+      "btc": {
+        "price": 67705,
+        "change24h": -3.32
+      },
+      "eth": {
+        "price": 2044,
+        "change24h": -3.54
+      },
+      "sol": {
+        "price": 84.81,
+        "change24h": -4.47
+      },
+      "btcDominance": 56.22,
+      "ethBtcRatio": 0.030184,
+      "solBtcRatio": 0.001253,
+      "stablecoinSupply": {
+        "usdt": 184.1,
+        "usdc": 77.95,
+        "total": 262.05
+      }
+    },
+    "fearGreed": {
+      "value": 13,
+      "label": "Extreme Fear",
+      "change": 3
+    },
+    "funding": {
+      "btc": 0.0034,
+      "eth": 0.0051,
+      "btcRaw1h": 0.0000042505,
+      "ethRaw1h": 0.0000064016,
+      "source": "Hyperliquid",
+      "note": "8h equivalent dari 1h rate Hyperliquid",
+      "btcSentiment": "neutral",
+      "ethSentiment": "neutral"
+    },
+    "dxy": {
+      "value": 25.74,
+      "change": 0.04,
+      "direction": "flat",
+      "symbol": "USDX"
+    },
+    "gold": {
+      "price": 4426,
+      "change24h": 1.44,
+      "direction": "naik",
+      "symbol": "XAU/USD"
+    },
+    "brentOil": {
+      "price": 109.83,
+      "weekChange": null,
+      "direction": "flat",
+      "updatedAt": "2026-03-27T09:09:11.461Z",
+      "source": "OilPriceAPI (BRENT_CRUDE_USD)"
+    }
+  },
+  "weekly": {
+    "timestamp": "2026-03-27T09:10:12.395Z",
+    "yield10y": {
+      "value": 4.33,
+      "date": "2026-03-25",
+      "direction": "naik",
+      "weekChange": 0.07
+    },
+    "nfci": {
+      "value": -0.475,
+      "date": "2026-03-20",
+      "prevWeek": -0.488,
+      "change": 0.0129,
+      "condition": "loose",
+      "trend": "memperketat"
+    },
+    "tvl": {
+      "tvl": 94.18,
+      "tvlPrevWeek": 94.55,
+      "changePercent": -0.39,
+      "date": "2026-03-27",
+      "direction": "flat"
+    },
+    "altseason": {
+      "skipped": false,
+      "note": "Tidak ada API resmi. Cek manual di blockchaincenter.net/altcoin-season-index",
+      "proxy": "Lihat btcDominance: <50% = altseason territory, <45% = strong altseason"
+    },
+    "ratioTrend": {
+      "ethBtc": {
+        "ratio": 0.030184,
+        "weekChange": -0.81,
+        "direction": "flat"
+      },
+      "solBtc": {
+        "ratio": 0.001253,
+        "weekChange": -1.7,
+        "direction": "flat"
+      }
+    },
+    "oil": {
+      "price": 109.83,
+      "weekChange": null,
+      "direction": "flat",
+      "source": "OilPriceAPI"
+    },
+    "msciEm": {
+      "value": 55.47,
+      "weekChange": -3.73,
+      "direction": "turun",
+      "note": "EEM ETF sebagai proxy MSCI EM"
+    },
+    "othersDom": {
+      "othersDominance": 12.49,
+      "btcDominance": 56.22,
+      "ethDominance": 10.24,
+      "note": "Dihitung dari 100% - top 10 coin dominance via CoinGecko"
+    },
+    "total2": null,
+    "total3": null,
+    "exchangeNetflow": null
+  },
+  "monthly": {
+    "timestamp": "2026-03-27T09:10:13.868Z",
+    "cpi": {
+      "index": 327.46,
+      "yoy": 2.66,
+      "mom": 0.27,
+      "date": "2026-02-01",
+      "trend": "turun"
+    },
+    "fedRate": {
+      "rate": 3.64,
+      "date": "2026-02-01",
+      "change": 0,
+      "decision": "hold",
+      "label": "3.64% (0.00% dari bulan lalu)"
+    },
+    "pmi": {
+      "value": 12573,
+      "date": "2026-02-01",
+      "prevMonth": 12585,
+      "change": -12,
+      "seriesId": "MANEMP",
+      "seriesLabel": "Manufacturing Employment (proxy PMI)",
+      "condition": "lihat_tren",
+      "trend": "memburuk"
+    },
+    "m2": {
+      "us": 22.67,
+      "cn": 28108869508.36,
+      "jp": 6015837624.01,
+      "ez": 18498319.81,
+      "globalTrillions": 34143205474.85,
+      "globalYoY": 7.47,
+      "usYoY": 4.88,
+      "cnYoY": 8.21,
+      "jpYoY": 4.17,
+      "ezYoY": -0.78,
+      "date": "2026-02-01",
+      "fxRates": {
+        "cnyPerUsd": 6.8857,
+        "jpyPerUsd": 159.26,
+        "usdPerEur": 1.1543
+      },
+      "note": "US+CN+JP+EZ (Eurozone pakai M3). Semua dikonversi ke USD.",
+      "trend": "ekspansif_kuat"
+    }
+  },
+  "fed": {
+    "walcl": {
+      "totalTrillions": 6.657,
+      "weekChangeBillions": 1.2,
+      "date": "2026-03-25",
+      "units": "Millions of U.S. Dollars",
+      "direction": "flat",
+      "signal": "⚠️"
+    },
+    "rrp": {
+      "balanceBillions": 0.9,
+      "dayChangeBillions": 0.1,
+      "weekChangeBillions": 0.2,
+      "date": "2026-03-26",
+      "trend": "flat",
+      "signal": "⚠️"
+    },
+    "reserves": {
+      "totalTrillions": 0.334,
+      "weekChangeBillions": 2.8,
+      "date": "2026-03-25",
+      "units": "Millions of U.S. Dollars",
+      "direction": "flat",
+      "signal": "⚠️"
+    },
+    "trifectaScore": "0/3",
+    "greenCount": 0,
+    "overallStatus": "MIXED"
+  },
+  "war": {
+    "timteng": "Iran’s War With Israel and the United States | Global Conflict Tracker - Council on Foreign Relations [+2: Tehran Dismisses U.S. Cease-Fire Conditions as Israel Steps Up Attacks - The New York Times | The Wa...]",
+    "rusiaUkraine": "Iran war deflects attention from Ukraine as an emboldened Russia starts spring offensive - PBS [+2: Ukrainian Strikes Cause 'Most Serious Threat' To Russian Oil Exports Since War Began - Radio Free Eu...]",
+    "taiwan": "China stations jets-turned-drones at bases near Taiwan Strait, report says - Reuters [+2: China Deploys Jet-Converted Drones Near Taiwan Strait - Politics Today | China deploys converted fig...]",
+    "fetchedAt": "2026-03-27T09:10:14.874Z",
+    "source": "Google News RSS (Reuters/AP/BBC via GNews)"
+  }
+}

@@ -1,0 +1,82 @@
+════════════════════════════════════════════════════════════
+  ANALISIS GEMINI — 27/3/2026, 16.10.50
+════════════════════════════════════════════════════════════
+**1. FED LIQUIDITY STATUS**
+MIXED — Balance sheet relatif flat (+1.2B), RRP stagnan di level rendah ($0.9B), dan cadangan naik tipis (+2.8B). Tidak ada sinyal ekspansi maupun kontraksi signifikan dari Fed liquidity secara langsung. Fed trifecta 0/3 hijau menegaskan kondisi mixed.
+
+**2. FASE SAAT INI**
+**Fase: 0 (Kontraksi)**
+**Confidence: Tinggi**
+**Signal Penentu Utama:**
+1.  **US 10Y Yield naik ke 4.33%** bersamaan dengan **Gold ($4426) dan Oil ($109.83) yang tinggi**, menunjukkan tekanan inflasi dan sentimen risk-off makro.
+2.  **BTC turun ke $67705 (-3.32%)** dan **Fear & Greed Index di 13 (Extreme Fear)**, mengindikasikan tekanan jual dan sentimen pasar yang sangat negatif.
+3.  **ISM PMI memburuk** dan **MSCI EM turun**, menunjukkan pelemahan ekonomi global yang menambah headwinds.
+**Fase berubah dari kemarin? Ya.**
+**Alasan:** Fase estimasi Anda 2 (Early Expansion) tidak didukung oleh data terkini. Mayoritas indikator makro (Yields, Gold, Oil, PMI) dan pasar kripto (BTC price action, Extreme Fear, Alts underperforming) secara tegas menunjukkan kondisi kontraksi dan risk-off yang dominan. Geopolitical risk juga aktif menekan sentimen.
+
+**3. SIGNAL SCORECARD**
+
+**Layer 0 — Fed liquidity:**
+| Indikator | Value | Status | Arah |
+| :---------------- | :--------- | :----- | :------------ |
+| WALCL | $6.657T | ⚠️ | Flat |
+| RRP | $0.9B | ⚠️ | Flat |
+| Reserves | $0.334T | ⚠️ | Naik (marginal) |
+| Global M2 YoY | 7.47% | ✅ | Naik |
+
+**Layer 1 — Macro:**
+| Indikator | Value | Status | Arah |
+| :---------------- | :--------- | :----- | :------------ |
+| FCI (NFCI) | -0.475 | ✅ | Mengencang sedikit |
+| US 10Y Yield | 4.33% | 🔴 | Naik |
+| DXY | 25.74 | ⚠️ | Flat |
+| Gold (XAUUSD) | $4426 | 🔴 | Naik |
+| Oil Brent | $109.83 | 🔴 | Flat (tinggi) |
+| CPI YoY | 2.66% | 🔴 | Tinggi (inflasi) |
+| ISM PMI | 12573 | 🔴 | Memburuk |
+| Fed Rate | 3.64% | 🔴 | Flat (tinggi) |
+| MSCI EM | 55.47 | 🔴 | Turun |
+
+**Layer 2 — Market structure:**
+| Indikator | Value | Status | Arah |
+| :---------------- | :--------- | :----- | :------------ |
+| BTC Dominance | 56.22% | 🔴 | Naik (jika BTC turun, alt lebih parah) |
+| ETH/BTC ratio | 0.030184 | 🔴 | Turun (implied) |
+| SOL/BTC ratio | 0.001253 | ⚠️ | Flat |
+| TVL DeFi | $94.18B | 🔴 | Turun |
+
+**Layer 3 — On-chain & crypto:**
+| Indikator | Value | Status | Arah |
+| :---------------- | :--------- | :----- | :------------ |
+| BTC price | $67705 | 🔴 | Turun |
+| Fear & Greed | 13 | 🔴 | Extreme Fear |
+| Funding rate BTC | 0.0034% | ⚠️ | Flat (tidak overheated) |
+| Funding rate ETH | 0.0051% | ⚠️ | Flat (tidak overheated) |
+| Stablecoin supply | $262.05B | ⚠️ | Flat (tidak ada perubahan) |
+| Altseason Index | (manual) | 🔴 | (implied rendah) |
+| OTHERS.D | 12.49% | 🔴 | Turun (implied) |
+
+**4. KONFLIK SIGNAL**
+**Konflik:**
+*   **Global M2 YoY (✅)** menunjukkan pertumbuhan likuiditas global, tetapi **US 10Y Yield (🔴), Gold (🔴), Oil (🔴), dan PMI (🔴)** secara lokal menunjukkan kondisi makro yang mengetat/risk-off.
+*   **FCI (✅, loose)** tetapi **US 10Y Yield (🔴, naik)** menunjukkan pengetatan.
+**Mana yang lebih dipercaya dan mengapa:**
+Signal makro yang lebih dekat ke price action (US 10Y Yield, Gold, Oil, PMI) dan sentimen pasar (BTC price, Fear & Greed) lebih dipercaya dalam menentukan arah jangka pendek. Meskipun Global M2 menunjukkan ekspansi likuiditas secara umum, tekanan inflasi, kenaikan yield, dan risiko geopolitik saat ini mendominasi dan menciptakan kondisi kontraksi untuk aset berisiko. FCI yang "loose" juga diimbangi oleh kenaikan yield yang secara fundamental mengetatkan kondisi finansial.
+
+**5. WAR PREMIUM STATUS**
+*   **Timteng:** Tinggi. Eskalasi "Iran’s War With Israel and the United States" menyebabkan risk premium signifikan. Mendorong **Oil ($109.83)** dan **Gold ($4426)** lebih tinggi.
+*   **Rusia-Ukraine:** Rusia memulai ofensif musim semi, Ukraina menyerang ekspor minyak. Konflik intens.
+*   **Taiwan:** China mengerahkan jet-turned-drones di dekat Selat Taiwan. Situasi tegang.
+*   **Oil sebagai real-time proxy:** $109.83, **di atas threshold alert $100**.
+*   **War override aktif?: Ya.**
+    *   **Action spesifik:** Geopolitical risk premium aktif meningkatkan inflasi (lewat Oil) dan mendorong sentimen risk-off (lewat Gold), secara langsung berkontribusi pada kondisi makro bearish saat ini. Ini memperkuat kebutuhan untuk posisi defensif dan hedging.
+
+**6. ACTION HARI INI**
+1.  **HOLD** — BTC / ETH — Pasar dalam fase kontraksi dengan sentimen negatif ekstrem dan tekanan makro kuat. Hindari penambahan posisi.
+2.  **HEDGE** — Short crypto perp / Gold — Lindungi portfolio dari downside lebih lanjut. Risiko geopolitik tinggi, inflasi menekan, dan aset berisiko sedang tertekan.
+3.  **WAIT** — Alts — Alts akan underperform secara signifikan di kondisi ini. Tunggu hingga BTC stabil dan rasio ETH/BTC menunjukkan tanda-tanda reversal.
+
+**7. YANG DIPANTAU BESOK / MINGGU INI**
+*   **1 data kritis:** Update Fed Balance Sheet / RRP / Reserves (FRED) pada hari Kamis.
+*   **1 level price atau teknikal:** Support BTC di **$65,000**. Break di bawah level ini akan mengindikasikan penurunan lebih lanjut ke $60,000.
+*   **1 war signal:** Eskalasi konflik Timteng dan dampaknya pada harga Oil (Brent).
