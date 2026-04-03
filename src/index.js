@@ -115,7 +115,7 @@ const PROVIDERS = {
   perplexity: { label: 'Perplexity Sonar',  emoji: '🔍', color: chalk.cyan,    envKey: 'PERPLEXITY_API_KEY', cfgKey: 'perplexityApiKey' },
   grok:       { label: 'Grok (xAI)',        emoji: '⚡', color: chalk.white,   envKey: 'XAI_API_KEY',        cfgKey: 'xaiApiKey'        },
 };
-const ALL_PROVIDERS = ['claude', 'chatgpt', 'gemini', 'perplexity', 'grok'];
+const ALL_PROVIDERS = ['claude', 'gemini']; //['claude', 'chatgpt', 'gemini', 'perplexity', 'grok'];
 
 const hasApiKey = p => {
   const v = config[PROVIDERS[p]?.cfgKey];
