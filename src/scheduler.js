@@ -126,21 +126,21 @@ printBanner();
 // ── 06:00 WIB — TOKYO OPEN (08:00 JST) ──────────────────────────────────────
 cron.schedule('0 6 * * *', () => {
   run('Gemini Full (Mode All) + Prompt + TG + DC — Tokyo Open 🇯🇵', [
-    '--mode=all', '--analyze', '--provider', 'gemini', '--send-prompt', '--telegram', '--discord',
+    '--mode=all', '--analyze', '--provider', 'all', '--send-prompt', '--telegram', '--discord',
   ]);
 }, { timezone: 'Asia/Jakarta' });
 
 // ── 15:00 WIB — LONDON OPEN (08:00 GMT) ─────────────────────────────────────
 cron.schedule('0 15 * * *', () => {
   run('Gemini Full (Mode All) + Prompt + TG + DC — London Open 🇬🇧', [
-    '--mode=all', '--analyze', '--provider', 'gemini', '--send-prompt', '--telegram', '--discord',
+    '--mode=all', '--analyze', '--provider', 'all', '--send-prompt', '--telegram', '--discord',
   ]);
 }, { timezone: 'Asia/Jakarta' });
 
 // ── 19:00 WIB — NEW YORK OPEN (08:00 EDT) ───────────────────────────────────
 cron.schedule('0 19 * * *', () => {
   run('Gemini Full (Mode All) + Prompt + TG + DC — NY Open 🇺🇸', [
-    '--mode=all', '--analyze', '--provider', 'gemini', '--send-prompt', '--telegram', '--discord',
+    '--mode=all', '--analyze', '--provider', 'all', '--send-prompt', '--telegram', '--discord',
   ]);
 }, { timezone: 'Asia/Jakarta' });
 
