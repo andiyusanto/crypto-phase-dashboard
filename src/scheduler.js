@@ -71,7 +71,7 @@ function printBanner() {
   console.log(chalk.gray('  07:10 WIB  Monthly fetch        (tanggal 1 saja)'));
   console.log(chalk.gray('  08:00 WIB  Fed Liquidity fetch  (Kamis & Jumat saja)'));
   console.log();
-  console.log(chalk.bold('  🤖 ANALISIS GEMINI FULL (MODE ALL) + PROMPT + TG + DC:'));
+  console.log(chalk.bold('  🤖 ANALISIS GEMINI | CLAUDE FULL (MODE ALL) + PROMPT + TG + DC:'));
   console.log(
     chalk.blue('  06:00 WIB') + chalk.gray('  Tokyo Open   ') +
     chalk.white('08:00 JST') + chalk.gray(' | 01:00 UTC')
