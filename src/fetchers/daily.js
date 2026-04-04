@@ -410,41 +410,17 @@ export async function fetchGold(apiKey) {
   return null;
 }
 
-// ── 6. BTC Dominance (Proxy via Binance BTCUSDT lastPrice) ────────────────────
-export async function fetchBTCDominance() {
-  try {
-    const res = await axios.get('https://data-api.binance.vision/api/v3/ticker/24hr?symbol=BTCUSDT', {
-      timeout: 8000,
-    });
-
-    const lastPrice = parseFloat(res.data.lastPrice);
-    
-    // As BTCUSDT lastPrice is not BTC Dominance, we'll return it as a proxy.
-    // The user will need to clarify if a different calculation is needed for actual dominance.
-    console.log(`  ✓ BTC Dominance (proxy) via Binance | BTCUSDT Last Price: ${lastPrice}`);
-    return {
-      value: lastPrice,
-      source: 'Binance (BTCUSDT Last Price Proxy)',
-      note: 'This is BTCUSDT last price, used as a proxy for BTC Dominance. Actual dominance requires market cap data.'
-    };
-  } catch (err) {
-    console.error(`❌ Binance BTCUSDT fetch error: ${err.message}`);
-    return null;
-  }
-}
-
 // ── AGGREGATE: SEMUA DAILY DATA ───────────────────────────────────────────────
 export async function fetchAllDailyData(config = {}) {
   console.log('📊 Fetching daily data...');
   _hlCache = null; // reset cache tiap fetch
 
-  const [crypto, fearGreed, funding, dxy, gold, binanceBtcDominance] = await Promise.allSettled([
+  const [crypto, fearGreed, funding, dxy, gold] = await Promise.allSettled([
     fetchCryptoData(),
     fetchFearGreed(),
     fetchFundingRates(),
     fetchDXY({ twelveData: config.twelveDataKey, alphaVantage: config.alphaVantageApiKey }),
     fetchGold(config.twelveDataKey),
-    fetchBTCDominance(), // New Binance BTCUSDT lastPrice fetcher
   ]);
 
   // Brent Oil via OilPriceAPI
@@ -455,23 +431,12 @@ export async function fetchAllDailyData(config = {}) {
     console.warn('⚠️  Brent Oil fetch error:', e.message);
   }
 
-  // Use Binance BTCUSDT lastPrice as BTC Dominance if available and not skipped
-  const finalBtcDominance = binanceBtcDominance.status === 'fulfilled' && !binanceBtcDominance.value?.skipped
-    ? binanceBtcDominance.value.value // assuming .value is the actual price/dominance
-    : (crypto.value?.btcDominance || null);
-
   return {
     timestamp: new Date().toISOString(),
     date: new Date().toLocaleDateString('id-ID', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     }),
-    crypto: {
-      ...crypto.value,
-      btcDominance: finalBtcDominance,
-      btcDominanceSource: binanceBtcDominance.status === 'fulfilled' && !binanceBtcDominance.value?.skipped
-        ? binanceBtcDominance.value.source
-        : (crypto.value?.btcDominanceSource || 'CoinGecko'),
-    },
+    crypto: crypto.value,
     fearGreed: fearGreed.value,
     funding: funding.value,
     dxy: dxy.value,

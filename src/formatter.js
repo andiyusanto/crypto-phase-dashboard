@@ -82,9 +82,10 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
   const msciDir    = v(weekly?.msciEm?.direction);
   const othersDom  = manualOverrides.othersDManual
                   ?? v(weekly?.othersDom?.othersDominance);
-  const btcDomDir  = weekly?.ratioTrend?.ethBtc
-    ? (weekly.ratioTrend.ethBtc.weekChange < -2 ? 'naik' : weekly.ratioTrend.ethBtc.weekChange > 2 ? 'turun' : 'flat')
-    : '___';
+  const btcDomDir  = manualOverrides.btcDominanceDirection
+    ?? (weekly?.ratioTrend?.ethBtc
+      ? (weekly.ratioTrend.ethBtc.weekChange < -2 ? 'naik' : weekly.ratioTrend.ethBtc.weekChange > 2 ? 'turun' : 'flat')
+      : '___');
 
   const altseasonIdx   = manualOverrides.altseasonIndex   ?? '[isi manual: blockchaincenter.net]';
   const exchangeNetflow = manualOverrides.exchangeNetflow ?? '[isi manual: CryptoQuant]';
