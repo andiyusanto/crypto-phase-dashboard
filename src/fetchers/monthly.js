@@ -107,11 +107,12 @@ export async function fetchISMPMI(fredApiKey) {
     return { skipped: true, reason: 'FRED_API_KEY tidak diset' };
   }
 
-  // Coba beberapa series ID — NAPM discontinued, pakai alternatif yang aktif
+  // Coba beberapa series ID — MANPMI adalah ISM Manufacturing PMI yang valid di FRED
   const seriesOptions = [
-    { id: 'MANEMP', label: 'Manufacturing Employment (proxy PMI)' },
-    { id: 'AMTMNO',  label: 'Manufacturers New Orders' },
+    { id: 'MANPMI',  label: 'ISM Manufacturing PMI' },
     { id: 'NAPM',    label: 'ISM PMI (legacy)' },
+    { id: 'ISM_MAN_PMI', label: 'ISM Manufacturing PMI (alternative)' },
+    { id: 'AMTMNO',  label: 'Manufacturers New Orders' },
   ];
 
   for (const series of seriesOptions) {
@@ -138,6 +139,9 @@ export async function fetchISMPMI(fredApiKey) {
 
       console.log(`  ✓ PMI menggunakan series: ${series.id} (${series.label})`);
 
+      // PMI >50 adalah ekspansi; <50 adalah kontraksi
+      const isPMISeries = ['NAPM', 'MANPMI', 'ISM_MAN_PMI'].includes(series.id);
+      
       return {
         value: parseFloat(latest.toFixed(1)),
         date: obs[0].date,
@@ -145,8 +149,7 @@ export async function fetchISMPMI(fredApiKey) {
         change: parseFloat(change.toFixed(1)),
         seriesId: series.id,
         seriesLabel: series.label,
-        // PMI >50 hanya berlaku untuk NAPM; untuk series lain gunakan sebagai indikator arah
-        condition: series.id === 'NAPM' ? (latest > 50 ? 'ekspansi' : 'kontraksi') : 'lihat_tren',
+        condition: isPMISeries ? (latest > 50 ? 'ekspansi' : 'kontraksi') : 'lihat_tren',
         trend: change > 0 ? 'membaik' : change < 0 ? 'memburuk' : 'stabil',
       };
     } catch (err) {

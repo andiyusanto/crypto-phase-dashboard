@@ -256,14 +256,17 @@ export async function fetchBrentOilHyperliquid(apiKey) {
 }
 
 // ── 4. DXY (DOLLAR INDEX) — via Twelve Data ───────────────────────────────────
-// Symbol yang valid di Twelve Data: "DX-Y.NYB" (ICE Dollar Index futures)
-export async function fetchDXY(apiKey) {
-  if (!apiKey || apiKey === 'your_twelve_data_key_here') {
+// Symbol yang valid di Twelve Data: "DX-Y.NYB" atau "DXY"
+export async function fetchDXY(keys = {}) {
+  const twelveDataKey = typeof keys === 'string' ? keys : keys.twelveData;
+  const alphaVantageKey = keys.alphaVantage;
+
+  if (!twelveDataKey || twelveDataKey === 'your_twelve_data_key_here') {
     return { skipped: true, reason: 'TWELVE_DATA_API_KEY tidak diset' };
   }
 
-  // Coba beberapa symbol yang mungkin valid
-  const symbols = ['DX-Y.NYB', 'USDX', 'DXY:CUR'];
+  // Coba beberapa symbol yang mungkin valid — prioritizing DX-Y.NYB (standard) dan DXY
+  const symbols = ['DX-Y.NYB', 'DXY', 'USDX', 'DXY:CUR'];
 
   for (const symbol of symbols) {
     try {
@@ -272,7 +275,7 @@ export async function fetchDXY(apiKey) {
           symbol,
           interval: '1day',
           outputsize: 2,
-          apikey: apiKey,
+          apikey: twelveDataKey,
         },
         timeout: 8000,
       });
@@ -285,6 +288,14 @@ export async function fetchDXY(apiKey) {
 
       const today = parseFloat(values[0].close);
       const yesterday = parseFloat(values[1].close);
+      
+      // Validasi range: DXY seharusnya 80-120 range (historis). 
+      // Jika angka terlalu jauh (seperti 25.67), kemungkinan ticker salah.
+      if (today < 70 || today > 130) {
+        console.warn(`⚠️  DXY: Symbol "${symbol}" mengembalikan nilai anomali: ${today}. Mencoba symbol lain...`);
+        continue;
+      }
+
       const change = today - yesterday;
 
       return {
@@ -299,7 +310,7 @@ export async function fetchDXY(apiKey) {
   }
 
   // Fallback: ambil dari Alpha Vantage jika Twelve Data gagal semua
-  return fetchDXYAlphaVantage(apiKey.alphaVantage);
+  return fetchDXYAlphaVantage(alphaVantageKey);
 }
 
 async function fetchDXYAlphaVantage(apiKey) {
@@ -389,7 +400,7 @@ export async function fetchAllDailyData(config = {}) {
     fetchCryptoData(),
     fetchFearGreed(),
     fetchFundingRates(),
-    fetchDXY(config.twelveDataKey),
+    fetchDXY({ twelveData: config.twelveDataKey, alphaVantage: config.alphaVantageApiKey }),
     fetchGold(config.twelveDataKey),
   ]);
 
