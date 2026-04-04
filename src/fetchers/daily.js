@@ -315,27 +315,46 @@ export async function fetchDXY(keys = {}) {
 
 async function fetchDXYAlphaVantage(apiKey) {
   if (!apiKey || apiKey === 'your_alpha_vantage_key_here') {
-    console.warn('⚠️  DXY: semua sumber gagal, isi manual');
-    return { skipped: true, reason: 'Twelve Data dan Alpha Vantage gagal untuk DXY' };
+    return { skipped: true, reason: 'Alpha Vantage API Key tidak diset untuk DXY fallback' };
   }
   try {
     const res = await axios.get('https://www.alphavantage.co/query', {
       params: {
         function: 'FX_DAILY',
-        from_symbol: 'USD',
-        to_symbol: 'DXY',
+        from_symbol: 'EUR', // EUR/USD is inversely correlated with DXY
+        to_symbol: 'USD',
         apikey: apiKey,
         outputsize: 'compact',
       },
       timeout: 10000,
     });
     const series = res.data['Time Series FX (Daily)'];
-    if (!series) throw new Error('Tidak ada data');
+    if (!series) {
+      console.warn('⚠️  DXY Alpha Vantage: Tidak ada data EUR/USD yang ditemukan.');
+      return null;
+    }
     const dates = Object.keys(series).sort().reverse();
-    const today = parseFloat(series[dates[0]]['4. close']);
-    const yesterday = parseFloat(series[dates[1]]['4. close']);
+    if (dates.length < 2) {
+      console.warn('⚠️  DXY Alpha Vantage: Data EUR/USD tidak cukup (kurang dari 2 hari).');
+      return null;
+    }
+
+    const todayEurUsd = parseFloat(series[dates[0]]['4. close']);
+    const yesterdayEurUsd = parseFloat(series[dates[1]]['4. close']);
+    
+    // DXY is inversely correlated with EUR/USD. A simple way to proxy DXY is 1 / EURUSD * 100
+    // This is a simplification and not an exact DXY calculation, but provides an inverse proxy.
+    const today = parseFloat((1 / todayEurUsd * 100).toFixed(2));
+    const yesterday = parseFloat((1 / yesterdayEurUsd * 100).toFixed(2));
     const change = today - yesterday;
-    return { value: parseFloat(today.toFixed(2)), change: parseFloat(change.toFixed(2)), direction: getDirection(change), source: 'AlphaVantage' };
+
+    // Validate range: DXY proxy should be within a reasonable range (e.g., 70-130)
+    if (today < 70 || today > 130) {
+      console.warn(`⚠️  DXY Alpha Vantage proxy (EUR/USD) mengembalikan nilai anomali: ${today}.`);
+      return null;
+    }
+
+    return { value: today, change: parseFloat(change.toFixed(2)), direction: getDirection(change), source: 'AlphaVantage (EUR/USD proxy)' };
   } catch (err) {
     console.error('❌ DXY Alpha Vantage error:', err.message);
     return null;
