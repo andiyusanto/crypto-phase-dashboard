@@ -77,6 +77,7 @@ const config = {
   twelveDataKey:     process.env.TWELVE_DATA_API_KEY,
   alphaVantageApiKey: process.env.ALPHA_VANTAGE_API_KEY,
   oilPriceApiKey:    process.env.OIL_PRICE_API_KEY,
+  coinMarketCapApiKey: process.env.COINMARKETCAP_API_KEY,
 
   anthropicApiKey:   process.env.ANTHROPIC_API_KEY,
   openaiApiKey:      process.env.OPENAI_API_KEY,
