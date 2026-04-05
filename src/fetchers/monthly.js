@@ -140,7 +140,7 @@ export async function fetchISMPMI(fredApiKey) {
       console.log(`  ✓ PMI menggunakan series: ${series.id} (${series.label})`);
 
       // PMI >50 adalah ekspansi; <50 adalah kontraksi
-      const isPMISeries = ['NAPM', 'MANPMI', 'ISM_MAN_PMI'].includes(series.id);
+      const isPMISeries = ['MANPMI', 'NAPM','ISM_MAN_PMI'].includes(series.id);
       
       return {
         value: parseFloat(latest.toFixed(1)),
