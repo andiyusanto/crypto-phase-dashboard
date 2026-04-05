@@ -208,14 +208,14 @@ async function main() {
     console.log(weekly);
     console.log(monthly);
     console.log(fed);
-    // // ── 2. GENERATE PROMPT ───────────────────────────────────────────────
+    // ── 2. GENERATE PROMPT ───────────────────────────────────────────────
     console.log(chalk.yellow(formatDataSummary(daily, weekly, monthly, fed)));
-    // const prompt = formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrides, war);
+    const prompt = formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrides, war);
 
-    // // ── 3. SAVE FILES ────────────────────────────────────────────────────
-    // const ts        = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    // const outputDir = join(ROOT, 'output');
-    // mkdirSync(outputDir, { recursive: true });
+    // ── 3. SAVE FILES ────────────────────────────────────────────────────
+    const ts        = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const outputDir = join(ROOT, 'output');
+    mkdirSync(outputDir, { recursive: true });
 
     // if (saveFile) {
     //   writeFileSync(join(outputDir, 'latest_prompt.txt'), prompt, 'utf-8');
