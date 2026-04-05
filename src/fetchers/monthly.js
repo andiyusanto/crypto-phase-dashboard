@@ -131,8 +131,8 @@ export async function fetchISMPMI(fredApiKey) {
       return null;
     }
 
-    const latest = parseFloat(obs[0].value);
-    const prev   = obs.length > 1 ? parseFloat(obs[1].value) : latest;
+    const latest = parseFloat(v(obs[0]?.value));
+    const prev   = parseFloat(v(obs[1]?.value, obs[0]?.value));
     const change = latest - prev;
 
     console.log(`  ✓ PMI menggunakan series: ${seriesId} (${seriesLabel})`);
