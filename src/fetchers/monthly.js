@@ -99,69 +99,6 @@ export async function fetchFedRate(fredApiKey) {
   }
 }
 
-// ── 3. ISM PMI (FRED API) ────────────────────────────────────────────────────
-// NAPM series sudah discontinued di FRED sejak 2023
-// Gunakan ISM_MAN_PMI atau AMTMNO sebagai alternatif
-export async function fetchISMPMI(fredApiKey) {
-  if (!fredApiKey || fredApiKey === 'your_fred_api_key_here') {
-    return { skipped: true, reason: 'FRED_API_KEY tidak diset' };
-  }
-
-  // Coba beberapa series ID — MANPMI adalah ISM Manufacturing PMI yang valid di FRED
-  const seriesOptions = [
-    { id: 'MANPMI',  label: 'ISM Manufacturing PMI' },
-    { id: 'NAPM',    label: 'ISM PMI (legacy)' },
-    { id: 'ISM_MAN_PMI', label: 'ISM Manufacturing PMI (alternative)' },
-    { id: 'AMTMNO',  label: 'Manufacturers New Orders' },
-  ];
-
-  for (const series of seriesOptions) {
-    try {
-      const res = await axios.get('https://api.stlouisfed.org/fred/series/observations', {
-        params: {
-          series_id: series.id,
-          api_key: fredApiKey,
-          file_type: 'json',
-          sort_order: 'desc',
-          limit: 3,
-        },
-        timeout: 10000,
-      });
-
-      if (!res.data || !res.data.observations) continue;
-
-      const obs = res.data.observations.filter(o => o.value !== '.' && o.value !== null);
-      if (obs.length < 1) continue;
-
-      const latest = parseFloat(obs[0].value);
-      const prev   = obs.length > 1 ? parseFloat(obs[1].value) : latest;
-      const change = latest - prev;
-
-      console.log(`  ✓ PMI menggunakan series: ${series.id} (${series.label})`);
-
-      // PMI >50 adalah ekspansi; <50 adalah kontraksi
-      const isPMISeries = ['MANPMI', 'NAPM','ISM_MAN_PMI'].includes(series.id);
-      
-      return {
-        value: parseFloat(latest.toFixed(1)),
-        date: obs[0].date,
-        prevMonth: parseFloat(prev.toFixed(1)),
-        change: parseFloat(change.toFixed(1)),
-        seriesId: series.id,
-        seriesLabel: series.label,
-        condition: isPMISeries ? (latest > 50 ? 'ekspansi' : 'kontraksi') : 'lihat_tren',
-        trend: change > 0 ? 'membaik' : change < 0 ? 'memburuk' : 'stabil',
-      };
-    } catch (err) {
-      console.warn(`  ⚠️  Series ${series.id} gagal: ${err.message}`);
-      continue;
-    }
-  }
-
-  console.error('❌ FRED PMI: semua series gagal');
-  return null;
-}
-
 // ── 4. GLOBAL M2 — US + China + Japan + Eurozone (semua dari FRED) ───────────
 //
 // Series FRED yang dipakai:
@@ -303,17 +240,15 @@ export async function fetchAllMonthlyData(config = {}) {
   const results = await Promise.allSettled([
     fetchCPI(config.fredApiKey),
     fetchFedRate(config.fredApiKey),
-    fetchISMPMI(config.fredApiKey),
     fetchM2(config.fredApiKey),
   ]);
 
-  const [cpi, fedRate, pmi, m2] = results.map(r => r.status === 'fulfilled' ? r.value : null);
+  const [cpi, fedRate, m2] = results.map(r => r.status === 'fulfilled' ? r.value : null);
 
   return {
     timestamp: new Date().toISOString(),
     cpi,
     fedRate,
-    pmi,
     m2,
   };
 }

@@ -210,11 +210,9 @@ export function formatFetchSummaryForTelegram(daily, weekly, monthly, fed) {
   // Monthly
   if (monthly?.cpi && !monthly.cpi.skipped) {
     lines.push('', `📆 *MONTHLY*`);
-    lines.push(`CPI YoY: ${monthly.cpi.yoy}%`);
-    if (!monthly.pmi?.skipped)
-      lines.push(`PMI: ${monthly.pmi.value} (${monthly.pmi.condition})`);
+    lines.push(`CPI: ${monthly.cpi.yoy}% YoY`);
     if (!monthly.fedRate?.skipped)
-      lines.push(`Fed Rate: ${monthly.fedRate.label}`);
+      lines.push(`Fed: ${monthly.fedRate.label}`);
     if (monthly.m2?.globalTrillions)
       lines.push(`Global M2: $${monthly.m2.globalTrillions}T | YoY: ${monthly.m2.globalYoY}%`);
   }
