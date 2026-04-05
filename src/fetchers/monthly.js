@@ -126,13 +126,15 @@ export async function fetchISMPMI(fredApiKey) {
     }
 
     const obs = res.data.observations.filter(o => o.value !== '.' && o.value !== null);
+    console.log("obs = ");
+    console.log(obs);
     if (obs.length < 1) {
       console.warn(`  ⚠️  Series ${seriesId} gagal: no observations`);
       return null;
     }
 
-    const latest = parseFloat(v(obs[0]?.value));
-    const prev   = parseFloat(v(obs[1]?.value, obs[0]?.value));
+    const latest = obs.length > 1 ? parseFloat(v(obs[0]?.value)) : 0 ;
+    const prev   = obs.length > 1 ? parseFloat(v(obs[1]?.value, obs[0]?.value)) :0 ;
     const change = latest - prev;
 
     console.log(`  ✓ PMI menggunakan series: ${seriesId} (${seriesLabel})`);
