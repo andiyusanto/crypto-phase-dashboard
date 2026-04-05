@@ -119,7 +119,8 @@ export async function fetchISMPMI(fredApiKey) {
       },
       timeout: 10000,
     });
-
+    console.log("res = ");
+    console.log(res);
     if (!res.data || !res.data.observations) {
       console.warn(`  ⚠️  Series ${seriesId} gagal: no data or invalid response`);
       return null;
