@@ -140,7 +140,7 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
 
   let monthlyBlock = '(kosong — isi manual awal bulan)';
   if (showMonthly) {
-    monthlyBlock = `- ISM PMI: ${pmiVal} (${pmi.seriesId} - ${pmi.seriesLabel})  | vs bulan lalu: ${pmiTrend}
+    monthlyBlock = `- ISM PMI: ${pmiVal} (${pmi.seriesId ? `ID: ${pmi.seriesId} | Label: ${pmi.seriesLabel}` : 'ID/Label not available'})  | vs bulan lalu: ${pmiTrend}
 - CPI YoY: ${cpiYoy}%
 ${m2Line}
 - Fed rate keputusan terakhir: ${fedRateLbl}`;
