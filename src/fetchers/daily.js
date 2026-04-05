@@ -412,6 +412,7 @@ export async function fetchGold(apiKey) {
 
 // ── 6. COINMARKETCAP GLOBAL METRICS ──────────────────────────────────────────
 export async function fetchCoinMarketCapGlobal(apiKey) {
+  // 1. Validasi API Key
   if (!apiKey || apiKey === 'your_coinmarketcap_api_key_here') {
     return { skipped: true, reason: 'COINMARKETCAP_API_KEY tidak diset' };
   }
@@ -428,50 +429,49 @@ export async function fetchCoinMarketCapGlobal(apiKey) {
     const data = res.data.data;
 
     if (!data) {
-      console.error('❌ CoinMarketCap: No data in response.');
+      console.error('❌ CoinMarketCap: Data tidak ditemukan dalam respons.');
       return null;
     }
 
-    // Log the full data object for debugging
+    // DEBUG: Melihat struktur data asli
     console.log('DEBUG: CoinMarketCap API Response Data:', JSON.stringify(data, null, 2));
 
-    // Access properties directly from data object as confirmed by debug log
-    const totalMarketCap = data.quote?.USD?.total_market_cap;
-    const btcDominance = data.btc_dominance ?? 0;
-    const ethDominance = data.eth_dominance ?? 0;
+    // 2. Ekstraksi Data (Menggunakan Fallback 0 agar tidak terjadi NaN)
+    const rawTotalMarketCap = data.quote?.USD?.total_market_cap;
+    const btcDom = data.btc_dominance ?? 0;
+    const ethDom = data.eth_dominance ?? 0;
 
-    if (totalMarketCap === undefined || btcDominance === undefined || ethDominance === undefined) {
-      console.error('❌ CoinMarketCap: Missing expected fields (total_market_cap, btc_dominance, or eth_dominance) in API response.');
+    // 3. Validasi Keberadaan Data Utama
+    // Perbaikan: Gunakan nama variabel yang sudah dideklarasikan di atas (rawTotalMarketCap)
+    if (rawTotalMarketCap === undefined || rawTotalMarketCap === null) {
+      console.error('❌ CoinMarketCap: Field total_market_cap hilang dari respons API.');
       return null;
     }
 
-    // TOTAL2 = total_market_cap * (1 - (btc_dominance / 100))
-    const total2 = totalMarketCap * (1 - (btc_dominance / 100));
+    // 4. Kalkulasi Indikator
+    // TOTAL2 = Market Cap selain BTC
+    const total2Raw = rawTotalMarketCap * (1 - (btcDom / 100));
     
-    // TOTAL3 = total_market_cap * (1 - ((btc_dominance + eth_dominance) / 100))
-    const total3 = totalMarketCap * (1 - ((btc_dominance + eth_dominance) / 100));
+    // TOTAL3 = Market Cap selain BTC & ETH
+    const total3Raw = rawTotalMarketCap * (1 - ((btcDom + ethDom) / 100));
 
-    // OTHERS.D = In the response, look for the altcoin_market_cap or subtract the dominance of the specific top assets listed.
-    // CMC provides altcoin_market_cap but it's often better to just use the dominance or calculation.
-    // However, the user specifically mentioned "OTHERS.D".
-    // CMC global metrics has 'altcoin_market_cap' and 'altcoin_dominance' (which is everything except BTC)
-    // But usually OTHERS.D in TradingView is TOTAL3 / TOTAL * 100 (or even smaller subset).
-    // Let's use the actual dominance of "Others" if available, or calculate it.
-    // CMC doesn't directly provide "OTHERS.D" (the index excluding top 10).
-    // For now, let's provide what we can calculate accurately.
-    const othersDominance = 100 - btcDominance - ethDominance; // Simplified OTHERS.D (everything except BTC & ETH)
+    // OTHERS.D = Dominasi selain BTC & ETH
+    const othersDom = 100 - btcDom - ethDom;
 
+    // 5. Return Data dengan Format yang Rapi
     return {
-      totalMarketCap: parseFloat((totalMarketCap / 1e12).toFixed(3)), // in Trillion USD
-      total2: parseFloat((total2 / 1e12).toFixed(3)), // in Trillion USD
-      total3: parseFloat((total3 / 1e9).toFixed(2)), // in Billion USD
-      btcDominance: parseFloat(btcDominance.toFixed(2)),
-      ethDominance: parseFloat(ethDominance.toFixed(2)),
-      othersDominance: parseFloat(othersDominance.toFixed(2)),
+      totalMarketCap: parseFloat((rawTotalMarketCap / 1e12).toFixed(3)), // Dalam Triliun USD
+      total2: parseFloat((total2Raw / 1e12).toFixed(3)),               // Dalam Triliun USD
+      total3: parseFloat((total3Raw / 1e9).toFixed(2)),                // Dalam Miliar USD
+      btcDominance: parseFloat(btcDom.toFixed(2)),
+      ethDominance: parseFloat(ethDom.toFixed(2)),
+      othersDominance: parseFloat(othersDom.toFixed(2)),
       source: 'CoinMarketCap',
     };
+
   } catch (err) {
-    console.error('❌ CoinMarketCap error:', err.message);
+    // Menangkap error network atau error kode di dalam blok try
+    console.error('❌ CoinMarketCap Error:', err.message);
     return null;
   }
 }
