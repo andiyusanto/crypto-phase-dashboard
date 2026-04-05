@@ -251,7 +251,16 @@ export async function fetchBrentOilHyperliquid(apiKey) {
     };
   } catch (err) {
     console.error(`❌ OilPriceAPI error: ${err.message}`);
-    return null;
+    let weekChange = null;
+    let direction = 'flat';
+    return {
+      price: "0",
+      weekChange,
+      direction,
+      updatedAt,
+      source: 'OilPriceAPI (BRENT_CRUDE_USD)',
+    };
+    // return null;
   }
 }
 
