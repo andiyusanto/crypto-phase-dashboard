@@ -122,6 +122,8 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
 
   // ── Monthly ───────────────────────────────────────────────────────────────
   const cpiYoy    = v(monthly?.cpi?.yoy);
+  const pmiVal    = v(monthly?.pmi?.value);
+  const pmiTrend  = v(monthly?.pmi?.trend);
   const fedRateLbl = v(monthly?.fedRate?.label);
 
   // Global M2 — tampilkan breakdown jika tersedia, fallback ke US M2 saja
@@ -138,7 +140,8 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
 
   let monthlyBlock = '(kosong — isi manual awal bulan)';
   if (showMonthly) {
-    monthlyBlock = `- CPI YoY: ${cpiYoy}%
+    monthlyBlock = `- ISM PMI: ${pmiVal} (${monthly.pmi?.seriesId ? `ID: ${monthly.pmi.seriesId} | Label: ${monthly.pmi.seriesLabel}` : 'ID/Label not available'})  | vs bulan lalu: ${pmiTrend}
+- CPI YoY: ${cpiYoy}%
 ${m2Line}
 - Fed rate keputusan terakhir: ${fedRateLbl}`;
   }
@@ -218,7 +221,7 @@ Format:
 [HOLD/ADD/TRIM/WAIT/HEDGE] — [aset] — [alasan] — [syarat tambahan jika ada]
 
 **7. YANG DIPANTAU BESOK / MINGGU INI**
-- 1 data kritis yang akan keluar (FOMC, CPI, FRED update)
+- 1 data kritis yang akan keluar (FOMC, PMI, CPI, FRED update)
 - 1 level price atau teknikal yang jadi penentu
 - 1 war signal yang perlu dimonitor
 
@@ -291,6 +294,7 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
     lines.push('');
     lines.push('MONTHLY:');
     lines.push(`  CPI    : ${monthly.cpi.yoy}% YoY`);
+    if (!monthly.pmi?.skipped)     lines.push(`  PMI    : ${monthly.pmi.value} (${monthly.pmi.condition})`);
     if (!monthly.fedRate?.skipped) lines.push(`  Fed    : ${monthly.fedRate.label}`);
     if (monthly.m2 && !monthly.m2.skipped) {
       if (monthly.m2.globalTrillions) {

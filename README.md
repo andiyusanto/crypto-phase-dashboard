@@ -80,7 +80,7 @@ Setup: Channel Settings → Integrations → Webhooks → **New Webhook** → Co
 
 | Variabel | Data | Harga |
 |----------|------|-------|
-| `FRED_API_KEY` | 10Y Yield, NFCI, CPI, Global M2, Fed Balance Sheet, RRP, Reserves | **Gratis** |
+| `FRED_API_KEY` | 10Y Yield, NFCI, CPI, PMI, Global M2, Fed Balance Sheet, RRP, Reserves | **Gratis** |
 | `TWELVE_DATA_API_KEY` | DXY, Gold, MSCI EM | **Gratis** (800 req/hari) |
 | `OIL_PRICE_API_KEY` | Brent Crude Oil | **Gratis** (200 req/bulan) |
 
@@ -269,6 +269,7 @@ output/
 | US 10Y Yield | DGS10 |
 | NFCI | NFCI |
 | CPI YoY | CPIAUCSL |
+| ISM PMI | MANPMI |
 | Fed Funds Rate | FEDFUNDS |
 | Global M2 (US+CN+JP+EZ) | M2SL + MYAGM2CNM189N + MYAGM2JPM189N + MABMM301EZM189S |
 | Fed Balance Sheet | WALCL |

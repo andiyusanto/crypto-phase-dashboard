@@ -99,6 +99,63 @@ export async function fetchFedRate(fredApiKey) {
   }
 }
 
+// ── 3. ISM PMI (FRED API) ────────────────────────────────────────────────────
+export async function fetchISMPMI(fredApiKey) {
+  if (!fredApiKey || fredApiKey === 'your_fred_api_key_here') {
+    return { skipped: true, reason: 'FRED_API_KEY tidak diset' };
+  }
+
+  const seriesId = 'MANPMI';
+  const seriesLabel = 'ISM Manufacturing PMI';
+
+  try {
+    const res = await axios.get('https://api.stlouisfed.org/fred/series/observations', {
+      params: {
+        series_id: seriesId,
+        api_key: fredApiKey,
+        file_type: 'json',
+        sort_order: 'desc',
+        limit: 3,
+      },
+      timeout: 10000,
+    });
+
+    if (!res.data || !res.data.observations) {
+      console.warn(`  ⚠️  Series ${seriesId} gagal: no data or invalid response`);
+      return null;
+    }
+
+    const obs = res.data.observations.filter(o => o.value !== '.' && o.value !== null);
+    if (obs.length < 1) {
+      console.warn(`  ⚠️  Series ${seriesId} gagal: no observations`);
+      return null;
+    }
+
+    const latest = parseFloat(obs[0].value);
+    const prev   = obs.length > 1 ? parseFloat(obs[1].value) : latest;
+    const change = latest - prev;
+
+    console.log(`  ✓ PMI menggunakan series: ${seriesId} (${seriesLabel})`);
+
+    // PMI >50 adalah ekspansi; <50 adalah kontraksi
+    const isPMISeries = latest > 50; // Simplified as only MANPMI is used
+    
+    return {
+      value: parseFloat(latest.toFixed(1)),
+      date: obs[0].date,
+      prevMonth: parseFloat(prev.toFixed(1)),
+      change: parseFloat(change.toFixed(1)),
+      seriesId: seriesId,
+      seriesLabel: seriesLabel,
+      condition: isPMISeries ? 'ekspansi' : 'kontraksi',
+      trend: change > 0 ? 'membaik' : change < 0 ? 'memburuk' : 'stabil',
+    };
+  } catch (err) {
+    console.error(`❌ FRED PMI (${seriesId}) error:`, err.message);
+    return null;
+  }
+}
+
 // ── 4. GLOBAL M2 — US + China + Japan + Eurozone (semua dari FRED) ───────────
 //
 // Series FRED yang dipakai:
@@ -240,15 +297,17 @@ export async function fetchAllMonthlyData(config = {}) {
   const results = await Promise.allSettled([
     fetchCPI(config.fredApiKey),
     fetchFedRate(config.fredApiKey),
+    fetchISMPMI(config.fredApiKey),
     fetchM2(config.fredApiKey),
   ]);
 
-  const [cpi, fedRate, m2] = results.map(r => r.status === 'fulfilled' ? r.value : null);
+  const [cpi, fedRate, pmi, m2] = results.map(r => r.status === 'fulfilled' ? r.value : null);
 
   return {
     timestamp: new Date().toISOString(),
     cpi,
     fedRate,
+    pmi,
     m2,
   };
 }
