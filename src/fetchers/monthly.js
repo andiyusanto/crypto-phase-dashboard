@@ -110,9 +110,9 @@ export async function fetchISMPMI(fredApiKey) {
   // Coba beberapa series ID — MANPMI adalah ISM Manufacturing PMI yang valid di FRED
   const seriesOptions = [
     { id: 'MANPMI',  label: 'ISM Manufacturing PMI' },
-    // { id: 'NAPM',    label: 'ISM PMI (legacy)' },
-    // { id: 'ISM_MAN_PMI', label: 'ISM Manufacturing PMI (alternative)' },
-    // { id: 'AMTMNO',  label: 'Manufacturers New Orders' },
+    { id: 'NAPM',    label: 'ISM PMI (legacy)' },
+    { id: 'ISM_MAN_PMI', label: 'ISM Manufacturing PMI (alternative)' },
+    { id: 'AMTMNO',  label: 'Manufacturers New Orders' },
   ];
 
   for (const series of seriesOptions) {
