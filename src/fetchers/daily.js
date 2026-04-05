@@ -253,6 +253,7 @@ export async function fetchBrentOilHyperliquid(apiKey) {
     console.error(`❌ OilPriceAPI error: ${err.message}`);
     let weekChange = null;
     let direction = 'flat';
+    const updatedAt = '';
     return {
       price: "0",
       weekChange,
