@@ -242,7 +242,7 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
     '  RINGKASAN DATA YANG BERHASIL DIFETCH',
     '═══════════════════════════════════════════',
   ];
-
+  console.log(fed);
   if (fed && !fed.skipped) {
     lines.push('');
     lines.push('FED LIQUIDITY:');
