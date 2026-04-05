@@ -435,9 +435,9 @@ export async function fetchCoinMarketCapGlobal(apiKey) {
     // Log the full data object for debugging
     console.log('DEBUG: CoinMarketCap API Response Data:', JSON.stringify(data, null, 2));
 
-    // Access properties with optional chaining to prevent 'undefined' errors
+    // Access properties directly from data object as confirmed by debug log
     const totalMarketCap = data.quote?.USD?.total_market_cap;
-    const btcDominance = data.btc_dominance; // This was the original problematic line
+    const btcDominance = data.btc_dominance;
     const ethDominance = data.eth_dominance;
 
     if (totalMarketCap === undefined || btcDominance === undefined || ethDominance === undefined) {
@@ -445,8 +445,7 @@ export async function fetchCoinMarketCapGlobal(apiKey) {
       return null;
     }
 
-    // TOTAL2 = total_market_cap * (1 - (btc_dominance / 100))
-    const total2 = totalMarketCap * (1 - (btc_dominance / 100));
+    // TOTAL2 = total_market_cap * (1 - (btc_dominance / 100))    const total2 = totalMarketCap * (1 - (btc_dominance / 100));
     
     // TOTAL3 = total_market_cap * (1 - ((btc_dominance + eth_dominance) / 100))
     const total3 = totalMarketCap * (1 - ((btc_dominance + eth_dominance) / 100));
