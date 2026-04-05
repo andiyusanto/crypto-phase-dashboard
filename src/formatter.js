@@ -140,10 +140,17 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
 
   let monthlyBlock = '(kosong — isi manual awal bulan)';
   if (showMonthly) {
-    monthlyBlock = `- ISM PMI: ${pmiVal} (${monthly.pmi?.seriesId ? `ID: ${monthly.pmi.seriesId} | Label: ${monthly.pmi.seriesLabel}` : 'ID/Label not available'})  | vs bulan lalu: ${pmiTrend}
+    if (monthly.pmi && !monthly.pmi.skipped) {
+      monthlyBlock = `- ISM PMI: ${pmiVal} (${monthly.pmi.seriesId ? `ID: ${monthly.pmi.seriesId} | Label: ${monthly.pmi.seriesLabel}` : 'ID/Label not available'})  | vs bulan lalu: ${pmiTrend}
 - CPI YoY: ${cpiYoy}%
 ${m2Line}
 - Fed rate keputusan terakhir: ${fedRateLbl}`;
+    } else {
+      monthlyBlock = `- CPI YoY: ${cpiYoy}%
+${m2Line}
+- Fed rate keputusan terakhir: ${fedRateLbl}
+- ISM PMI: data tidak tersedia`;
+    }
   }
 
   // ── ASSEMBLE ──────────────────────────────────────────────────────────────
