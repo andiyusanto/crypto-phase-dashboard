@@ -212,12 +212,12 @@ async function main() {
     const outputDir = join(ROOT, 'output');
     mkdirSync(outputDir, { recursive: true });
 
-    if (saveFile) {
-      writeFileSync(join(outputDir, 'latest_prompt.txt'), prompt, 'utf-8');
-      writeFileSync(join(outputDir, `prompt_${ts}.txt`),  prompt, 'utf-8');
-      writeFileSync(join(outputDir, 'latest_data.json'),
-        JSON.stringify({ daily, weekly, monthly, fed, war }, null, 2), 'utf-8');
-    }
+    // if (saveFile) {
+    //   writeFileSync(join(outputDir, 'latest_prompt.txt'), prompt, 'utf-8');
+    //   writeFileSync(join(outputDir, `prompt_${ts}.txt`),  prompt, 'utf-8');
+    //   writeFileSync(join(outputDir, 'latest_data.json'),
+    //     JSON.stringify({ daily, weekly, monthly, fed, war }, null, 2), 'utf-8');
+    // }
 
     // if (printPrompt) {
     //   console.log('\n' + chalk.bold('═══ PROMPT ═══\n'));
