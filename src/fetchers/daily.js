@@ -426,9 +426,24 @@ export async function fetchCoinMarketCapGlobal(apiKey) {
     });
 
     const data = res.data.data;
-    const totalMarketCap = data.quote.USD.total_market_cap;
-    const btcDominance = data.quote.USD.btc_dominance;
-    const ethDominance = data.quote.USD.eth_dominance;
+
+    if (!data) {
+      console.error('❌ CoinMarketCap: No data in response.');
+      return null;
+    }
+
+    // Log the full data object for debugging
+    console.log('DEBUG: CoinMarketCap API Response Data:', JSON.stringify(data, null, 2));
+
+    // Access properties with optional chaining to prevent 'undefined' errors
+    const totalMarketCap = data.quote?.USD?.total_market_cap;
+    const btcDominance = data.btc_dominance; // This was the original problematic line
+    const ethDominance = data.eth_dominance;
+
+    if (totalMarketCap === undefined || btcDominance === undefined || ethDominance === undefined) {
+      console.error('❌ CoinMarketCap: Missing expected fields (total_market_cap, btc_dominance, or eth_dominance) in API response.');
+      return null;
+    }
 
     // TOTAL2 = total_market_cap * (1 - (btc_dominance / 100))
     const total2 = totalMarketCap * (1 - (btc_dominance / 100));
