@@ -410,17 +410,69 @@ export async function fetchGold(apiKey) {
   return null;
 }
 
+// ── 6. COINMARKETCAP GLOBAL METRICS ──────────────────────────────────────────
+export async function fetchCoinMarketCapGlobal(apiKey) {
+  if (!apiKey || apiKey === 'your_coinmarketcap_api_key_here') {
+    return { skipped: true, reason: 'COINMARKETCAP_API_KEY tidak diset' };
+  }
+
+  try {
+    const res = await axios.get('https://pro-api.coinmarketcap.com/v1/global-metrics/quotes/latest', {
+      headers: {
+        'X-CMC_PRO_API_KEY': apiKey,
+        'Accept': 'application/json',
+      },
+      timeout: 10000,
+    });
+
+    const data = res.data.data;
+    const totalMarketCap = data.quote.USD.total_market_cap;
+    const btcDominance = data.btc_dominance;
+    const ethDominance = data.eth_dominance;
+
+    // TOTAL2 = total_market_cap * (1 - (btc_dominance / 100))
+    const total2 = totalMarketCap * (1 - (btc_dominance / 100));
+    
+    // TOTAL3 = total_market_cap * (1 - ((btc_dominance + eth_dominance) / 100))
+    const total3 = totalMarketCap * (1 - ((btc_dominance + eth_dominance) / 100));
+
+    // OTHERS.D = In the response, look for the altcoin_market_cap or subtract the dominance of the specific top assets listed.
+    // CMC provides altcoin_market_cap but it's often better to just use the dominance or calculation.
+    // However, the user specifically mentioned "OTHERS.D".
+    // CMC global metrics has 'altcoin_market_cap' and 'altcoin_dominance' (which is everything except BTC)
+    // But usually OTHERS.D in TradingView is TOTAL3 / TOTAL * 100 (or even smaller subset).
+    // Let's use the actual dominance of "Others" if available, or calculate it.
+    // CMC doesn't directly provide "OTHERS.D" (the index excluding top 10).
+    // For now, let's provide what we can calculate accurately.
+    const othersDominance = 100 - btcDominance - ethDominance; // Simplified OTHERS.D (everything except BTC & ETH)
+
+    return {
+      totalMarketCap: parseFloat((totalMarketCap / 1e12).toFixed(3)), // in Trillion USD
+      total2: parseFloat((total2 / 1e12).toFixed(3)), // in Trillion USD
+      total3: parseFloat((total3 / 1e9).toFixed(2)), // in Billion USD
+      btcDominance: parseFloat(btcDominance.toFixed(2)),
+      ethDominance: parseFloat(ethDominance.toFixed(2)),
+      othersDominance: parseFloat(othersDominance.toFixed(2)),
+      source: 'CoinMarketCap',
+    };
+  } catch (err) {
+    console.error('❌ CoinMarketCap error:', err.message);
+    return null;
+  }
+}
+
 // ── AGGREGATE: SEMUA DAILY DATA ───────────────────────────────────────────────
 export async function fetchAllDailyData(config = {}) {
   console.log('📊 Fetching daily data...');
   _hlCache = null; // reset cache tiap fetch
 
-  const [crypto, fearGreed, funding, dxy, gold] = await Promise.allSettled([
+  const [crypto, fearGreed, funding, dxy, gold, cmc] = await Promise.allSettled([
     fetchCryptoData(),
     fetchFearGreed(),
     fetchFundingRates(),
     fetchDXY({ twelveData: config.twelveDataKey, alphaVantage: config.alphaVantageApiKey }),
     fetchGold(config.twelveDataKey),
+    fetchCoinMarketCapGlobal(config.coinMarketCapApiKey),
   ]);
 
   // Brent Oil via OilPriceAPI
@@ -436,11 +488,12 @@ export async function fetchAllDailyData(config = {}) {
     date: new Date().toLocaleDateString('id-ID', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     }),
-    crypto: crypto.value,
-    fearGreed: fearGreed.value,
-    funding: funding.value,
-    dxy: dxy.value,
-    gold: gold.value,
+    crypto: crypto.status === 'fulfilled' ? crypto.value : null,
+    fearGreed: fearGreed.status === 'fulfilled' ? fearGreed.value : null,
+    funding: funding.status === 'fulfilled' ? funding.value : null,
+    dxy: dxy.status === 'fulfilled' ? dxy.value : null,
+    gold: gold.status === 'fulfilled' ? gold.value : null,
+    cmc: cmc.status === 'fulfilled' ? cmc.value : null,
     brentOil,
   };
 }

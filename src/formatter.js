@@ -80,8 +80,20 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
   const totalStable = v(daily?.crypto?.stablecoinSupply?.total);
   const msciEm     = v(weekly?.msciEm?.value);
   const msciDir    = v(weekly?.msciEm?.direction);
+
+  // CMC Global Indices (New) — priority: manual > CMC (daily) > weekly > placeholder
   const othersDom  = manualOverrides.othersDManual
+                  ?? v(daily?.cmc?.othersDominance)
                   ?? v(weekly?.othersDom?.othersDominance);
+
+  const total2     = manualOverrides.total2
+                  ?? (daily?.cmc?.total2 ? `$${daily.cmc.total2}T` : null)
+                  ?? '[isi manual: TradingView]';
+
+  const total3     = manualOverrides.total3
+                  ?? (daily?.cmc?.total3 ? `$${daily.cmc.total3}B` : null)
+                  ?? '[isi manual: TradingView]';
+
   const btcDomDir  = manualOverrides.btcDominanceDirection
     ?? (weekly?.ratioTrend?.ethBtc
       ? (weekly.ratioTrend.ethBtc.weekChange < -2 ? 'naik' : weekly.ratioTrend.ethBtc.weekChange > 2 ? 'turun' : 'flat')
@@ -89,8 +101,6 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
 
   const altseasonIdx   = manualOverrides.altseasonIndex   ?? '[isi manual: blockchaincenter.net]';
   const exchangeNetflow = manualOverrides.exchangeNetflow ?? '[isi manual: CryptoQuant]';
-  const total2         = manualOverrides.total2           ?? '[isi manual: TradingView]';
-  const total3         = manualOverrides.total3           ?? '[isi manual: TradingView]';
 
   let weeklyBlock = '(kosong — isi manual hari Senin)';
   if (showWeekly) {
@@ -258,6 +268,11 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
     if (!daily.dxy?.skipped)      lines.push(`  DXY    : ${daily.dxy?.value} (${daily.dxy?.direction})`);
     if (!daily.gold?.skipped)     lines.push(`  Gold   : $${daily.gold?.price} (${daily.gold?.change24h}%)`);
     if (daily.brentOil)           lines.push(`  Oil    : $${daily.brentOil?.price} (${daily.brentOil?.direction})`);
+    if (daily.cmc && !daily.cmc.skipped) {
+      lines.push(`  TOTAL2 : $${daily.cmc.total2}T`);
+      lines.push(`  TOTAL3 : $${daily.cmc.total3}B`);
+      lines.push(`  Others.D: ${daily.cmc.othersDominance}%`);
+    }
   }
 
   if (weekly && !weekly.skipped) {

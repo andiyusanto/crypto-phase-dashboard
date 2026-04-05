@@ -201,6 +201,11 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
     if (daily.dxy?.value)       lines.push(`**DXY**: ${daily.dxy.value} (${daily.dxy.direction})`);
     if (daily.gold?.price)      lines.push(`**Gold**: $${daily.gold.price} (${daily.gold.change24h >= 0 ? '+' : ''}${daily.gold.change24h}%)`);
     if (daily.brentOil?.price)  lines.push(`**Brent**: $${daily.brentOil.price} (${daily.brentOil.direction})`);
+    if (daily.cmc && !daily.cmc.skipped) {
+      lines.push(`**TOTAL2**: $${daily.cmc.total2}T`);
+      lines.push(`**TOTAL3**: $${daily.cmc.total3}B`);
+      lines.push(`**Others.D**: ${daily.cmc.othersDominance}%`);
+    }
     if (lines.length) fields.push({ name: '🌍 Macro', value: lines.join('\n'), inline: true });
   }
 
