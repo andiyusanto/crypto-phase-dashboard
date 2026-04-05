@@ -427,8 +427,8 @@ export async function fetchCoinMarketCapGlobal(apiKey) {
 
     const data = res.data.data;
     const totalMarketCap = data.quote.USD.total_market_cap;
-    const btcDominance = data.btc_dominance;
-    const ethDominance = data.eth_dominance;
+    const btcDominance = data.quote.USD.btc_dominance;
+    const ethDominance = data.quote.USD.eth_dominance;
 
     // TOTAL2 = total_market_cap * (1 - (btc_dominance / 100))
     const total2 = totalMarketCap * (1 - (btc_dominance / 100));
