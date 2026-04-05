@@ -433,12 +433,12 @@ export async function fetchCoinMarketCapGlobal(apiKey) {
     }
 
     // Log the full data object for debugging
-    // console.log('DEBUG: CoinMarketCap API Response Data:', JSON.stringify(data, null, 2));
+    console.log('DEBUG: CoinMarketCap API Response Data:', JSON.stringify(data, null, 2));
 
     // Access properties directly from data object as confirmed by debug log
     const totalMarketCap = data.quote?.USD?.total_market_cap;
-    const btcDominance = data.btc_dominance;
-    const ethDominance = data.eth_dominance;
+    const btcDominance = data.btc_dominance ?? 0;
+    const ethDominance = data.eth_dominance ?? 0;
 
     if (totalMarketCap === undefined || btcDominance === undefined || ethDominance === undefined) {
       console.error('❌ CoinMarketCap: Missing expected fields (total_market_cap, btc_dominance, or eth_dominance) in API response.');
