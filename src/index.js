@@ -203,11 +203,6 @@ async function main() {
       console.log(chalk.green('✓ War Headlines'));
     }
 
-
-    console.log(daily);
-    console.log(weekly);
-    console.log(monthly);
-    console.log(fed);
     // ── 2. GENERATE PROMPT ───────────────────────────────────────────────
     console.log(chalk.yellow(formatDataSummary(daily, weekly, monthly, fed)));
     const prompt = formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrides, war);

@@ -434,7 +434,7 @@ export async function fetchCoinMarketCapGlobal(apiKey) {
     }
 
     // DEBUG: Melihat struktur data asli
-    console.log('DEBUG: CoinMarketCap API Response Data:', JSON.stringify(data, null, 2));
+    // console.log('DEBUG: CoinMarketCap API Response Data:', JSON.stringify(data, null, 2));
 
     // 2. Ekstraksi Data (Menggunakan Fallback 0 agar tidak terjadi NaN)
     const rawTotalMarketCap = data.quote?.USD?.total_market_cap;
