@@ -301,7 +301,7 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
     lines.push('');
     lines.push('MONTHLY:');
     lines.push(`  CPI    : ${monthly.cpi.yoy}% YoY`);
-    if (!monthly.pmi?.skipped)     lines.push(`  PMI    : ${monthly.pmi.value} (${monthly.pmi.condition})`);
+    if (monthly.pmi && !monthly.pmi.skipped) lines.push(`  PMI    : ${monthly.pmi.value} (${monthly.pmi.condition})`);
     if (!monthly.fedRate?.skipped) lines.push(`  Fed    : ${monthly.fedRate.label}`);
     if (monthly.m2 && !monthly.m2.skipped) {
       if (monthly.m2.globalTrillions) {

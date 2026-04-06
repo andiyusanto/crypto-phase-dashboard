@@ -134,8 +134,8 @@ export async function fetchISMPMI(fredApiKey) {
       return null;
     }
 
-    const latest = obs.length > 1 ? parseFloat(v(obs[0]?.value)) : 0 ;
-    const prev   = obs.length > 1 ? parseFloat(v(obs[1]?.value, obs[0]?.value)) :0 ;
+    const latest = obs.length > 1 ? parseFloat(obs[0]?.value ?? 0) : 0;
+    const prev   = obs.length > 1 ? parseFloat(obs[1]?.value ?? obs[0]?.value ?? 0) : 0;
     const change = latest - prev;
 
     console.log(`  ✓ PMI menggunakan series: ${seriesId} (${seriesLabel})`);
@@ -214,10 +214,13 @@ export async function fetchM2(fredApiKey) {
     const usdPerEur = parseFloat(eurObs[0].value);  // USD per 1 EUR
 
     // ── Konversi ke Triliun USD ────────────────────────────────────────────
-    const usT  = usLatest / 1000;                        // Billions → Trillions
-    const cnT  = (cnLatest / cnyPerUsd) / 1000;         // Billions CNY → Trillions USD
-    const jpT  = (jpLatest / jpyPerUsd) / 1000;         // Billions JPY → Trillions USD
-    const ezT  = ((ezLatest / 1000) * usdPerEur) / 1000; // Millions → Billions EUR → Trillions USD
+    // FRED M2SL = Billions USD → /1000 = T USD
+    // FRED CN/JP = raw individual currency units (not Billions as labeled) → /1e12
+    // FRED EZ   = raw individual EUR (not Millions as labeled) → /1e12
+    const usT  = usLatest / 1000;                        // Billions USD → Trillions USD
+    const cnT  = (cnLatest / cnyPerUsd) / 1e12;         // Raw CNY → Trillions USD
+    const jpT  = (jpLatest / jpyPerUsd) / 1e12;         // Raw JPY → Trillions USD
+    const ezT  = (ezLatest / 1e12) * usdPerEur;         // Raw EUR → Trillions USD
 
     const globalT = usT + cnT + jpT + ezT;
 
@@ -232,9 +235,9 @@ export async function fetchM2(fredApiKey) {
     // Untuk Global YoY: bandingkan total sekarang vs total 12 bulan lalu
     // Ambil nilai 12 bulan lalu untuk setiap komponen
     const usT12   = usObs.length >= 13  ? parseFloat(usObs[12].value)  / 1000 : usT;
-    const cnT12   = cnObs.length >= 13  ? (parseFloat(cnObs[12].value) / cnyPerUsd) / 1000 : cnT;
-    const jpT12   = jpObs.length >= 13  ? (parseFloat(jpObs[12].value) / jpyPerUsd) / 1000 : jpT;
-    const ezT12   = ezObs.length >= 13  ? ((parseFloat(ezObs[12].value) / 1000) * usdPerEur) / 1000 : ezT;
+    const cnT12   = cnObs.length >= 13  ? (parseFloat(cnObs[12].value) / cnyPerUsd) / 1e12 : cnT;
+    const jpT12   = jpObs.length >= 13  ? (parseFloat(jpObs[12].value) / jpyPerUsd) / 1e12 : jpT;
+    const ezT12   = ezObs.length >= 13  ? (parseFloat(ezObs[12].value) / 1e12) * usdPerEur  : ezT;
     const globalT12 = usT12 + cnT12 + jpT12 + ezT12;
 
     const globalYoY = parseFloat(((globalT - globalT12) / globalT12 * 100).toFixed(2));

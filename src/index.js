@@ -230,76 +230,76 @@ async function main() {
       console.log(chalk.bold('═'.repeat(50) + '\n'));
     }
 
-    // // ── 4. KIRIM PROMPT KE TELEGRAM (--send-prompt) ──────────────────────
-    // if (doSendPrompt) {
-    //   if (hasTelegram()) {
-    //     console.log(chalk.cyan('\n📋 Mengirim prompt ke Telegram...'));
-    //     await sendPromptToTelegram(prompt, {
-    //       botToken: config.telegramBotToken,
-    //       chatId:   config.telegramChatId,
-    //       label:    'Prompt',
-    //     });
-    //     console.log(chalk.green('  ✓ Prompt terkirim ke Telegram'));
-    //   } else {
-    //     console.log(chalk.red('  ✗ --send-prompt: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID belum diset'));
-    //   }
-    // }
+    // ── 4. KIRIM PROMPT KE TELEGRAM (--send-prompt) ──────────────────────
+    if (doSendPrompt) {
+      if (hasTelegram()) {
+        console.log(chalk.cyan('\n📋 Mengirim prompt ke Telegram...'));
+        await sendPromptToTelegram(prompt, {
+          botToken: config.telegramBotToken,
+          chatId:   config.telegramChatId,
+          label:    'Prompt',
+        });
+        console.log(chalk.green('  ✓ Prompt terkirim ke Telegram'));
+      } else {
+        console.log(chalk.red('  ✗ --send-prompt: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID belum diset'));
+      }
+    }
 
-    // // ── 5. FETCH-ONLY FLOW ────────────────────────────────────────────────
-    // if (!doAnalyze) {
-    //   if (doTelegram || doDiscord) {
-    //     console.log(chalk.cyan('\n📡 Mengirim data summary ke channel...'));
-    //     await _sendDataToChannels({ daily, weekly, monthly, fed });
-    //   } else if (!doSendPrompt) {
-    //     _printHelp();
-    //   }
-    //   return;
-    // }
+    // ── 5. FETCH-ONLY FLOW ────────────────────────────────────────────────
+    if (!doAnalyze) {
+      if (doTelegram || doDiscord) {
+        console.log(chalk.cyan('\n📡 Mengirim data summary ke channel...'));
+        await _sendDataToChannels({ daily, weekly, monthly, fed });
+      } else if (!doSendPrompt) {
+        _printHelp();
+      }
+      return;
+    }
 
-    // // ── 6. KIRIM DATA SUMMARY DULU (sebelum analisis) ────────────────────
-    // if (doTelegram || doDiscord) {
-    //   console.log(chalk.cyan('\n📡 Mengirim data summary ke channel...'));
-    //   await _sendDataToChannels({ daily, weekly, monthly, fed });
-    // }
+    // ── 6. KIRIM DATA SUMMARY DULU (sebelum analisis) ────────────────────
+    if (doTelegram || doDiscord) {
+      console.log(chalk.cyan('\n📡 Mengirim data summary ke channel...'));
+      await _sendDataToChannels({ daily, weekly, monthly, fed });
+    }
 
-    // // ── 7. ANALISIS PER PROVIDER ─────────────────────────────────────────
-    // for (const p of providersToRun) {
-    //   const meta = PROVIDERS[p];
+    // ── 7. ANALISIS PER PROVIDER ─────────────────────────────────────────
+    for (const p of providersToRun) {
+      const meta = PROVIDERS[p];
 
-    //   if (!hasApiKey(p)) {
-    //     console.log(chalk.yellow(`\n⚠️  Skip ${meta.label}: ${meta.envKey} belum diset di .env`));
-    //     continue;
-    //   }
+      if (!hasApiKey(p)) {
+        console.log(chalk.yellow(`\n⚠️  Skip ${meta.label}: ${meta.envKey} belum diset di .env`));
+        continue;
+      }
 
-    //   console.log('\n' + meta.color('═'.repeat(54)));
-    //   console.log(meta.color(`  ${meta.emoji}  ${meta.label.toUpperCase()}`));
-    //   console.log(meta.color('═'.repeat(54)));
+      console.log('\n' + meta.color('═'.repeat(54)));
+      console.log(meta.color(`  ${meta.emoji}  ${meta.label.toUpperCase()}`));
+      console.log(meta.color('═'.repeat(54)));
 
-    //   let analysisText = null;
-    //   try {
-    //     analysisText = await analyzeWith(p, prompt, config, {
-    //       onChunk: text => process.stdout.write(chalk.white(text)),
-    //     });
+      let analysisText = null;
+      try {
+        analysisText = await analyzeWith(p, prompt, config, {
+          onChunk: text => process.stdout.write(chalk.white(text)),
+        });
 
-    //     if (saveFile && analysisText) {
-    //       const fp = saveAnalysis(analysisText, outputDir, ts, p);
-    //       writeFileSync(join(outputDir, 'latest_analysis.txt'), analysisText, 'utf-8');
-    //       console.log(chalk.green(`\n  💾 Tersimpan: ${fp}`));
-    //     }
+        if (saveFile && analysisText) {
+          const fp = saveAnalysis(analysisText, outputDir, ts, p);
+          writeFileSync(join(outputDir, 'latest_analysis.txt'), analysisText, 'utf-8');
+          console.log(chalk.green(`\n  💾 Tersimpan: ${fp}`));
+        }
 
-    //     if (analysisText) {
-    //       await _sendAnalysisToChannels(p, analysisText);
-    //     }
+        if (analysisText) {
+          await _sendAnalysisToChannels(p, analysisText);
+        }
 
-    //   } catch (err) {
-    //     console.error(chalk.red(`\n  ❌ ${meta.label} error: ${err.message}`));
-    //     if (err.message?.includes('401')) {
-    //       console.error(chalk.red(`     → ${meta.envKey} tidak valid`));
-    //     }
-    //   }
-    // }
+      } catch (err) {
+        console.error(chalk.red(`\n  ❌ ${meta.label} error: ${err.message}`));
+        if (err.message?.includes('401')) {
+          console.error(chalk.red(`     → ${meta.envKey} tidak valid`));
+        }
+      }
+    }
 
-    // console.log(chalk.green(`\n✅ Selesai — output di: output/\n`));
+    console.log(chalk.green(`\n✅ Selesai — output di: output/\n`));
 
   } catch (err) {
     console.error(chalk.red('\n❌ Fatal error:'), err.message);
