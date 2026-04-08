@@ -4,7 +4,7 @@
 // ============================================
 
 import Anthropic        from '@anthropic-ai/sdk';
-import { GoogleGenAI }  from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI           from 'openai';
 import axios            from 'axios';
 import { writeFileSync } from 'fs';
@@ -194,18 +194,21 @@ export async function analyzeWithGemini(prompt, options = {}) {
   if (!apiKey || apiKey === 'your_gemini_api_key_here')
     throw new Error('GEMINI_API_KEY tidak diset');
 
-  const ai = new GoogleGenAI({ apiKey });
-  if (!silent) process.stdout.write('\n✨ Gemini (Google) menganalisis...\n\n');
-
-  let full = '';
-  const result = await ai.models.generateContentStream({
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const gemini = genAI.getGenerativeModel({
     model,
-    contents: [{ role: 'user', parts: [{ text: `${SYSTEM_PROMPT}\n\n---\n\n${prompt}` }] }],
+    systemInstruction: SYSTEM_PROMPT,
     generationConfig: { maxOutputTokens: 4096, temperature: 0.3 },
   });
 
-  for await (const chunk of result) {
-    const t = chunk.text ?? '';
+  if (!silent) process.stdout.write('\n✨ Gemini (Google) menganalisis...\n\n');
+
+  let full = '';
+  // Standard streaming implementation for @google/generative-ai
+  const result = await gemini.generateContentStream(prompt);
+
+  for await (const chunk of result.stream) {
+    const t = chunk.text();
     if (t) {
       full += t;
       if (onChunk) onChunk(t); else if (!silent) process.stdout.write(t);
