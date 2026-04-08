@@ -30,18 +30,18 @@ const FREE_MODELS = [
   // 'google/gemma-4-31b-it:free',
   'qwen/qwen3-next-80b-a3b-instruct:free',
   'qwen/qwen3-coder:free',
-  'google/gemma-3n-e2b-it:free',
-  'google/gemma-3n-e4b-it:free',
-  'google/gemma-3-4b-it:free',
-  'google/gemma-3-12b-it:free',
-  'google/gemma-3-27b-it:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'meta-llama/llama-3.2-3b-instruct:free',
-  'nousresearch/hermes-3-llama-3.1-405b:free',
+  // 'google/gemma-3n-e2b-it:free',
+  // 'google/gemma-3n-e4b-it:free',
+  // 'google/gemma-3-4b-it:free',
+  // 'google/gemma-3-12b-it:free',
+  // 'google/gemma-3-27b-it:free',
+  // 'meta-llama/llama-3.3-70b-instruct:free',
+  // 'meta-llama/llama-3.2-3b-instruct:free',
+  // 'nousresearch/hermes-3-llama-3.1-405b:free',
   'qwen/qwen3-next-80b-a3b-instruct:free', // Preferred
   'qwen/qwen-2.5-32b-instruct:free',       // Great for crypto
-  'meta-llama/llama-3.1-8b-instruct:free', // Generous quota
-  'google/gemma-2-9b-it:free'              // Reliable fallback
+  // 'meta-llama/llama-3.1-8b-instruct:free', // Generous quota
+  // 'google/gemma-2-9b-it:free'              // Reliable fallback
 ];
 
 // ── HELPER: OpenRouter Fetch with Retry & Fallback ──────────────────────────
