@@ -227,7 +227,7 @@ export async function analyzeWithGrok(prompt, options = {}) {
 
 // ── 6. QWEN (OpenRouter Edition) ──────────────────────────────────────────────
 export async function analyzeWithQwen(prompt, options = {}) {
-  const { model = 'qwen/qwen-2.5-72b-instruct:free', onChunk, silent = false, apiKey } = options;
+  const { model = 'qwen/qwen-2-7b-instruct:free', onChunk, silent = false, apiKey } = options;
   if (!silent) process.stdout.write('\n🤖 Qwen (via OpenRouter) menganalisis...\n\n');
   return fetchOpenRouter(model, prompt, apiKey, { onChunk, silent });
 }

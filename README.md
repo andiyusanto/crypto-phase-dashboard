@@ -64,7 +64,7 @@ Dashboard ini menggunakan **OpenRouter** untuk mengakses model Qwen (Gratis), Gr
 | `GEMINI_API_KEY` | Gemini | gemini-1.5-flash | [aistudio.google.com](https://aistudio.google.com/apikey) | **Gratis** |
 | `PERPLEXITY_API_KEY` | Perplexity | sonar-pro | [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) | Berbayar |
 | `OPENROUTER_API_KEY` | Grok (OpenRouter) | x-ai/grok-beta | [openrouter.ai](https://openrouter.ai) | Berbayar |
-| `OPENROUTER_API_KEY` | Qwen (OpenRouter) | qwen-2.5-72b-instruct:free | [openrouter.ai](https://openrouter.ai) | **Gratis** |
+| `OPENROUTER_API_KEY` | Qwen (OpenRouter) | qwen-2-7b-instruct:free | [openrouter.ai](https://openrouter.ai) | **Gratis** |
 
 > **OpenRouter**: Satu API key untuk mengakses ratusan model. Model Qwen tersedia gratis!
 
