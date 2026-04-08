@@ -124,7 +124,10 @@ const ALL_PROVIDERS = ['claude', 'chatgpt', 'gemini', 'grok', 'qwen'];
  //['claude', 'chatgpt', 'gemini', 'perplexity', 'grok'];
 
 const hasApiKey = p => {
-  if (p === 'qwen' || p === 'grok' || p === 'chatgpt') return true; // Puter AI models
+  if (p === 'qwen' || p === 'grok' || p === 'chatgpt') {
+    const v = config.puterAuthToken;
+    return !!(v && v.trim() && !v.includes('your_') && v.length > 5);
+  }
   const v = config[PROVIDERS[p]?.cfgKey];
   return !!(v && v.trim() && !v.includes('your_') && v.length > 10);
 };

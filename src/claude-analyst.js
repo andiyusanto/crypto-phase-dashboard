@@ -8,7 +8,7 @@ import { GoogleGenAI }  from '@google/genai';
 import OpenAI           from 'openai';
 import axios            from 'axios';
 import { writeFileSync } from 'fs';
-import { puter }        from '@heyputer/puter.js';
+import { init as initPuter } from '@heyputer/puter.js/src/init.cjs';
 
 // ── System prompt — sama untuk semua AI ──────────────────────────────────────
 export const SYSTEM_PROMPT = `Kamu adalah hedge fund analyst senior yang spesialis di crypto dan macro markets.
@@ -24,6 +24,18 @@ Gaya respons:
 - Format tabel untuk scorecard, gunakan emoji status (✅ ⚠️ 🔴)
 - Bahasa Indonesia, terminologi keuangan boleh Inggris
 - Prioritaskan kejelasan di atas kelengkapan`;
+
+// Global puter instance
+let puterInstance;
+
+function getPuter(apiKey) {
+  if (puterInstance) return puterInstance;
+  if (!apiKey || apiKey === 'your_puter_auth_token_here' || apiKey.length < 5) {
+    throw new Error('PUTER_AUTH_TOKEN tidak diset atau tidak valid. Node.js memerlukan token: https://puter.com/dashboard (Copy Auth Token)');
+  }
+  puterInstance = initPuter(apiKey);
+  return puterInstance;
+}
 
 // ── 1. CLAUDE (Anthropic) ─────────────────────────────────────────────────────
 export async function analyzeWithClaude(prompt, options = {}) {
@@ -63,16 +75,13 @@ export async function analyzeWithChatGPT(prompt, options = {}) {
     apiKey // puterAuthToken
   } = options;
 
-  if (apiKey && apiKey !== 'your_puter_auth_token_here' && apiKey !== 'your_openai_api_key_here') {
-    puter.setAuthToken(apiKey);
-  }
-
   if (!silent) process.stdout.write('\n🟢 ChatGPT (OpenAI via Puter) menganalisis...\n\n');
 
   const combinedPrompt = `${SYSTEM_PROMPT}\n\n---\n\n${prompt}`;
 
   try {
-    const response = await puter.ai.chat(combinedPrompt, { model });
+    const p = getPuter(apiKey);
+    const response = await p.ai.chat(combinedPrompt, { model });
     const full = response?.message?.content || (typeof response === 'string' ? response : JSON.stringify(response));
     
     if (onChunk) onChunk(full);
@@ -184,16 +193,13 @@ export async function analyzeWithGrok(prompt, options = {}) {
     apiKey // puterAuthToken
   } = options;
 
-  if (apiKey && apiKey !== 'your_puter_auth_token_here' && apiKey !== 'your_xai_api_key_here') {
-    puter.setAuthToken(apiKey);
-  }
-
   if (!silent) process.stdout.write('\n⚡ Grok (xAI via Puter) menganalisis...\n\n');
 
   const combinedPrompt = `${SYSTEM_PROMPT}\n\n---\n\n${prompt}`;
 
   try {
-    const response = await puter.ai.chat(combinedPrompt, { model });
+    const p = getPuter(apiKey);
+    const response = await p.ai.chat(combinedPrompt, { model });
     const full = response?.message?.content || (typeof response === 'string' ? response : JSON.stringify(response));
 
     if (onChunk) onChunk(full);
@@ -215,16 +221,13 @@ export async function analyzeWithQwen(prompt, options = {}) {
     apiKey // though Puter says no API key required for free tier
   } = options;
 
-  if (apiKey && apiKey !== 'your_puter_auth_token_here') {
-    puter.setAuthToken(apiKey);
-  }
-
   if (!silent) process.stdout.write('\n🤖 Qwen (Puter AI) menganalisis...\n\n');
 
   const combinedPrompt = `${SYSTEM_PROMPT}\n\n---\n\n${prompt}`;
 
   try {
-    const response = await puter.ai.chat(combinedPrompt, { model });
+    const p = getPuter(apiKey);
+    const response = await p.ai.chat(combinedPrompt, { model });
     const full = response?.message?.content || (typeof response === 'string' ? response : JSON.stringify(response));
 
     if (onChunk) onChunk(full);
