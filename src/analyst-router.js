@@ -18,13 +18,16 @@ import * as ClaudeAnalyst      from './analysts/claude.js';
 import * as OpenAIAnalyst      from './analysts/openai.js';
 import * as GeminiAnalyst      from './analysts/gemini.js';
 import * as PerplexityAnalyst  from './analysts/perplexity.js';
+import * as QwenAnalyst        from './analysts/qwen.js';
 
 // Registry semua provider
 export const PROVIDERS = {
   claude:     { module: ClaudeAnalyst,     envKey: 'anthropicApiKey',  label: 'Claude (Anthropic)' },
-  openai:     { module: OpenAIAnalyst,     envKey: 'openaiApiKey',     label: 'ChatGPT (OpenAI)'   },
+  openai:     { module: ClaudeAnalyst,     envKey: 'puterAuthToken',   label: 'ChatGPT (OpenAI via Puter)' },
   gemini:     { module: GeminiAnalyst,     envKey: 'geminiApiKey',     label: 'Gemini (Google)'    },
   perplexity: { module: PerplexityAnalyst, envKey: 'perplexityApiKey', label: 'Perplexity AI'      },
+  grok:       { module: ClaudeAnalyst,     envKey: 'puterAuthToken',   label: 'Grok (xAI via Puter)'},
+  qwen:       { module: QwenAnalyst,       envKey: 'puterAuthToken',   label: 'Qwen (Puter AI)'    },
 };
 
 // ── Kirim ke satu provider ────────────────────────────────────────────────────
@@ -41,6 +44,8 @@ export async function analyzeWith(providerKey, prompt, config, options = {}) {
   try {
     const result = await provider.module.analyze(prompt, {
       apiKey,
+      provider: providerKey, // pass provider key for dispatcher
+      config,               // pass full config for dispatcher
       onChunk: options.onChunk,
       silent:  options.silent ?? false,
     });

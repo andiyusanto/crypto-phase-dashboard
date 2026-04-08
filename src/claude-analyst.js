@@ -8,6 +8,7 @@ import { GoogleGenAI }  from '@google/genai';
 import OpenAI           from 'openai';
 import axios            from 'axios';
 import { writeFileSync } from 'fs';
+import { puter }        from '@heyputer/puter.js';
 
 // ── System prompt — sama untuk semua AI ──────────────────────────────────────
 export const SYSTEM_PROMPT = `Kamu adalah hedge fund analyst senior yang spesialis di crypto dan macro markets.
@@ -51,37 +52,44 @@ export async function analyzeWithClaude(prompt, options = {}) {
   return full;
 }
 
-// ── 2. CHATGPT (OpenAI) ───────────────────────────────────────────────────────
-// Model terbaru: gpt-4.1 (April 2025), fallback ke gpt-4o
+// ── 2. CHATGPT (OpenAI via Puter AI) ──────────────────────────────────────────
+// OpenAI via Puter — Model: openai/gpt-4o
+// Daftar: developer.puter.com
 export async function analyzeWithChatGPT(prompt, options = {}) {
-  const { apiKey, model = 'gpt-4.1', maxTokens = 4096, onChunk, silent = false } = options;
-  if (!apiKey || apiKey === 'your_openai_api_key_here')
-    throw new Error('OPENAI_API_KEY tidak diset — daftar di platform.openai.com');
+  const {
+    model = 'openai/gpt-4o',
+    onChunk,
+    silent = false,
+    apiKey // puterAuthToken
+  } = options;
 
-  const client = new OpenAI({ apiKey });
-  if (!silent) process.stdout.write('\n🟢 ChatGPT (OpenAI) menganalisis...\n\n');
+  if (apiKey && apiKey !== 'your_puter_auth_token_here' && apiKey !== 'your_openai_api_key_here') {
+    puter.auth.setToken(apiKey);
+  }
+
+  if (!silent) process.stdout.write('\n🟢 ChatGPT (OpenAI via Puter) menganalisis...\n\n');
 
   let full = '';
-  const stream = await client.chat.completions.create({
-    model,
-    max_tokens: maxTokens,
-    temperature: 0.3,
-    stream: true,
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user',   content: prompt },
-    ],
-  });
+  const combinedPrompt = `${SYSTEM_PROMPT}\n\n---\n\n${prompt}`;
 
-  for await (const chunk of stream) {
-    const t = chunk.choices[0]?.delta?.content || '';
-    if (t) {
-      full += t;
-      if (onChunk) onChunk(t); else if (!silent) process.stdout.write(t);
+  try {
+    const response = await puter.ai.chat(combinedPrompt, {
+      model,
+      stream: true
+    });
+
+    for await (const part of response) {
+      const t = part?.text || '';
+      if (t) {
+        full += t;
+        if (onChunk) onChunk(t); else if (!silent) process.stdout.write(t);
+      }
     }
+    if (!silent) process.stdout.write('\n');
+    return full;
+  } catch (err) {
+    throw new Error(`ChatGPT (Puter) error: ${err.message}`);
   }
-  if (!silent) process.stdout.write('\n');
-  return full;
 }
 
 // ── 3. GEMINI (Google) ────────────────────────────────────────────────────────
@@ -172,44 +180,90 @@ export async function analyzeWithPerplexity(prompt, options = {}) {
   return full;
 }
 
-// ── 5. xAI GROK ───────────────────────────────────────────────────────────────
-// xAI API adalah OpenAI-compatible — pakai OpenAI SDK dengan base_url berbeda
-// Model: grok-3 (flagship), grok-3-mini (lebih murah, $25 free credits/bulan)
-// Daftar: console.x.ai
+// ── 5. xAI GROK (via Puter AI) ────────────────────────────────────────────────
+// xAI API via Puter — Model: x-ai/grok-4-1-fast atau x-ai/grok-4
+// Daftar: developer.puter.com
 export async function analyzeWithGrok(prompt, options = {}) {
-  const { apiKey, model = 'grok-3', maxTokens = 4096, onChunk, silent = false } = options;
-  if (!apiKey || apiKey === 'your_xai_api_key_here')
-    throw new Error('XAI_API_KEY tidak diset — daftar di console.x.ai');
+  const {
+    model = 'x-ai/grok-4-1-fast',
+    onChunk,
+    silent = false,
+    apiKey // puterAuthToken
+  } = options;
 
-  // Pakai OpenAI SDK dengan base_url xAI
-  const client = new OpenAI({
-    apiKey,
-    baseURL: 'https://api.x.ai/v1',
-  });
+  if (apiKey && apiKey !== 'your_puter_auth_token_here' && apiKey !== 'your_xai_api_key_here') {
+    puter.auth.setToken(apiKey);
+  }
 
-  if (!silent) process.stdout.write('\n⚡ Grok (xAI) menganalisis...\n\n');
+  if (!silent) process.stdout.write('\n⚡ Grok (xAI via Puter) menganalisis...\n\n');
 
   let full = '';
-  const stream = await client.chat.completions.create({
-    model,
-    max_tokens: maxTokens,
-    temperature: 0.3,
-    stream: true,
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user',   content: prompt },
-    ],
-  });
+  const combinedPrompt = `${SYSTEM_PROMPT}\n\n---\n\n${prompt}`;
 
-  for await (const chunk of stream) {
-    const t = chunk.choices[0]?.delta?.content || '';
-    if (t) {
-      full += t;
-      if (onChunk) onChunk(t); else if (!silent) process.stdout.write(t);
+  try {
+    const response = await puter.ai.chat(combinedPrompt, {
+      model,
+      stream: true
+    });
+
+    for await (const part of response) {
+      const t = part?.text || '';
+      if (t) {
+        full += t;
+        if (onChunk) onChunk(t); else if (!silent) process.stdout.write(t);
+      }
     }
+    if (!silent) process.stdout.write('\n');
+    return full;
+  } catch (err) {
+    throw new Error(`Grok (Puter) error: ${err.message}`);
   }
-  if (!silent) process.stdout.write('\n');
-  return full;
+}
+
+// ── 6. QWEN (Puter.js) ────────────────────────────────────────────────────────
+export async function analyzeWithQwen(prompt, options = {}) {
+  const {
+    model = 'qwen/qwen3.6-plus:free',
+    onChunk,
+    silent = false,
+    apiKey // though Puter says no API key required for free tier
+  } = options;
+
+  if (apiKey && apiKey !== 'your_puter_auth_token_here') {
+    puter.auth.setToken(apiKey);
+  }
+
+  if (!silent) process.stdout.write('\n🤖 Qwen (Puter AI) menganalisis...\n\n');
+
+  let full = '';
+  const combinedPrompt = `${SYSTEM_PROMPT}\n\n---\n\n${prompt}`;
+
+  try {
+    const response = await puter.ai.chat(combinedPrompt, {
+      model,
+      stream: true
+    });
+
+    for await (const part of response) {
+      const t = part?.text || '';
+      if (t) {
+        full += t;
+        if (onChunk) onChunk(t); else if (!silent) process.stdout.write(t);
+      }
+    }
+    if (!silent) process.stdout.write('\n');
+    return full;
+  } catch (err) {
+    throw new Error(`Qwen (Puter) error: ${err.message}`);
+  }
+}
+
+// ── GENERIC ANALYZE (for router compatibility) ───────────────────────────────
+export async function analyze(prompt, options = {}) {
+  // Try to determine provider from options or default to claude
+  // This is for files that import * as ClaudeAnalyst and call .analyze()
+  const provider = options.provider || 'claude'; 
+  return analyzeWith(provider, prompt, options.config || {}, options);
 }
 
 // ── DISPATCHER ────────────────────────────────────────────────────────────────
@@ -218,17 +272,20 @@ export async function analyzeWith(provider, prompt, config, options = {}) {
     case 'claude':
       return analyzeWithClaude(prompt,      { apiKey: config.anthropicApiKey,  ...options });
     case 'chatgpt':
-      return analyzeWithChatGPT(prompt,     { apiKey: config.openaiApiKey,     ...options });
+      return analyzeWithChatGPT(prompt,     { apiKey: config.puterAuthToken,    ...options });
     case 'gemini':
       return analyzeWithGemini(prompt,      { apiKey: config.geminiApiKey,     ...options });
     case 'perplexity':
       return analyzeWithPerplexity(prompt,  { apiKey: config.perplexityApiKey, ...options });
     case 'grok':
-      return analyzeWithGrok(prompt,        { apiKey: config.xaiApiKey,        ...options });
+      return analyzeWithGrok(prompt,        { apiKey: config.puterAuthToken,    ...options });
+    case 'qwen':
+      return analyzeWithQwen(prompt,        { apiKey: config.puterAuthToken,    ...options });
     default:
-      throw new Error(`Provider tidak dikenal: "${provider}". Pilih: claude, chatgpt, gemini, perplexity, grok`);
+      throw new Error(`Provider tidak dikenal: "${provider}". Pilih: claude, chatgpt, gemini, perplexity, grok, qwen`);
   }
 }
+
 
 // ── SIMPAN ANALISIS ───────────────────────────────────────────────────────────
 export function saveAnalysis(analysis, outputDir, timestamp, provider = 'claude') {
