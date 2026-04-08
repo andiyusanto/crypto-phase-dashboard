@@ -31,7 +31,13 @@ let puterInstance;
 function getPuter(apiKey) {
   if (puterInstance) return puterInstance;
   if (!apiKey || apiKey === 'your_puter_auth_token_here' || apiKey.length < 5) {
-    throw new Error('PUTER_AUTH_TOKEN tidak diset atau tidak valid. Node.js memerlukan token: https://puter.com/dashboard (Copy Auth Token)');
+    console.error('\n❌ PUTER_AUTH_TOKEN tidak ditemukan!');
+    console.log('Untuk menggunakan ChatGPT/Grok/Qwen via Puter (gratis):');
+    console.log('1. Login ke https://puter.com');
+    console.log('2. Buka Dashboard');
+    console.log('3. Klik ikon profil (kanan atas) -> "Copy Auth Token"');
+    console.log('4. Tambahkan ke .env: PUTER_AUTH_TOKEN=pt_xxxxxx\n');
+    throw new Error('Missing PUTER_AUTH_TOKEN');
   }
   puterInstance = initPuter(apiKey);
   return puterInstance;

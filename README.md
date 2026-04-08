@@ -49,6 +49,13 @@ cp .env.example .env
 
 Edit `.env` — isi **hanya** yang dibutuhkan:
 
+#### 🚀 Getting Started with Puter AI (ChatGPT, Grok, Qwen)
+Puter.js di Node.js memerlukan **Auth Token** (gratis):
+1.  Login ke [puter.com](https://puter.com).
+2.  Buka **Dashboard**.
+3.  Klik ikon profil (kanan atas) → **"Copy Auth Token"**.
+4.  Simpan di `.env`: `PUTER_AUTH_TOKEN=pt_xxxxxxxxxxxxxxxx`
+
 #### AI Providers (pilih minimal satu)
 
 | Variabel | Provider | Model | Link | Harga |
