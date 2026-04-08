@@ -5,6 +5,7 @@
 // ============================================
 
 import axios from 'axios';
+import { fetchRealtimePMI } from './pmi.js';
 
 // ── Helper FRED ───────────────────────────────────────────────────────────────
 async function fredSeries(seriesId, apiKey, limit = 3) {
@@ -204,30 +205,31 @@ export async function fetchAllFedLiquidity(fredApiKey) {
     return { skipped: true, reason: 'FRED_API_KEY tidak diset' };
   }
 
-  console.log('🏦 Fetching Fed Liquidity data (Kamis/Jumat)...');
+  console.log('🏦 Fetching Fed Liquidity data (Kamis/Jumat) + PMI...');
 
-  const [walcl, rrp, reserves] = await Promise.allSettled([
+  const [walcl, rrp, reserves, pmi] = await Promise.allSettled([
     fetchFedBalanceSheet(fredApiKey),
     fetchRRP(fredApiKey),
     fetchReserveBalances(fredApiKey),
+    fetchRealtimePMI(),
   ]);
 
   // Log rejection reasons jika ada
   if (walcl.status === 'rejected')    console.error('  WALCL rejected:', walcl.reason);
   if (rrp.status === 'rejected')      console.error('  RRP rejected:', rrp.reason);
   if (reserves.status === 'rejected') console.error('  WLRRAL rejected:', reserves.reason);
+  if (pmi.status === 'rejected')      console.error('  PMI rejected:', pmi.reason);
 
   const w  = walcl.value    ?? null;
   const r  = rrp.value      ?? null;
   const rv = reserves.value ?? null;
+  const p  = pmi.value      ?? null;
 
   // Log raw values untuk debug
   if (w)  console.log(`  ✓ WALCL  : $${w.totalTrillions}T | Δ${w.weekChangeBillions > 0 ? '+' : ''}${w.weekChangeBillions}B | signal: ${w.signal}`);
-  else    console.warn('  ⚠️  WALCL  : null (fetch gagal atau error)');
   if (r)  console.log(`  ✓ RRP    : $${r.balanceBillions}B | trend: ${r.trend} | signal: ${r.signal}`);
-  else    console.warn('  ⚠️  RRP    : null');
   if (rv) console.log(`  ✓ WLRRAL : $${rv.totalTrillions}T | Δ${rv.weekChangeBillions > 0 ? '+' : ''}${rv.weekChangeBillions}B | signal: ${rv.signal}`);
-  else    console.warn('  ⚠️  WLRRAL : null');
+  if (p)  console.log(`  ✓ PMI    : Mfg ${p.manufacturing?.value ?? '??'} | Svc ${p.services?.value ?? '??'}`);
 
   // Trifecta: hanya hitung dari yang berhasil (tidak null)
   const available = [w, r, rv].filter(x => x !== null && x !== undefined && !x.skipped);
@@ -245,6 +247,7 @@ export async function fetchAllFedLiquidity(fredApiKey) {
     walcl:    w,
     rrp:      r,
     reserves: rv,
+    pmi:      p,
     trifectaScore: `${greenCount}/${total}`,
     greenCount,
     overallStatus,

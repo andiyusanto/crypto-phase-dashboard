@@ -34,7 +34,7 @@
 //   --send-prompt      kirim prompt ke Telegram sebelum analisis dimulai
 //   --print            print prompt ke terminal
 //   --no-save          jangan simpan file
-//   --mode=daily|weekly|monthly|fed|all
+//   --mode=daily|weekly|monthly|fed|pmi|all
 //   --provider=claude|chatgpt|gemini|perplexity|grok|all
 //   --telegram         kirim ke Telegram
 //   --discord          kirim ke Discord
@@ -194,9 +194,21 @@ async function main() {
       monthly = await fetchAllMonthlyData(config);
       console.log(chalk.green('✓ Monthly data'));
     }
-    if (mode === 'all' || mode === 'fed') {
+    if (mode === 'all' || mode === 'fed' || mode === 'pmi') {
       fed = await fetchAllFedLiquidity(config.fredApiKey);
-      console.log(chalk.green('✓ Fed Liquidity'));
+      console.log(chalk.green('✓ Fed Liquidity (+ PMI)'));
+      
+      if (mode === 'pmi') {
+        const p = fed.pmi;
+        if (p) {
+          console.log(chalk.cyan(`  Mfg: ${p.manufacturing?.value ?? 'N/A'} | Svc: ${p.services?.value ?? 'N/A'}`));
+        }
+        if (!doAnalyze && !doTelegram && !doDiscord) {
+          console.log(chalk.yellow('\nPMI Data Only:'));
+          console.log(JSON.stringify(p, null, 2));
+          return;
+        }
+      }
     }
 
     const allWarManual = ['warTimteng', 'warRusiaUkraine', 'warTaiwan']
@@ -370,6 +382,7 @@ function _printHelp() {
 
   console.log(chalk.bold('\n  📊 Fetch data:'));
   console.log(chalk.gray('  npm run fetch                  fetch semua data'));
+  console.log(chalk.gray('  npm run fetch:pmi              fetch real-time PMI saja'));
   console.log(chalk.gray('  npm run fetch:telegram         fetch + data summary → Telegram'));
   console.log(chalk.gray('  npm run fetch:discord          fetch + data summary → Discord'));
   console.log(chalk.gray('  npm run fetch:all-channels     fetch + data summary → Telegram + Discord'));

@@ -56,6 +56,14 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
     const w  = fed.walcl;
     const r  = fed.rrp;
     const rv = fed.reserves;
+    const p  = fed.pmi;
+
+    const rtPmiMfg = p?.manufacturing?.value;
+    const rtPmiSvc = p?.services?.value;
+    const pmiLine = (rtPmiMfg || rtPmiSvc)
+      ? `- ISM PMI (Scraped): Mfg: ${v(rtPmiMfg)} | Svc: ${v(rtPmiSvc)}`
+      : '- ISM PMI (Scraped): data tidak tersedia';
+
     fedBlock = `- Fed Balance Sheet total (WALCL): $${v(w?.totalTrillions)}T
   vs minggu lalu: ${w ? (w.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(w.weekChangeBillions) + 'B' : '___'}
 - RRP balance (RRPONTSYD): $${v(r?.balanceBillions)}B
@@ -63,6 +71,7 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
   trend: ${v(r?.trend)}
 - Reserve balances (WLRRAL): $${v(rv?.totalTrillions)}T
   vs minggu lalu: ${rv ? (rv.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(rv.weekChangeBillions) + 'B' : '___'}
+${pmiLine}
 - Fed trifecta self-assessment: ${v(fed.trifectaScore)} hijau (${v(fed.overallStatus)})`;
   }
 
@@ -140,17 +149,10 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
 
   let monthlyBlock = '(kosong — isi manual awal bulan)';
   if (showMonthly) {
-    if (monthly.pmi && !monthly.pmi.skipped) {
-      monthlyBlock = `- ISM PMI: ${pmiVal} (${monthly.pmi.seriesId ? `ID: ${monthly.pmi.seriesId} | Label: ${monthly.pmi.seriesLabel}` : 'ID/Label not available'})  | vs bulan lalu: ${pmiTrend}
+    monthlyBlock = `- ISM PMI (FRED): ${pmiVal} (${monthly.pmi?.seriesId ? `ID: ${monthly.pmi.seriesId} | Label: ${monthly.pmi.seriesLabel}` : 'ID/Label not available'})  | vs bulan lalu: ${pmiTrend}
 - CPI YoY: ${cpiYoy}%
 ${m2Line}
 - Fed rate keputusan terakhir: ${fedRateLbl}`;
-    } else {
-      monthlyBlock = `- CPI YoY: ${cpiYoy}%
-${m2Line}
-- Fed rate keputusan terakhir: ${fedRateLbl}
-- ISM PMI: data tidak tersedia`;
-    }
   }
 
   // ── ASSEMBLE ──────────────────────────────────────────────────────────────
@@ -249,6 +251,7 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
     const w  = fed.walcl;
     const r  = fed.rrp;
     const rv = fed.reserves;
+    const p  = fed.pmi;
     if (w && w.totalTrillions != null)
       lines.push(`  WALCL   : $${w.totalTrillions}T (${(w.weekChangeBillions ?? 0) >= 0 ? '+' : ''}${w.weekChangeBillions ?? '?'}B)`);
     else
@@ -261,6 +264,13 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
       lines.push(`  WLRRAL  : $${rv.totalTrillions}T (${(rv.weekChangeBillions ?? 0) >= 0 ? '+' : ''}${rv.weekChangeBillions ?? '?'}B)`);
     else
       lines.push(`  WLRRAL  : fetch gagal`);
+    
+    if (p) {
+      const m = p.manufacturing?.value ?? '??';
+      const s = p.services?.value ?? '??';
+      lines.push(`  PMI (S) : Mfg ${m} | Svc ${s} (Scraped)`);
+    }
+
     lines.push(`  Trifecta: ${fed.trifectaScore ?? '0/3'} hijau → ${fed.overallStatus ?? 'UNKNOWN'}`);
   }
 
@@ -301,7 +311,7 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
     lines.push('');
     lines.push('MONTHLY:');
     lines.push(`  CPI    : ${monthly.cpi.yoy}% YoY`);
-    if (monthly.pmi && !monthly.pmi.skipped) lines.push(`  PMI    : ${monthly.pmi.value} (${monthly.pmi.condition})`);
+    if (monthly.pmi && !monthly.pmi.skipped) lines.push(`  PMI (F): ${monthly.pmi.value} (${monthly.pmi.condition})`);
     if (!monthly.fedRate?.skipped) lines.push(`  Fed    : ${monthly.fedRate.label}`);
     if (monthly.m2 && !monthly.m2.skipped) {
       if (monthly.m2.globalTrillions) {

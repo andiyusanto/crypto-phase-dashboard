@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "fetch": "node src/index.js",
+    "fetch:pmi": "node src/index.js --mode=pmi",
     "fetch:telegram": "node src/index.js --telegram",
     "fetch:discord": "node src/index.js --discord",
     "fetch:all-channels": "node src/index.js --telegram --discord",
