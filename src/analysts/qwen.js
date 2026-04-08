@@ -33,34 +33,19 @@ export async function analyze(prompt, options = {}) {
   } = options;
 
   if (apiKey && apiKey !== 'your_puter_auth_token_here') {
-    puter.auth.setToken(apiKey);
+    puter.setAuthToken(apiKey);
   }
 
   if (!silent) process.stdout.write(`\n${PROVIDER_EMOJI} ${PROVIDER_NAME} menganalisis...\n\n`);
 
-  let fullResponse = '';
+  const combinedPrompt = `${SYSTEM_PROMPT}\n\n---\n\n${prompt}`;
 
   try {
-    // Puter AI Chat supports streaming
-    // Format prompt to include system prompt as Puter might not have a separate 'system' field in the same way OpenAI does, 
-    // but we can prepend it or use the standard chat format if supported.
-    // Based on docs: puter.ai.chat(prompt, { model, stream: true })
+    const response = await puter.ai.chat(combinedPrompt, { model });
+    const fullResponse = response?.message?.content || (typeof response === 'string' ? response : JSON.stringify(response));
     
-    const combinedPrompt = `${SYSTEM_PROMPT}\n\n---\n\n${prompt}`;
-    
-    const response = await puter.ai.chat(combinedPrompt, { 
-      model, 
-      stream: true 
-    });
-
-    for await (const part of response) {
-      const text = part?.text || '';
-      if (text) {
-        fullResponse += text;
-        if (onChunk) onChunk(text);
-        else if (!silent) process.stdout.write(text);
-      }
-    }
+    if (onChunk) onChunk(fullResponse);
+    else if (!silent) process.stdout.write(fullResponse);
 
     if (!silent) process.stdout.write('\n');
     return fullResponse;

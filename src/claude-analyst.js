@@ -64,27 +64,20 @@ export async function analyzeWithChatGPT(prompt, options = {}) {
   } = options;
 
   if (apiKey && apiKey !== 'your_puter_auth_token_here' && apiKey !== 'your_openai_api_key_here') {
-    puter.auth.setToken(apiKey);
+    puter.setAuthToken(apiKey);
   }
 
   if (!silent) process.stdout.write('\n🟢 ChatGPT (OpenAI via Puter) menganalisis...\n\n');
 
-  let full = '';
   const combinedPrompt = `${SYSTEM_PROMPT}\n\n---\n\n${prompt}`;
 
   try {
-    const response = await puter.ai.chat(combinedPrompt, {
-      model,
-      stream: true
-    });
+    const response = await puter.ai.chat(combinedPrompt, { model });
+    const full = response?.message?.content || (typeof response === 'string' ? response : JSON.stringify(response));
+    
+    if (onChunk) onChunk(full);
+    else if (!silent) process.stdout.write(full);
 
-    for await (const part of response) {
-      const t = part?.text || '';
-      if (t) {
-        full += t;
-        if (onChunk) onChunk(t); else if (!silent) process.stdout.write(t);
-      }
-    }
     if (!silent) process.stdout.write('\n');
     return full;
   } catch (err) {
@@ -192,27 +185,20 @@ export async function analyzeWithGrok(prompt, options = {}) {
   } = options;
 
   if (apiKey && apiKey !== 'your_puter_auth_token_here' && apiKey !== 'your_xai_api_key_here') {
-    puter.auth.setToken(apiKey);
+    puter.setAuthToken(apiKey);
   }
 
   if (!silent) process.stdout.write('\n⚡ Grok (xAI via Puter) menganalisis...\n\n');
 
-  let full = '';
   const combinedPrompt = `${SYSTEM_PROMPT}\n\n---\n\n${prompt}`;
 
   try {
-    const response = await puter.ai.chat(combinedPrompt, {
-      model,
-      stream: true
-    });
+    const response = await puter.ai.chat(combinedPrompt, { model });
+    const full = response?.message?.content || (typeof response === 'string' ? response : JSON.stringify(response));
 
-    for await (const part of response) {
-      const t = part?.text || '';
-      if (t) {
-        full += t;
-        if (onChunk) onChunk(t); else if (!silent) process.stdout.write(t);
-      }
-    }
+    if (onChunk) onChunk(full);
+    else if (!silent) process.stdout.write(full);
+
     if (!silent) process.stdout.write('\n');
     return full;
   } catch (err) {
@@ -230,27 +216,20 @@ export async function analyzeWithQwen(prompt, options = {}) {
   } = options;
 
   if (apiKey && apiKey !== 'your_puter_auth_token_here') {
-    puter.auth.setToken(apiKey);
+    puter.setAuthToken(apiKey);
   }
 
   if (!silent) process.stdout.write('\n🤖 Qwen (Puter AI) menganalisis...\n\n');
 
-  let full = '';
   const combinedPrompt = `${SYSTEM_PROMPT}\n\n---\n\n${prompt}`;
 
   try {
-    const response = await puter.ai.chat(combinedPrompt, {
-      model,
-      stream: true
-    });
+    const response = await puter.ai.chat(combinedPrompt, { model });
+    const full = response?.message?.content || (typeof response === 'string' ? response : JSON.stringify(response));
 
-    for await (const part of response) {
-      const t = part?.text || '';
-      if (t) {
-        full += t;
-        if (onChunk) onChunk(t); else if (!silent) process.stdout.write(t);
-      }
-    }
+    if (onChunk) onChunk(full);
+    else if (!silent) process.stdout.write(full);
+
     if (!silent) process.stdout.write('\n');
     return full;
   } catch (err) {
