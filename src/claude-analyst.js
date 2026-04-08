@@ -1,5 +1,5 @@
 // ============================================
-// MULTI-AI ANALYST (v3 - OpenRouter Edition)
+// MULTI-AI ANALYST (v4 - OpenRouter with Retry & Fallback)
 // Claude / Gemini / Perplexity / ChatGPT / Grok / Qwen
 // ============================================
 
@@ -24,76 +24,123 @@ Gaya respons:
 - Bahasa Indonesia, terminologi keuangan boleh Inggris
 - Prioritaskan kejelasan di atas kelengkapan`;
 
-// ── HELPER: OpenRouter Fetch ──────────────────────────────────────────────────
-async function fetchOpenRouter(model, prompt, apiKey, options = {}) {
-  const { onChunk, silent = false } = options;
+// ── OPENROUTER CONFIG ────────────────────────────────────────────────────────
+const FREE_MODELS = [
+  'qwen/qwen3-next-80b-a3b-instruct:free', // Preferred
+  'qwen/qwen-2.5-32b-instruct:free',       // Great for crypto
+  'meta-llama/llama-3.1-8b-instruct:free', // Generous quota
+  'google/gemma-2-9b-it:free'              // Reliable fallback
+];
+
+// ── HELPER: OpenRouter Fetch with Retry & Fallback ──────────────────────────
+async function fetchOpenRouterWithRetry(prompt, apiKey, options = {}) {
+  const { 
+    maxRetries = 3, 
+    onChunk, 
+    silent = false,
+    forcedModel = null // allow forcing a specific model (e.g. for ChatGPT/Grok)
+  } = options;
 
   if (!apiKey || apiKey === 'your_openrouter_api_key_here') {
     throw new Error('OPENROUTER_API_KEY tidak diset di .env');
   }
 
-  try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'http://localhost',
-        'X-Title': 'CryptoAnalyzer',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: prompt }
-        ],
-        stream: !!onChunk,
-      }),
-    });
+  // If a model is forced, we only try that model. If not, we use the fallback list.
+  const modelsToTry = forcedModel ? [forcedModel] : FREE_MODELS;
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      if (response.status === 401) throw new Error('OpenRouter: Invalid API Key');
-      if (response.status === 429) throw new Error('OpenRouter: Rate limit reached');
-      throw new Error(`OpenRouter Error ${response.status}: ${errData.error?.message || response.statusText}`);
-    }
-
-    if (onChunk) {
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let fullText = '';
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n').filter(line => line.trim() !== '');
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    for (const model of modelsToTry) {
+      try {
+        if (!silent) console.log(`🔄 Trying OpenRouter: ${model} (attempt ${attempt + 1})...`);
         
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') break;
-            try {
-              const parsed = JSON.parse(data);
-              const content = parsed.choices?.[0]?.delta?.content || '';
-              fullText += content;
-              onChunk(content);
-              if (!silent) process.stdout.write(content);
-            } catch (e) { /* skip */ }
-          }
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'http://localhost',
+            'X-Title': 'CryptoAnalyzer'
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: SYSTEM_PROMPT },
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.3,
+            max_tokens: 1200,
+            stream: !!onChunk && attempt === 0 // only stream on first attempt for simplicity
+          })
+        });
+
+        // Handle rate limit (429)
+        if (res.status === 429) {
+          const retryAfter = res.headers.get('Retry-After') || Math.pow(2, attempt) * 15;
+          if (!silent) console.log(`⏳ Rate limited on ${model}. Waiting ${retryAfter}s...`);
+          await new Promise(r => setTimeout(r, retryAfter * 1000));
+          continue; // Retry same model after wait
         }
+
+        // Model unavailable or rotated (404/503)
+        if (res.status === 404 || res.status === 503) {
+          if (!silent) console.log(`⚠️ ${model} unavailable. Switching...`);
+          continue; // Try next model in list
+        }
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+
+        // Handle streaming response if applicable
+        if (onChunk && !!onChunk && attempt === 0) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let fullText = '';
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n').filter(line => line.trim() !== '');
+            
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                if (data === '[DONE]') break;
+                try {
+                  const parsed = JSON.parse(data);
+                  const content = parsed.choices?.[0]?.delta?.content || '';
+                  fullText += content;
+                  onChunk(content);
+                  if (!silent) process.stdout.write(content);
+                } catch (e) { /* skip */ }
+              }
+            }
+          }
+          if (!silent) process.stdout.write('\n');
+          return fullText;
+        } else {
+          // Standard JSON response
+          const data = await res.json();
+          const content = data.choices?.[0]?.message?.content || '';
+          if (!silent) {
+            console.log(`✅ Success via: ${model}`);
+            process.stdout.write(content + '\n');
+          }
+          return content;
+        }
+
+      } catch (err) {
+        if (err.message.includes('429') || err.message.includes('404')) continue;
+        throw err;
       }
-      if (!silent) process.stdout.write('\n');
-      return fullText;
-    } else {
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content || '';
-      if (!silent) process.stdout.write(content + '\n');
-      return content;
     }
-  } catch (err) {
-    throw new Error(`OpenRouter Network Error: ${err.message}`);
+    // If all models failed in this attempt, wait before next round
+    if (attempt < maxRetries - 1) {
+      if (!silent) console.log(`⚠️ All models in current round failed. Waiting 30s before retry...`);
+      await new Promise(r => setTimeout(r, 30000));
+    }
   }
+
+  throw new Error('❌ All free models rate-limited or unavailable. Try again in 1-2 hours.');
 }
 
 // ── 1. CLAUDE (Anthropic) ─────────────────────────────────────────────────────
@@ -127,7 +174,7 @@ export async function analyzeWithClaude(prompt, options = {}) {
 export async function analyzeWithChatGPT(prompt, options = {}) {
   const { model = 'openai/gpt-4o-mini', onChunk, silent = false, apiKey } = options;
   if (!silent) process.stdout.write('\n🟢 ChatGPT (via OpenRouter) menganalisis...\n\n');
-  return fetchOpenRouter(model, prompt, apiKey, { onChunk, silent });
+  return fetchOpenRouterWithRetry(prompt, apiKey, { onChunk, silent, forcedModel: model });
 }
 
 // ── 3. GEMINI (Google) ────────────────────────────────────────────────────────
@@ -222,14 +269,15 @@ export async function analyzeWithPerplexity(prompt, options = {}) {
 export async function analyzeWithGrok(prompt, options = {}) {
   const { model = 'x-ai/grok-beta', onChunk, silent = false, apiKey } = options;
   if (!silent) process.stdout.write('\n⚡ Grok (via OpenRouter) menganalisis...\n\n');
-  return fetchOpenRouter(model, prompt, apiKey, { onChunk, silent });
+  return fetchOpenRouterWithRetry(prompt, apiKey, { onChunk, silent, forcedModel: model });
 }
 
 // ── 6. QWEN (OpenRouter Edition) ──────────────────────────────────────────────
 export async function analyzeWithQwen(prompt, options = {}) {
-  const { model = 'qwen/qwen3-next-80b-a3b-instruct:free', onChunk, silent = false, apiKey } = options;
-  if (!silent) process.stdout.write('\n🤖 Qwen (via OpenRouter) menganalisis...\n\n');
-  return fetchOpenRouter(model, prompt, apiKey, { onChunk, silent });
+  const { onChunk, silent = false, apiKey } = options;
+  if (!silent) process.stdout.write('\n🤖 Qwen (via OpenRouter dengan Retry & Fallback) menganalisis...\n\n');
+  // Qwen uses the fallback list of free models
+  return fetchOpenRouterWithRetry(prompt, apiKey, { onChunk, silent });
 }
 
 // ── GENERIC ANALYZE (for router compatibility) ───────────────────────────────
