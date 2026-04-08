@@ -4,6 +4,7 @@
 // ============================================
 
 import axios from 'axios';
+import { savePMI, getLatestPMI } from '../db.js';
 
 const BASE_URL = 'https://www.ismworld.org';
 const REPORTS_PAGE = 'https://www.ismworld.org/supply-management-news-and-reports/reports/ism-pmi-reports/';
@@ -25,7 +26,6 @@ export async function fetchRealtimePMI() {
     const html = res.data;
 
     // Find latest Manufacturing report link
-    // Pattern: href="/supply-management-news-and-reports/reports/ism-report-on-business/pmi/[month]-[year]-manufacturing-ism-report-on-business/"
     const mfgRegex = /href="([^"]+manufacturing-ism-report-on-business\/)"/i;
     const mfgMatch = html.match(mfgRegex);
     
@@ -49,10 +49,7 @@ export async function fetchRealtimePMI() {
 
     // Fetch and parse Manufacturing
     if (mfgUrl) {
-      console.log(`  ✓ Found Manufacturing Report: ${mfgUrl}`);
       const mfgRes = await axios.get(mfgUrl, { headers: { 'User-Agent': USER_AGENT } });
-      // Extract the headline number. It usually looks like "at 52.7 percent" or "registered 52.7 percent"
-      // Look for the first percentage match in the main text area
       const valMatch = mfgRes.data.match(/([0-9]+\.[0-9])%/);
       if (valMatch) {
         results.manufacturing = {
@@ -65,7 +62,6 @@ export async function fetchRealtimePMI() {
 
     // Fetch and parse Services
     if (svcUrl) {
-      console.log(`  ✓ Found Services Report: ${svcUrl}`);
       const svcRes = await axios.get(svcUrl, { headers: { 'User-Agent': USER_AGENT } });
       const valMatch = svcRes.data.match(/([0-9]+\.[0-9])%/);
       if (valMatch) {
@@ -77,10 +73,22 @@ export async function fetchRealtimePMI() {
       }
     }
 
-    return results;
+    // SAVE TO DATABASE if we have data
+    if (results.manufacturing || results.services) {
+      savePMI(results);
+      return results;
+    }
+
+    throw new Error('Scraped data was empty');
 
   } catch (err) {
-    console.error('❌ PMI Scraping failed:', err.message);
+    console.warn(`⚠️  PMI Scraping failed: ${err.message}. Mencoba data dari database...`);
+    const fallback = getLatestPMI();
+    if (fallback) {
+      console.log('✅ Berhasil mengambil PMI terakhir dari database SQLite.');
+      return fallback;
+    }
+    console.error('❌ Database juga kosong. Tidak ada data PMI.');
     return null;
   }
 }
