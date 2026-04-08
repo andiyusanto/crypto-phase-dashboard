@@ -1,6 +1,6 @@
 # Crypto Dashboard — Hedge Fund Analyst
 
-Script Node.js untuk otomatis fetch data macro/crypto, analisis dengan **5 AI** (Claude, ChatGPT, Gemini, Perplexity, Grok), dan distribusi ke **Telegram** dan/atau **Discord**.
+Script Node.js untuk otomatis fetch data macro/crypto, analisis dengan **6 AI** (Claude, ChatGPT, Gemini, Perplexity, Grok, Qwen), dan distribusi ke **Telegram** dan/atau **Discord**.
 
 Setiap AI provider, Telegram, dan Discord **sepenuhnya independen** — menjalankan satu tidak memerlukan yang lain terkonfigurasi.
 
@@ -15,15 +15,15 @@ Setiap AI provider, Telegram, dan Discord **sepenuhnya independen** — menjalan
 │  alternative.me · Google News RSS · Twelve Data             │
 └──────────────────────────┬──────────────────────────────────┘
                            │ generate prompt
-         ┌─────────────────┼──────────────────────┐
-         ▼                 ▼          ▼            ▼
-    🤖 Claude         🟢 ChatGPT  ✨ Gemini   ⚡ Grok (xAI)
-    Anthropic         OpenAI      Google      xAI
-         │                 │          │            │
-         └─────────────────┼──────────┘            │
-                           │      🔍 Perplexity     │
-                           │       Sonar            │
-                           └──────────┬─────────────┘
+         ┌─────────────────┼────────────────────────────────────────┐
+         ▼                 ▼          ▼            ▼                ▼
+    🤖 Claude         ✨ Gemini   🔍 Perplexity  ⚡ Grok (Puter)  🤖 Qwen (Puter)
+    Anthropic         Google      Sonar         xAI              Alibaba
+         │                 │          │            │                │
+         └─────────────────┼──────────┘            └──────┬─────────┘
+                           │      🟢 ChatGPT              │
+                           │       (Puter)                │
+                           └──────────┬───────────────────┘
                                       │
                   ┌───────────────────┴───────────────────┐
                   ▼                                       ▼
@@ -54,12 +54,13 @@ Edit `.env` — isi **hanya** yang dibutuhkan:
 | Variabel | Provider | Model | Link | Harga |
 |----------|----------|-------|------|-------|
 | `ANTHROPIC_API_KEY` | Claude | claude-sonnet-4-5 | [console.anthropic.com](https://console.anthropic.com) | Berbayar |
-| `OPENAI_API_KEY` | ChatGPT | gpt-4.1 | [platform.openai.com](https://platform.openai.com/api-keys) | Berbayar |
+| `PUTER_AUTH_TOKEN` | ChatGPT (via Puter) | openai/gpt-4o | [developer.puter.com](https://developer.puter.com) | **Gratis** |
 | `GEMINI_API_KEY` | Gemini | gemini-2.5-flash | [aistudio.google.com](https://aistudio.google.com/apikey) | **Gratis** |
 | `PERPLEXITY_API_KEY` | Perplexity | sonar-pro | [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) | Berbayar |
-| `XAI_API_KEY` | Grok (xAI) | grok-3 | [console.x.ai](https://console.x.ai) | **$25/bulan gratis** |
+| `PUTER_AUTH_TOKEN` | Grok (via Puter) | x-ai/grok-4-1-fast | [developer.puter.com](https://developer.puter.com) | **Gratis** |
+| `PUTER_AUTH_TOKEN` | Qwen (via Puter) | qwen/qwen3.6-plus:free | [developer.puter.com](https://developer.puter.com) | **Gratis** |
 
-> **Grok**: daftar di console.x.ai, dapat $25 free credits/bulan — cukup untuk jutaan token dengan grok-3-mini
+> **Puter AI**: Mendukung ChatGPT, Grok, Qwen, dll. tanpa API key individual untuk free tier. Opsional: gunakan `PUTER_AUTH_TOKEN` jika punya akun premium.
 
 #### Messaging Channels (opsional)
 
@@ -132,7 +133,8 @@ const manualOverrides = {
 | `npm run analyze:chatgpt` | 🟢 ChatGPT (OpenAI) |
 | `npm run analyze:gemini` | ✨ Gemini (Google) |
 | `npm run analyze:perplexity` | 🔍 Perplexity Sonar |
-| `npm run analyze:grok` | ⚡ Grok (xAI) |
+| `npm run analyze:grok` | ⚡ Grok (Puter AI) |
+| `npm run analyze:qwen` | 🤖 Qwen (Puter AI) |
 | `npm run analyze:all` | Semua AI yang ada key-nya |
 
 ### Analisis + Telegram
@@ -144,6 +146,7 @@ const manualOverrides = {
 | `npm run analyze:gemini:telegram` | Gemini |
 | `npm run analyze:perplexity:telegram` | Perplexity |
 | `npm run analyze:grok:telegram` | Grok |
+| `npm run analyze:qwen:telegram` | Qwen |
 | `npm run analyze:all:telegram` | Semua AI |
 
 ### Analisis + Discord
@@ -155,6 +158,7 @@ const manualOverrides = {
 | `npm run analyze:gemini:discord` | Gemini |
 | `npm run analyze:perplexity:discord` | Perplexity |
 | `npm run analyze:grok:discord` | Grok |
+| `npm run analyze:qwen:discord` | Qwen |
 | `npm run analyze:all:discord` | Semua AI |
 
 ### Analisis + Telegram + Discord
@@ -166,6 +170,7 @@ const manualOverrides = {
 | `npm run analyze:gemini:all-channels` | Gemini |
 | `npm run analyze:perplexity:all-channels` | Perplexity |
 | `npm run analyze:grok:all-channels` | Grok |
+| `npm run analyze:qwen:all-channels` | Qwen |
 | `npm run analyze:all:all-channels` | Semua AI |
 
 ### Flags Tambahan
@@ -289,13 +294,14 @@ Altseason Index (blockchaincenter.net), BTC Exchange Netflow (CryptoQuant), TOTA
 
 ## Perbandingan AI
 
-| Provider | Keunggulan | Model | Key |
-|----------|-----------|-------|-----|
+| Provider | Keunggulan | Model | Harga |
+|----------|-----------|-------|-------|
 | 🤖 **Claude** | Reasoning terdalam, analisis fase paling konsisten | claude-sonnet-4-5 | Berbayar |
-| 🟢 **ChatGPT** | Balanced, risk management | gpt-4.1 | Berbayar |
+| 🟢 **ChatGPT** | Balanced, risk management (via Puter) | openai/gpt-4o | **Gratis** |
 | ✨ **Gemini** | Paling cepat, free tier generous | gemini-2.5-flash | **Gratis** |
 | 🔍 **Perplexity** | Real-time web search + citations | sonar-pro | Berbayar |
-| ⚡ **Grok** | Reasoning kuat, $25/bulan gratis, pakai OpenAI SDK | grok-3 | **$25/bln gratis** |
+| ⚡ **Grok** | Reasoning kuat, xAI model via Puter | x-ai/grok-4-1-fast | **Gratis** |
+| 🤖 **Qwen** | Alibaba Qwen model via Puter | qwen/qwen3.6-plus:free | **Gratis** |
 
 ---
 
