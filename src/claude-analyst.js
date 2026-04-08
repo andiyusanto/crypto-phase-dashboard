@@ -156,7 +156,7 @@ async function fetchOpenRouterWithRetry(prompt, apiKey, options = {}) {
 
 // ── 1. CLAUDE (Anthropic) ─────────────────────────────────────────────────────
 export async function analyzeWithClaude(prompt, options = {}) {
-  const { apiKey, model = 'claude-3-5-sonnet-20240620', maxTokens = 4096, onChunk, silent = false } = options;
+  const { apiKey, model = 'claude-sonnet-4-6', maxTokens = 4096, onChunk, silent = false } = options;
   if (!apiKey || apiKey === 'your_anthropic_api_key_here')
     throw new Error('ANTHROPIC_API_KEY tidak diset');
 
