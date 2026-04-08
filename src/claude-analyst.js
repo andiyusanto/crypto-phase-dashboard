@@ -76,8 +76,7 @@ async function fetchOpenRouterWithRetry(prompt, apiKey, options = {}) {
           body: JSON.stringify({
             model,
             messages: [
-              { role: 'system', content: SYSTEM_PROMPT },
-              { role: 'user', content: prompt }
+              { role: 'user', content: `${SYSTEM_PROMPT}\n\n---\n\n${prompt}` }
             ],
             temperature: 0.3,
             max_tokens: 1200,
