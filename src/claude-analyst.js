@@ -1,6 +1,6 @@
 // ============================================
-// MULTI-AI ANALYST
-// Claude / Gemini / Perplexity / ChatGPT (OpenAI)
+// MULTI-AI ANALYST (v3 - OpenRouter Edition)
+// Claude / Gemini / Perplexity / ChatGPT / Grok / Qwen
 // ============================================
 
 import Anthropic        from '@anthropic-ai/sdk';
@@ -8,7 +8,6 @@ import { GoogleGenAI }  from '@google/genai';
 import OpenAI           from 'openai';
 import axios            from 'axios';
 import { writeFileSync } from 'fs';
-import { init as initPuter } from '@heyputer/puter.js/src/init.cjs';
 
 // ── System prompt — sama untuk semua AI ──────────────────────────────────────
 export const SYSTEM_PROMPT = `Kamu adalah hedge fund analyst senior yang spesialis di crypto dan macro markets.
@@ -25,27 +24,81 @@ Gaya respons:
 - Bahasa Indonesia, terminologi keuangan boleh Inggris
 - Prioritaskan kejelasan di atas kelengkapan`;
 
-// Global puter instance
-let puterInstance;
+// ── HELPER: OpenRouter Fetch ──────────────────────────────────────────────────
+async function fetchOpenRouter(model, prompt, apiKey, options = {}) {
+  const { onChunk, silent = false } = options;
 
-function getPuter(apiKey) {
-  if (puterInstance) return puterInstance;
-  if (!apiKey || apiKey === 'your_puter_auth_token_here' || apiKey.length < 5) {
-    console.error('\n❌ PUTER_AUTH_TOKEN tidak ditemukan!');
-    console.log('Untuk menggunakan ChatGPT/Grok/Qwen via Puter (gratis):');
-    console.log('1. Login ke https://puter.com');
-    console.log('2. Buka Dashboard');
-    console.log('3. Klik ikon profil (kanan atas) -> "Copy Auth Token"');
-    console.log('4. Tambahkan ke .env: PUTER_AUTH_TOKEN=pt_xxxxxx\n');
-    throw new Error('Missing PUTER_AUTH_TOKEN');
+  if (!apiKey || apiKey === 'your_openrouter_api_key_here') {
+    throw new Error('OPENROUTER_API_KEY tidak diset di .env');
   }
-  puterInstance = initPuter(apiKey);
-  return puterInstance;
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'http://localhost',
+        'X-Title': 'CryptoAnalyzer',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: prompt }
+        ],
+        stream: !!onChunk,
+      }),
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      if (response.status === 401) throw new Error('OpenRouter: Invalid API Key');
+      if (response.status === 429) throw new Error('OpenRouter: Rate limit reached');
+      throw new Error(`OpenRouter Error ${response.status}: ${errData.error?.message || response.statusText}`);
+    }
+
+    if (onChunk) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = '';
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n').filter(line => line.trim() !== '');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') break;
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content || '';
+              fullText += content;
+              onChunk(content);
+              if (!silent) process.stdout.write(content);
+            } catch (e) { /* skip */ }
+          }
+        }
+      }
+      if (!silent) process.stdout.write('\n');
+      return fullText;
+    } else {
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content || '';
+      if (!silent) process.stdout.write(content + '\n');
+      return content;
+    }
+  } catch (err) {
+    throw new Error(`OpenRouter Network Error: ${err.message}`);
+  }
 }
 
 // ── 1. CLAUDE (Anthropic) ─────────────────────────────────────────────────────
 export async function analyzeWithClaude(prompt, options = {}) {
-  const { apiKey, model = 'claude-sonnet-4-5', maxTokens = 4096, onChunk, silent = false } = options;
+  const { apiKey, model = 'claude-3-5-sonnet-20240620', maxTokens = 4096, onChunk, silent = false } = options;
   if (!apiKey || apiKey === 'your_anthropic_api_key_here')
     throw new Error('ANTHROPIC_API_KEY tidak diset');
 
@@ -70,41 +123,18 @@ export async function analyzeWithClaude(prompt, options = {}) {
   return full;
 }
 
-// ── 2. CHATGPT (OpenAI via Puter AI) ──────────────────────────────────────────
-// OpenAI via Puter — Model: openai/gpt-4o
-// Daftar: developer.puter.com
+// ── 2. CHATGPT (OpenRouter Edition) ───────────────────────────────────────────
 export async function analyzeWithChatGPT(prompt, options = {}) {
-  const {
-    model = 'openai/gpt-4o',
-    onChunk,
-    silent = false,
-    apiKey // puterAuthToken
-  } = options;
-
-  if (!silent) process.stdout.write('\n🟢 ChatGPT (OpenAI via Puter) menganalisis...\n\n');
-
-  const combinedPrompt = `${SYSTEM_PROMPT}\n\n---\n\n${prompt}`;
-
-  try {
-    const p = getPuter(apiKey);
-    const response = await p.ai.chat(combinedPrompt, { model });
-    const full = response?.message?.content || (typeof response === 'string' ? response : JSON.stringify(response));
-    
-    if (onChunk) onChunk(full);
-    else if (!silent) process.stdout.write(full);
-
-    if (!silent) process.stdout.write('\n');
-    return full;
-  } catch (err) {
-    throw new Error(`ChatGPT (Puter) error: ${err.message}`);
-  }
+  const { model = 'openai/gpt-4o-mini', onChunk, silent = false, apiKey } = options;
+  if (!silent) process.stdout.write('\n🟢 ChatGPT (via OpenRouter) menganalisis...\n\n');
+  return fetchOpenRouter(model, prompt, apiKey, { onChunk, silent });
 }
 
 // ── 3. GEMINI (Google) ────────────────────────────────────────────────────────
 export async function analyzeWithGemini(prompt, options = {}) {
-  const { apiKey, model = 'gemini-2.5-flash', onChunk, silent = false } = options;
+  const { apiKey, model = 'gemini-1.5-flash', onChunk, silent = false } = options;
   if (!apiKey || apiKey === 'your_gemini_api_key_here')
-    throw new Error('GEMINI_API_KEY tidak diset — dapatkan di aistudio.google.com');
+    throw new Error('GEMINI_API_KEY tidak diset');
 
   const ai = new GoogleGenAI({ apiKey });
   if (!silent) process.stdout.write('\n✨ Gemini (Google) menganalisis...\n\n');
@@ -131,7 +161,7 @@ export async function analyzeWithGemini(prompt, options = {}) {
 export async function analyzeWithPerplexity(prompt, options = {}) {
   const { apiKey, model = 'sonar-pro', onChunk, silent = false } = options;
   if (!apiKey || apiKey === 'your_perplexity_api_key_here')
-    throw new Error('PERPLEXITY_API_KEY tidak diset — perplexity.ai/settings/api');
+    throw new Error('PERPLEXITY_API_KEY tidak diset');
 
   if (!silent) process.stdout.write('\n🔍 Perplexity Sonar menganalisis...\n\n');
 
@@ -188,92 +218,47 @@ export async function analyzeWithPerplexity(prompt, options = {}) {
   return full;
 }
 
-// ── 5. xAI GROK (via Puter AI) ────────────────────────────────────────────────
-// xAI API via Puter — Model: x-ai/grok-4-1-fast atau x-ai/grok-4
-// Daftar: developer.puter.com
+// ── 5. xAI GROK (OpenRouter Edition) ──────────────────────────────────────────
 export async function analyzeWithGrok(prompt, options = {}) {
-  const {
-    model = 'x-ai/grok-4-1-fast',
-    onChunk,
-    silent = false,
-    apiKey // puterAuthToken
-  } = options;
-
-  if (!silent) process.stdout.write('\n⚡ Grok (xAI via Puter) menganalisis...\n\n');
-
-  const combinedPrompt = `${SYSTEM_PROMPT}\n\n---\n\n${prompt}`;
-
-  try {
-    const p = getPuter(apiKey);
-    const response = await p.ai.chat(combinedPrompt, { model });
-    const full = response?.message?.content || (typeof response === 'string' ? response : JSON.stringify(response));
-
-    if (onChunk) onChunk(full);
-    else if (!silent) process.stdout.write(full);
-
-    if (!silent) process.stdout.write('\n');
-    return full;
-  } catch (err) {
-    throw new Error(`Grok (Puter) error: ${err.message}`);
-  }
+  const { model = 'x-ai/grok-beta', onChunk, silent = false, apiKey } = options;
+  if (!silent) process.stdout.write('\n⚡ Grok (via OpenRouter) menganalisis...\n\n');
+  return fetchOpenRouter(model, prompt, apiKey, { onChunk, silent });
 }
 
-// ── 6. QWEN (Puter.js) ────────────────────────────────────────────────────────
+// ── 6. QWEN (OpenRouter Edition) ──────────────────────────────────────────────
 export async function analyzeWithQwen(prompt, options = {}) {
-  const {
-    model = 'qwen/qwen3.6-plus:free',
-    onChunk,
-    silent = false,
-    apiKey // though Puter says no API key required for free tier
-  } = options;
-
-  if (!silent) process.stdout.write('\n🤖 Qwen (Puter AI) menganalisis...\n\n');
-
-  const combinedPrompt = `${SYSTEM_PROMPT}\n\n---\n\n${prompt}`;
-
-  try {
-    const p = getPuter(apiKey);
-    const response = await p.ai.chat(combinedPrompt, { model });
-    const full = response?.message?.content || (typeof response === 'string' ? response : JSON.stringify(response));
-
-    if (onChunk) onChunk(full);
-    else if (!silent) process.stdout.write(full);
-
-    if (!silent) process.stdout.write('\n');
-    return full;
-  } catch (err) {
-    throw new Error(`Qwen (Puter) error: ${err.message}`);
-  }
+  const { model = 'qwen/qwen-2.5-72b-instruct:free', onChunk, silent = false, apiKey } = options;
+  if (!silent) process.stdout.write('\n🤖 Qwen (via OpenRouter) menganalisis...\n\n');
+  return fetchOpenRouter(model, prompt, apiKey, { onChunk, silent });
 }
 
 // ── GENERIC ANALYZE (for router compatibility) ───────────────────────────────
 export async function analyze(prompt, options = {}) {
-  // Try to determine provider from options or default to claude
-  // This is for files that import * as ClaudeAnalyst and call .analyze()
   const provider = options.provider || 'claude'; 
   return analyzeWith(provider, prompt, options.config || {}, options);
 }
 
 // ── DISPATCHER ────────────────────────────────────────────────────────────────
 export async function analyzeWith(provider, prompt, config, options = {}) {
+  const openRouterKey = config.openRouterApiKey;
+
   switch (provider) {
     case 'claude':
       return analyzeWithClaude(prompt,      { apiKey: config.anthropicApiKey,  ...options });
     case 'chatgpt':
-      return analyzeWithChatGPT(prompt,     { apiKey: config.puterAuthToken,    ...options });
+      return analyzeWithChatGPT(prompt,     { apiKey: openRouterKey,    ...options });
     case 'gemini':
       return analyzeWithGemini(prompt,      { apiKey: config.geminiApiKey,     ...options });
     case 'perplexity':
       return analyzeWithPerplexity(prompt,  { apiKey: config.perplexityApiKey, ...options });
     case 'grok':
-      return analyzeWithGrok(prompt,        { apiKey: config.puterAuthToken,    ...options });
+      return analyzeWithGrok(prompt,        { apiKey: openRouterKey,    ...options });
     case 'qwen':
-      return analyzeWithQwen(prompt,        { apiKey: config.puterAuthToken,    ...options });
+      return analyzeWithQwen(prompt,        { apiKey: openRouterKey,    ...options });
     default:
-      throw new Error(`Provider tidak dikenal: "${provider}". Pilih: claude, chatgpt, gemini, perplexity, grok, qwen`);
+      throw new Error(`Provider tidak dikenal: "${provider}"`);
   }
 }
-
 
 // ── SIMPAN ANALISIS ───────────────────────────────────────────────────────────
 export function saveAnalysis(analysis, outputDir, timestamp, provider = 'claude') {
@@ -284,16 +269,8 @@ export function saveAnalysis(analysis, outputDir, timestamp, provider = 'claude'
     '═'.repeat(60), '',
   ].join('\n');
 
-  const content = typeof analysis === 'string'
-    ? header + analysis
-    : Object.entries(analysis)
-        .filter(([, v]) => v)
-        .map(([p, t]) => `\n${'═'.repeat(60)}\n  ANALISIS ${p.toUpperCase()}\n${'═'.repeat(60)}\n\n${t}`)
-        .join('\n\n');
-
-  const fname = provider === 'all'
-    ? `analysis_all_${ts}.txt`
-    : `analysis_${provider}_${ts}.txt`;
+  const content = typeof analysis === 'string' ? header + analysis : '';
+  const fname = `analysis_${provider}_${ts}.txt`;
 
   writeFileSync(`${outputDir}/${fname}`, content, 'utf-8');
   writeFileSync(`${outputDir}/latest_analysis_${provider}.txt`, content, 'utf-8');

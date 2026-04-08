@@ -84,7 +84,7 @@ const config = {
   geminiApiKey:      process.env.GEMINI_API_KEY,
   perplexityApiKey:  process.env.PERPLEXITY_API_KEY,
   xaiApiKey:         process.env.XAI_API_KEY,
-  puterAuthToken:    process.env.PUTER_AUTH_TOKEN,
+  openRouterApiKey:  process.env.OPENROUTER_API_KEY,
 
   telegramBotToken:  process.env.TELEGRAM_BOT_TOKEN,
   telegramChatId:    process.env.TELEGRAM_CHAT_ID,
@@ -114,20 +114,16 @@ const manualOverrides = {
 // ─────────────────────────────────────────────────────────────────────────────
 const PROVIDERS = {
   claude:     { label: 'Claude (Anthropic)', emoji: '🤖', color: chalk.magenta, envKey: 'ANTHROPIC_API_KEY',  cfgKey: 'anthropicApiKey'  },
-  chatgpt:    { label: 'ChatGPT (OpenAI via Puter)', emoji: '🟢', color: chalk.green,   envKey: 'PUTER_AUTH_TOKEN',    cfgKey: 'puterAuthToken'   },
+  chatgpt:    { label: 'ChatGPT (OpenRouter)', emoji: '🟢', color: chalk.green,   envKey: 'OPENROUTER_API_KEY',  cfgKey: 'openRouterApiKey' },
   gemini:     { label: 'Gemini (Google)',    emoji: '✨', color: chalk.blue,    envKey: 'GEMINI_API_KEY',     cfgKey: 'geminiApiKey'     },
   perplexity: { label: 'Perplexity Sonar',  emoji: '🔍', color: chalk.cyan,    envKey: 'PERPLEXITY_API_KEY', cfgKey: 'perplexityApiKey' },
-  grok:       { label: 'Grok (xAI via Puter)', emoji: '⚡', color: chalk.white,   envKey: 'PUTER_AUTH_TOKEN',    cfgKey: 'puterAuthToken'   },
-  qwen:       { label: 'Qwen (Puter AI)',    emoji: '🤖', color: chalk.yellow,  envKey: 'PUTER_AUTH_TOKEN',    cfgKey: 'puterAuthToken'   },
+  grok:       { label: 'Grok (OpenRouter)',   emoji: '⚡', color: chalk.white,   envKey: 'OPENROUTER_API_KEY',  cfgKey: 'openRouterApiKey' },
+  qwen:       { label: 'Qwen (OpenRouter)',   emoji: '🤖', color: chalk.yellow,  envKey: 'OPENROUTER_API_KEY',  cfgKey: 'openRouterApiKey' },
 };
 const ALL_PROVIDERS = ['claude', 'chatgpt', 'gemini', 'grok', 'qwen'];
  //['claude', 'chatgpt', 'gemini', 'perplexity', 'grok'];
 
 const hasApiKey = p => {
-  if (p === 'qwen' || p === 'grok' || p === 'chatgpt') {
-    const v = config.puterAuthToken;
-    return !!(v && v.trim() && !v.includes('your_') && v.length > 5);
-  }
   const v = config[PROVIDERS[p]?.cfgKey];
   return !!(v && v.trim() && !v.includes('your_') && v.length > 10);
 };

@@ -49,25 +49,24 @@ cp .env.example .env
 
 Edit `.env` — isi **hanya** yang dibutuhkan:
 
-#### 🚀 Getting Started with Puter AI (ChatGPT, Grok, Qwen)
-Puter.js di Node.js memerlukan **Auth Token** (gratis):
-1.  Login ke [puter.com](https://puter.com).
-2.  Buka **Dashboard**.
-3.  Klik ikon profil (kanan atas) → **"Copy Auth Token"**.
-4.  Simpan di `.env`: `PUTER_AUTH_TOKEN=pt_xxxxxxxxxxxxxxxx`
+#### 🚀 Getting Started with OpenRouter (ChatGPT, Grok, Qwen)
+Dashboard ini menggunakan **OpenRouter** untuk mengakses model Qwen (Gratis), Grok, dan ChatGPT:
+1.  Daftar di [openrouter.ai](https://openrouter.ai).
+2.  Buka **Keys** → **Create Key**.
+3.  Simpan di `.env`: `OPENROUTER_API_KEY=sk-or-xxxxxx`
 
 #### AI Providers (pilih minimal satu)
 
 | Variabel | Provider | Model | Link | Harga |
 |----------|----------|-------|------|-------|
-| `ANTHROPIC_API_KEY` | Claude | claude-sonnet-4-5 | [console.anthropic.com](https://console.anthropic.com) | Berbayar |
-| `PUTER_AUTH_TOKEN` | ChatGPT (via Puter) | openai/gpt-4o | [developer.puter.com](https://developer.puter.com) | **Gratis** |
-| `GEMINI_API_KEY` | Gemini | gemini-2.5-flash | [aistudio.google.com](https://aistudio.google.com/apikey) | **Gratis** |
+| `ANTHROPIC_API_KEY` | Claude | claude-3-5-sonnet | [console.anthropic.com](https://console.anthropic.com) | Berbayar |
+| `OPENROUTER_API_KEY` | ChatGPT (OpenRouter) | gpt-4o-mini | [openrouter.ai](https://openrouter.ai) | Berbayar |
+| `GEMINI_API_KEY` | Gemini | gemini-1.5-flash | [aistudio.google.com](https://aistudio.google.com/apikey) | **Gratis** |
 | `PERPLEXITY_API_KEY` | Perplexity | sonar-pro | [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) | Berbayar |
-| `PUTER_AUTH_TOKEN` | Grok (via Puter) | x-ai/grok-4-1-fast | [developer.puter.com](https://developer.puter.com) | **Gratis** |
-| `PUTER_AUTH_TOKEN` | Qwen (via Puter) | qwen/qwen3.6-plus:free | [developer.puter.com](https://developer.puter.com) | **Gratis** |
+| `OPENROUTER_API_KEY` | Grok (OpenRouter) | x-ai/grok-beta | [openrouter.ai](https://openrouter.ai) | Berbayar |
+| `OPENROUTER_API_KEY` | Qwen (OpenRouter) | qwen-2.5-72b-instruct:free | [openrouter.ai](https://openrouter.ai) | **Gratis** |
 
-> **Puter AI**: Mendukung ChatGPT, Grok, Qwen, dll. tanpa API key individual untuk free tier. Opsional: gunakan `PUTER_AUTH_TOKEN` jika punya akun premium.
+> **OpenRouter**: Satu API key untuk mengakses ratusan model. Model Qwen tersedia gratis!
 
 #### Messaging Channels (opsional)
 

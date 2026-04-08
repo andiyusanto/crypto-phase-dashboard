@@ -18,16 +18,15 @@ import * as ClaudeAnalyst      from './analysts/claude.js';
 import * as OpenAIAnalyst      from './analysts/openai.js';
 import * as GeminiAnalyst      from './analysts/gemini.js';
 import * as PerplexityAnalyst  from './analysts/perplexity.js';
-import * as QwenAnalyst        from './analysts/qwen.js';
 
 // Registry semua provider
 export const PROVIDERS = {
   claude:     { module: ClaudeAnalyst,     envKey: 'anthropicApiKey',  label: 'Claude (Anthropic)' },
-  openai:     { module: ClaudeAnalyst,     envKey: 'puterAuthToken',   label: 'ChatGPT (OpenAI via Puter)' },
+  openai:     { module: ClaudeAnalyst,     envKey: 'openRouterApiKey', label: 'ChatGPT (OpenRouter)'   },
   gemini:     { module: GeminiAnalyst,     envKey: 'geminiApiKey',     label: 'Gemini (Google)'    },
   perplexity: { module: PerplexityAnalyst, envKey: 'perplexityApiKey', label: 'Perplexity AI'      },
-  grok:       { module: ClaudeAnalyst,     envKey: 'puterAuthToken',   label: 'Grok (xAI via Puter)'},
-  qwen:       { module: QwenAnalyst,       envKey: 'puterAuthToken',   label: 'Qwen (Puter AI)'    },
+  grok:       { module: ClaudeAnalyst,     envKey: 'openRouterApiKey', label: 'Grok (OpenRouter)'      },
+  qwen:       { module: ClaudeAnalyst,     envKey: 'openRouterApiKey', label: 'Qwen (OpenRouter)'      },
 };
 
 // ── Kirim ke satu provider ────────────────────────────────────────────────────
