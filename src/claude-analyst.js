@@ -26,8 +26,8 @@ Gaya respons:
 
 // ── OPENROUTER CONFIG ────────────────────────────────────────────────────────
 const FREE_MODELS = [
-  'google/gemma-4-26b-a4b-it:free',
-  'google/gemma-4-31b-it:free',
+  // 'google/gemma-4-26b-a4b-it:free',
+  // 'google/gemma-4-31b-it:free',
   'qwen/qwen3-next-80b-a3b-instruct:free',
   'qwen/qwen3-coder:free',
   'google/gemma-3n-e2b-it:free',
