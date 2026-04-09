@@ -119,16 +119,12 @@ export async function fetchISMPMI(fredApiKey) {
       },
       timeout: 10000,
     });
-    console.log("res = ");
-    console.log(res);
     if (!res.data || !res.data.observations) {
       console.warn(`  ⚠️  Series ${seriesId} gagal: no data or invalid response`);
       return null;
     }
 
     const obs = res.data.observations.filter(o => o.value !== '.' && o.value !== null);
-    console.log("obs = ");
-    console.log(obs);
     if (obs.length < 1) {
       console.warn(`  ⚠️  Series ${seriesId} gagal: no observations`);
       return null;
@@ -303,17 +299,15 @@ export async function fetchAllMonthlyData(config = {}) {
   const results = await Promise.allSettled([
     fetchCPI(config.fredApiKey),
     fetchFedRate(config.fredApiKey),
-    fetchISMPMI(config.fredApiKey),
     fetchM2(config.fredApiKey),
   ]);
 
-  const [cpi, fedRate, pmi, m2] = results.map(r => r.status === 'fulfilled' ? r.value : null);
+  const [cpi, fedRate, m2] = results.map(r => r.status === 'fulfilled' ? r.value : null);
 
   return {
     timestamp: new Date().toISOString(),
     cpi,
     fedRate,
-    pmi,
     m2,
   };
 }

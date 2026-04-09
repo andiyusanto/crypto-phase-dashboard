@@ -139,8 +139,6 @@ ${pmiLine}
 
   // ── Monthly ───────────────────────────────────────────────────────────────
   const cpiYoy    = v(monthly?.cpi?.yoy);
-  const pmiVal    = v(monthly?.pmi?.value);
-  const pmiTrend  = v(monthly?.pmi?.trend);
   const fedRateLbl = v(monthly?.fedRate?.label);
 
   // Global M2 — tampilkan breakdown jika tersedia, fallback ke US M2 saja
@@ -157,8 +155,7 @@ ${pmiLine}
 
   let monthlyBlock = '(kosong — isi manual awal bulan)';
   if (showMonthly) {
-    monthlyBlock = `- ISM PMI (FRED): ${pmiVal} (${monthly.pmi?.seriesId ? `ID: ${monthly.pmi.seriesId} | Label: ${monthly.pmi.seriesLabel}` : 'ID/Label not available'})  | vs bulan lalu: ${pmiTrend}
-- CPI YoY: ${cpiYoy}%
+    monthlyBlock = `- CPI YoY: ${cpiYoy}%
 ${m2Line}
 - Fed rate keputusan terakhir: ${fedRateLbl}`;
   }
