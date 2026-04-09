@@ -13,6 +13,7 @@ Setiap AI provider, Telegram, dan Discord **sepenuhnya independen** — menjalan
 │                            DATA SOURCES                              │
 │  CoinGecko · Hyperliquid · DefiLlama · FRED · OilPriceAPI            │
 │  alternative.me · Google News RSS · Twelve Data · blockchaincenter   │
+│  CoinMetrics Community API                                            │
 └──────────────────────────────┬───────────────────────────────────────┘
                                │
               ┌────────────────┼───────────────────┐
@@ -97,15 +98,15 @@ Edit `src/index.js`, bagian `manualOverrides`:
 
 ```js
 const manualOverrides = {
-  faseEstimasi:    '2',     // estimasi fase kamu: 0/1/2/3/4
+  faseEstimasi:    '2',     // estimasi fase kamu: 0/1/2/3/4 — WAJIB diisi
   warTimteng:      'none',  // 'none' = auto-fetch Google News
   warRusiaUkraine: 'none',
   warTaiwan:       'none',
-  btcDominanceDirection: 'naik',  // override arah BTC.D
 
-  // Uncomment untuk override manual:
+  // Uncomment untuk override manual (semua sudah auto-fetched):
+  // btcDominanceDirection: 'naik',       // auto-kalkulasi dari ETH/BTC weekChange
   // altseasonIndex:   '65',              // auto-fetched dari blockchaincenter.net
-  // exchangeNetflow:  'outflow (-1,200 BTC)',
+  // exchangeNetflow:  'outflow (-1,200 BTC)', // auto-fetched dari CoinMetrics
   // total2:           '$1.12T | di bawah $1.2T',
   // total3:           '$680B | mendekati $700B',
 };
@@ -263,6 +264,7 @@ nohup node src/scheduler.js > logs/scheduler.log 2>&1 &
 | Funding rate BTC + ETH | Hyperliquid → CoinGecko fallback |
 | TVL DeFi + 7d change | DefiLlama |
 | Altseason Index (0–100) | blockchaincenter.net (HTML scrape) |
+| BTC Exchange Netflow (inflow/outflow/netflow BTC) | CoinMetrics Community API |
 | ISM Manufacturing PMI + Services PMI | Google News RSS (ISM press release) |
 | War headlines — Middle East, Russia-Ukraine, Taiwan | Google News RSS |
 
@@ -289,7 +291,7 @@ Brent Crude Oil — harga terkini + 7d change
 TOTAL2, TOTAL3, OTHERS.D dominance
 
 ### Manual (di `manualOverrides` jika diperlukan)
-BTC Exchange Netflow (CryptoQuant)
+Hanya `faseEstimasi` yang wajib diisi manual — estimasi fase kamu (0–4).
 
 ---
 
@@ -371,6 +373,7 @@ output/
 | `WALCL undefined / skipped` | Bukan Kamis/Jumat — data diambil dari SQLite cache otomatis |
 | `PMI data tidak tersedia` | Google News RSS gagal — data diambil dari SQLite cache otomatis |
 | `Altseason Index [isi manual]` | blockchaincenter.net tidak bisa diakses — set manual di `manualOverrides.altseasonIndex` |
+| `BTC exchange netflow [data tidak tersedia]` | CoinMetrics tidak bisa diakses — set manual di `manualOverrides.exchangeNetflow` |
 | Telegram `parse error` | Otomatis fallback ke plain text |
 | Discord `Invalid Form Body` | Otomatis di-split per ≤3800 karakter |
 | `getaddrinfo EAI_AGAIN` | DNS/network issue — cek koneksi server |
