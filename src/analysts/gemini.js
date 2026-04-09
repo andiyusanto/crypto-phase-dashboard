@@ -1,6 +1,5 @@
 // ============================================
 // ANALYST: GEMINI (Google)
-// Model default: gemini-1.5-pro
 // Docs: https://ai.google.dev/docs
 // ============================================
 
@@ -14,8 +13,11 @@ Keahlian: Fed liquidity mechanics, cross-asset correlation (DXY/yields/gold/oil 
 Gaya: ringkas, direct, actionable. Gunakan angka konkret. Format tabel untuk scorecard (✅ ⚠️ 🔴).
 Bahasa Indonesia, terminologi keuangan boleh Inggris.`;
 
-// Models to try in order — update this list as Google releases new ones
-const FALLBACK_MODELS = [
+// Preferred model order — used to rank results from ListModels
+const PREFERRED_MODELS = [
+  'gemini-2.5-pro',
+  'gemini-2.5-flash',
+  'gemini-2.0-pro',
   'gemini-2.0-flash',
   'gemini-2.0-flash-lite',
   'gemini-1.5-pro',
@@ -23,10 +25,37 @@ const FALLBACK_MODELS = [
   'gemini-pro',
 ];
 
+/**
+ * Fetch available models from the API and return a ranked list
+ * that supports generateContent.
+ */
+async function listAvailableModels(apiKey) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=100`;
+  const res = await fetch(url);
+  if (!res.ok) return null; // if list fails, fall back to static list
+
+  const data = await res.json();
+  const models = (data.models || [])
+    .filter(m => Array.isArray(m.supportedGenerationMethods) &&
+                 m.supportedGenerationMethods.includes('generateContent'))
+    .map(m => m.name.replace('models/', '')); // e.g. "models/gemini-2.0-flash" → "gemini-2.0-flash"
+
+  // Sort by preference order; unknown models go to the end
+  models.sort((a, b) => {
+    const ai = PREFERRED_MODELS.findIndex(p => a.startsWith(p));
+    const bi = PREFERRED_MODELS.findIndex(p => b.startsWith(p));
+    const aRank = ai === -1 ? 999 : ai;
+    const bRank = bi === -1 ? 999 : bi;
+    return aRank - bRank;
+  });
+
+  return models;
+}
+
 export async function analyze(prompt, options = {}) {
   const {
     apiKey,
-    model     = null,   // null = auto-select from FALLBACK_MODELS
+    model     = null,   // null = auto-select via ListModels
     maxTokens = 4096,
     onChunk   = null,
     silent    = false,
@@ -37,7 +66,20 @@ export async function analyze(prompt, options = {}) {
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const modelsToTry = model ? [model, ...FALLBACK_MODELS] : FALLBACK_MODELS;
+
+  // Build candidate list: explicit model first, then live list, then static fallback
+  let modelsToTry;
+  if (model) {
+    modelsToTry = [model, ...PREFERRED_MODELS];
+  } else {
+    const liveModels = await listAvailableModels(apiKey);
+    if (liveModels && liveModels.length > 0) {
+      if (!silent) process.stderr.write(`ℹ️  Available Gemini models: ${liveModels.slice(0, 5).join(', ')}${liveModels.length > 5 ? '...' : ''}\n`);
+      modelsToTry = liveModels;
+    } else {
+      modelsToTry = PREFERRED_MODELS;
+    }
+  }
 
   let lastError;
 
@@ -67,16 +109,18 @@ export async function analyze(prompt, options = {}) {
       return fullResponse;
 
     } catch (err) {
-      const is404 = err?.message?.includes('404') || err?.message?.includes('not found');
-      if (is404) {
-        if (!silent) process.stderr.write(`⚠️  Model ${candidate} not available, trying next...\n`);
+      const msg = err?.message ?? '';
+      const isUnavailable = msg.includes('404') || msg.includes('not found') ||
+                            msg.includes('not supported') || msg.includes('deprecated');
+      if (isUnavailable) {
+        if (!silent) process.stderr.write(`⚠️  Model ${candidate} unavailable, trying next...\n`);
         lastError = err;
         continue;
       }
-      // Non-404 error — rethrow immediately
+      // Any other error (auth, quota, network) — rethrow immediately
       throw err;
     }
   }
 
-  throw new Error(`All Gemini models failed. Last error: ${lastError?.message}`);
+  throw new Error(`All Gemini models exhausted. Last error: ${lastError?.message}`);
 }
