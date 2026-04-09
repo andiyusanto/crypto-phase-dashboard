@@ -26,8 +26,6 @@ Gaya respons:
 
 // ── OPENROUTER CONFIG ────────────────────────────────────────────────────────
 const FREE_MODELS = [
-  // 'google/gemma-4-26b-a4b-it:free',
-  // 'google/gemma-4-31b-it:free',
   'qwen/qwen3-next-80b-a3b-instruct:free',
   'qwen/qwen3-coder:free',
   // 'google/gemma-3n-e2b-it:free',
@@ -42,6 +40,8 @@ const FREE_MODELS = [
   'qwen/qwen-2.5-32b-instruct:free',       // Great for crypto
   // 'meta-llama/llama-3.1-8b-instruct:free', // Generous quota
   // 'google/gemma-2-9b-it:free'              // Reliable fallback
+  'google/gemma-4-26b-a4b-it:free',
+  'google/gemma-4-31b-it:free',  
 ];
 
 // ── HELPER: OpenRouter Fetch with Retry & Fallback ──────────────────────────
