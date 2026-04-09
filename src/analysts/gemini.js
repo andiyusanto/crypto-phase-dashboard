@@ -81,9 +81,13 @@ export async function analyze(prompt, options = {}) {
       const msg = err?.message ?? '';
       const skip = msg.includes('404') || msg.includes('not found') ||
                    msg.includes('not supported') || msg.includes('deprecated') ||
-                   msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests');
+                   msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests') ||
+                   msg.includes('503') || msg.includes('Service Unavailable') || msg.includes('high demand');
       if (skip) {
-        if (!silent) process.stderr.write(`⚠️  ${candidate}: ${msg.includes('429') ? 'quota exceeded' : 'unavailable'}, trying next...\n`);
+        const reason = (msg.includes('429') || msg.includes('quota')) ? 'quota exceeded'
+                     : (msg.includes('503') || msg.includes('high demand')) ? 'overloaded (503)'
+                     : 'unavailable';
+        if (!silent) process.stderr.write(`⚠️  ${candidate}: ${reason}, trying next...\n`);
         lastError = err;
         continue;
       }
