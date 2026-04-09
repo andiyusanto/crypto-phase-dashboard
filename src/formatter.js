@@ -60,9 +60,17 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
 
     const rtPmiMfg = p?.manufacturing?.value;
     const rtPmiSvc = p?.services?.value;
+    const pmiMonth = p?.releasedMonth ?? null;
+    const pmiLabel = pmiMonth
+      ? (() => {
+          const [yr, mo] = pmiMonth.split('-');
+          const name = new Date(+yr, +mo - 1).toLocaleString('en-US', { month: 'long' });
+          return `${name} ${yr}`;
+        })()
+      : null;
     const pmiLine = (rtPmiMfg || rtPmiSvc)
-      ? `- ISM PMI (Scraped): Mfg: ${v(rtPmiMfg)} | Svc: ${v(rtPmiSvc)}`
-      : '- ISM PMI (Scraped): data tidak tersedia';
+      ? `- ISM PMI${pmiLabel ? ` (${pmiLabel})` : ''}: Mfg: ${v(rtPmiMfg)} | Svc: ${v(rtPmiSvc)}`
+      : '- ISM PMI: data tidak tersedia';
 
     fedBlock = `- Fed Balance Sheet total (WALCL): $${v(w?.totalTrillions)}T
   vs minggu lalu: ${w ? (w.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(w.weekChangeBillions) + 'B' : '___'}
@@ -268,7 +276,10 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
     if (p) {
       const m = p.manufacturing?.value ?? '??';
       const s = p.services?.value ?? '??';
-      lines.push(`  PMI (S) : Mfg ${m} | Svc ${s} (Scraped)`);
+      const mo = p.releasedMonth
+        ? (() => { const [yr, mn] = p.releasedMonth.split('-'); return `${new Date(+yr, +mn - 1).toLocaleString('en-US', { month: 'short' })} ${yr}`; })()
+        : null;
+      lines.push(`  PMI (S) : Mfg ${m} | Svc ${s}${mo ? ` (${mo})` : ''}`);
     }
 
     lines.push(`  Trifecta: ${fed.trifectaScore ?? '0/3'} hijau → ${fed.overallStatus ?? 'UNKNOWN'}`);

@@ -1,94 +1,124 @@
 // ============================================
-// PMI SCRAPER (Real-time Layer 1)
-// Source: https://www.ismworld.org/
+// PMI FETCHER
+// Layer 1: Google News RSS — parses ISM PMI values from press-release headlines
+// Layer 2: SQLite cache — last known good values
 // ============================================
 
 import axios from 'axios';
+import { parseStringPromise } from 'xml2js';
 import { savePMI, getLatestPMI } from '../db.js';
 
-const BASE_URL = 'https://www.ismworld.org';
-const REPORTS_PAGE = 'https://www.ismworld.org/supply-management-news-and-reports/reports/ism-pmi-reports/';
+const MONTHS = {
+  january:'01', february:'02', march:'03', april:'04',
+  may:'05', june:'06', july:'07', august:'08',
+  september:'09', october:'10', november:'11', december:'12',
+};
 
-const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+// ── Helpers ───────────────────────────────────────────────────────────────────
+async function fetchRSS(url) {
+  const res = await axios.get(url, {
+    timeout: 12000,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)',
+      'Accept': 'application/rss+xml, application/xml, text/xml',
+    },
+  });
+  const parsed = await parseStringPromise(res.data, { explicitArray: false });
+  return parsed?.rss?.channel?.item || [];
+}
 
-/**
- * Scrape the latest PMI reports from ISM website
- */
-export async function fetchRealtimePMI() {
-  console.log('🏭 Scraping ISM PMI reports...');
-  
-  try {
-    const res = await axios.get(REPORTS_PAGE, {
-      headers: { 'User-Agent': USER_AGENT },
-      timeout: 15000
-    });
+function extractReportMonth(title, pubDate) {
+  // Prefer explicit month from headline: "March 2026 ISM..."
+  const m = title.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})\b/i);
+  if (m) return `${m[2]}-${MONTHS[m[1].toLowerCase()]}`;
+  // Fallback: reports are published the month after the survey period
+  const d = new Date(pubDate);
+  d.setMonth(d.getMonth() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
 
-    const html = res.data;
+function extractPMIValue(items, isManufacturing) {
+  const arr = Array.isArray(items) ? items : [items];
+  const typeKw    = isManufacturing ? /manufactur/i : /services|non.manufactur/i;
+  const excludeKw = isManufacturing ? /\bservices\b/i : /\bmanufactur/i;
 
-    // Find latest Manufacturing report link
-    const mfgRegex = /href="([^"]+manufacturing-ism-report-on-business\/)"/i;
-    const mfgMatch = html.match(mfgRegex);
-    
-    // Find latest Services report link
-    const svcRegex = /href="([^"]+services-ism-report-on-business\/)"/i;
-    const svcMatch = html.match(svcRegex);
+  const patterns = [
+    /PMI[®\s]{0,5}(?:at|of)\s+(\d{2,3}(?:\.\d)?)\s*%/i,
+    /(\d{2,3}(?:\.\d)?)\s*%[,;]?\s*(?:march|april|may|june|july|aug|sep|oct|nov|dec|jan|feb)/i,
+    /PMI[^.]{0,50}?comes?\s+in\s+at\s+(\d{2,3}(?:\.\d)?)/i,
+    /PMI[^.]{0,30}?at\s+(\d{2,3}(?:\.\d)?)/i,
+    /(\d{2,3}\.\d)\s*[,%]/i,
+  ];
 
-    const mfgUrl = mfgMatch ? (mfgMatch[1].startsWith('http') ? mfgMatch[1] : BASE_URL + mfgMatch[1]) : null;
-    const svcUrl = svcMatch ? (svcMatch[1].startsWith('http') ? svcMatch[1] : BASE_URL + svcMatch[1]) : null;
+  for (const item of arr) {
+    const title = item.title?.replace(/<[^>]*>/g, '').trim() || '';
+    if (!typeKw.test(title))    continue;
+    if (excludeKw.test(title))  continue;
 
-    if (!mfgUrl && !svcUrl) {
-      throw new Error('Could not find latest PMI report links on ISM page');
-    }
-
-    const results = {
-      manufacturing: null,
-      services: null,
-      fetchedAt: new Date().toISOString(),
-      source: 'ISM World (Scraped)'
-    };
-
-    // Fetch and parse Manufacturing
-    if (mfgUrl) {
-      const mfgRes = await axios.get(mfgUrl, { headers: { 'User-Agent': USER_AGENT } });
-      const valMatch = mfgRes.data.match(/([0-9]+\.[0-9])%/);
-      if (valMatch) {
-        results.manufacturing = {
-          value: parseFloat(valMatch[1]),
-          url: mfgUrl,
-          label: 'Manufacturing PMI'
-        };
+    for (const p of patterns) {
+      const m = title.match(p);
+      if (m) {
+        const val = parseFloat(m[1]);
+        if (val >= 40 && val <= 70) {
+          return {
+            value: val,
+            releasedMonth: extractReportMonth(title, item.pubDate),
+            sourceTitle: title,
+          };
+        }
       }
     }
-
-    // Fetch and parse Services
-    if (svcUrl) {
-      const svcRes = await axios.get(svcUrl, { headers: { 'User-Agent': USER_AGENT } });
-      const valMatch = svcRes.data.match(/([0-9]+\.[0-9])%/);
-      if (valMatch) {
-        results.services = {
-          value: parseFloat(valMatch[1]),
-          url: svcUrl,
-          label: 'Services PMI'
-        };
-      }
-    }
-
-    // SAVE TO DATABASE if we have data
-    if (results.manufacturing || results.services) {
-      savePMI(results);
-      return results;
-    }
-
-    throw new Error('Scraped data was empty');
-
-  } catch (err) {
-    console.warn(`⚠️  PMI Scraping failed: ${err.message}. Mencoba data dari database...`);
-    const fallback = getLatestPMI();
-    if (fallback) {
-      console.log('✅ Berhasil mengambil PMI terakhir dari database SQLite.');
-      return fallback;
-    }
-    console.error('❌ Database juga kosong. Tidak ada data PMI.');
-    return null;
   }
+  return null;
+}
+
+// ── Layer 1: Google News RSS ──────────────────────────────────────────────────
+async function fetchPMIFromGoogleNews() {
+  const [mfgItems, svcItems] = await Promise.all([
+    fetchRSS('https://news.google.com/rss/search?q=ISM+Manufacturing+PMI+report&ceid=US:en&hl=en-US&gl=US'),
+    fetchRSS('https://news.google.com/rss/search?q=ISM+Services+Non-Manufacturing+PMI+report&ceid=US:en&hl=en-US&gl=US'),
+  ]);
+
+  const mfg = extractPMIValue(mfgItems, true);
+  const svc = extractPMIValue(svcItems, false);
+
+  if (!mfg && !svc) throw new Error('No PMI values found in Google News headlines');
+
+  // Use the most recent releasedMonth across both
+  const releasedMonth = mfg?.releasedMonth || svc?.releasedMonth;
+
+  return {
+    manufacturing: mfg ? { value: mfg.value, label: 'ISM Manufacturing PMI' } : null,
+    services:      svc ? { value: svc.value, label: 'ISM Services PMI'       } : null,
+    releasedMonth,
+    fetchedAt: new Date().toISOString(),
+    source: 'Google News RSS (ISM Press Release)',
+  };
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
+export async function fetchRealtimePMI() {
+  console.log('🏭 Fetching ISM PMI via Google News RSS...');
+
+  // Layer 1: Google News RSS
+  try {
+    const data = await fetchPMIFromGoogleNews();
+    if (data.manufacturing) console.log(`  ✓ Mfg PMI  : ${data.manufacturing.value} (${data.releasedMonth})`);
+    if (data.services)      console.log(`  ✓ Svc PMI  : ${data.services.value} (${data.releasedMonth})`);
+    savePMI(data);
+    return data;
+  } catch (e) {
+    console.warn(`  ⚠️  Google News PMI failed: ${e.message}`);
+  }
+
+  // Layer 2: SQLite cache
+  console.warn('  ↩ Falling back to SQLite cache...');
+  const cached = getLatestPMI();
+  if (cached) {
+    console.log(`  ✅ PMI loaded from cache (${cached.releasedMonth ?? cached.fetchedAt?.slice(0, 7)})`);
+    return cached;
+  }
+
+  console.error('  ❌ No PMI data available from any source');
+  return null;
 }

@@ -51,6 +51,7 @@ import { fetchAllWeeklyData }   from './fetchers/weekly.js';
 import { fetchAllMonthlyData }  from './fetchers/monthly.js';
 import { fetchAllFedLiquidity } from './fetchers/fedliquidity.js';
 import { fetchAllWarHeadlines } from './fetchers/warheadlines.js';
+import { saveFedData, getLatestFedData } from './db.js';
 import { formatDashboardPrompt, formatDataSummary } from './formatter.js';
 import { analyzeWith, saveAnalysis } from './claude-analyst.js';
 
@@ -78,6 +79,7 @@ const config = {
   alphaVantageApiKey: process.env.ALPHA_VANTAGE_API_KEY,
   oilPriceApiKey:    process.env.OIL_PRICE_API_KEY,
   coinMarketCapApiKey: process.env.COINMARKETCAP_API_KEY,
+  tradingEconomicsApiKey: process.env.TRADING_ECONOMICS_API_KEY,
 
   anthropicApiKey:   process.env.ANTHROPIC_API_KEY,
   openaiApiKey:      process.env.OPENAI_API_KEY,
@@ -195,6 +197,17 @@ async function main() {
     }
     if (mode === 'all' || mode === 'fed' || mode === 'pmi') {
       fed = await fetchAllFedLiquidity(config.fredApiKey);
+
+      if (fed && !fed.skipped) {
+        saveFedData(fed);
+      } else {
+        const cached = getLatestFedData();
+        if (cached) {
+          console.log(chalk.yellow(`⚠️  Fed data skipped/empty — using cached data from ${cached._cachedAt}`));
+          fed = cached;
+        }
+      }
+
       console.log(chalk.green('✓ Fed Liquidity (+ PMI)'));
       
       if (mode === 'pmi') {
