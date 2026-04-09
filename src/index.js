@@ -120,8 +120,7 @@ const PROVIDERS = {
   grok:       { label: 'Grok (OpenRouter)',   emoji: '⚡', color: chalk.white,   envKey: 'OPENROUTER_API_KEY',  cfgKey: 'openRouterApiKey' },
   qwen:       { label: 'Qwen (OpenRouter)',   emoji: '🤖', color: chalk.yellow,  envKey: 'OPENROUTER_API_KEY',  cfgKey: 'openRouterApiKey' },
 };
-const ALL_PROVIDERS = ['claude', 'chatgpt', 'gemini', 'grok', 'qwen'];
- //['claude', 'chatgpt', 'gemini', 'perplexity', 'grok'];
+const ALL_PROVIDERS = ['perplexity', 'grok', 'gemini', 'chatgpt', 'qwen', 'claude'];
 
 const hasApiKey = p => {
   const v = config[PROVIDERS[p]?.cfgKey];

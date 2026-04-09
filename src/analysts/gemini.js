@@ -15,6 +15,7 @@ Bahasa Indonesia, terminologi keuangan boleh Inggris.`;
 
 // Preferred model order — used to rank results from ListModels
 const PREFERRED_MODELS = [
+  'gemini-pro',
   'gemini-2.5-pro',
   'gemini-2.5-flash',
   'gemini-2.0-pro',
@@ -22,7 +23,6 @@ const PREFERRED_MODELS = [
   'gemini-2.0-flash-lite',
   'gemini-1.5-pro',
   'gemini-1.5-flash',
-  'gemini-pro',
 ];
 
 /**
