@@ -116,7 +116,10 @@ ${pmiLine}
       ? (weekly.ratioTrend.ethBtc.weekChange < -2 ? 'naik' : weekly.ratioTrend.ethBtc.weekChange > 2 ? 'turun' : 'flat')
       : '___');
 
-  const altseasonIdx   = manualOverrides.altseasonIndex   ?? '[isi manual: blockchaincenter.net]';
+  const altseasonFetched = weekly?.altseason?.value != null
+    ? `${weekly.altseason.value} — ${weekly.altseason.signal}`
+    : null;
+  const altseasonIdx = manualOverrides.altseasonIndex ?? altseasonFetched ?? '[isi manual: blockchaincenter.net]';
   const exchangeNetflow = manualOverrides.exchangeNetflow ?? '[isi manual: CryptoQuant]';
 
   let weeklyBlock = '(kosong — isi manual hari Senin)';

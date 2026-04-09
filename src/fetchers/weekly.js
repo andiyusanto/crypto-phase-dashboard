@@ -113,31 +113,41 @@ export async function fetchDefiTVL() {
   }
 }
 
-// ── 4. ALTSEASON INDEX (scrape blockchaincenter.net) ──────────────────────────
-// Catatan: Tidak ada API resmi, gunakan endpoint tidak resmi yang diketahui publik
+// ── 4. ALTSEASON INDEX (blockchaincenter.net HTML scrape) ────────────────────
+// Value 0–100: ≥75 = Altseason, ≤25 = Bitcoin Season
+// Data is embedded as escaped JSON in the SSR HTML: \"YYYY-MM-DD\":\"value\"
 export async function fetchAltseasonIndex() {
   try {
-    // Endpoint publik yang digunakan website
-    const res = await axios.get(
-      'https://api.blockchain.info/charts/altcoin-season-index',
-      {
-        params: { timespan: '7days', format: 'json', cors: true },
-        timeout: 8000,
-      }
-    );
+    const res = await axios.get('https://blockchaincenter.net/altcoin-season-index/', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      timeout: 12000,
+    });
 
-    // Fallback: hitung manual dari market cap ratio
-    // Altseason = ketika 75%+ top 50 altcoins outperform BTC dalam 90 hari
-    // Kita bisa approx dari BTC dominance: dominance turun = altseason lebih besar
-    throw new Error('Gunakan kalkulasi manual');
-  } catch {
-    // Kalkulasi alternatif berdasarkan BTC dominance proxy
-    // Ini adalah approximation — untuk data presisi gunakan blockchaincenter.net manual
-    return {
-      skipped: false,
-      note: 'Tidak ada API resmi. Cek manual di blockchaincenter.net/altcoin-season-index',
-      proxy: 'Lihat btcDominance: <50% = altseason territory, <45% = strong altseason',
-    };
+    // Data is embedded as escaped JSON: \"2026-04-09\":\"35\"
+    // Multiple timeframes exist; the last occurrence of today's date is the headline (90-day) index
+    const pairs = [...res.data.matchAll(/\\"(\d{4}-\d{2}-\d{2})\\":\\"(\d+)\\"/g)];
+    if (!pairs.length) throw new Error('No date:value pairs found in HTML');
+
+    const latest = pairs.at(-1);
+    const date   = latest[1];
+    const value  = parseInt(latest[2], 10);
+
+    if (isNaN(value) || value < 0 || value > 100) throw new Error(`Invalid index value: ${value}`);
+
+    const signal = value >= 75 ? 'Altseason 🚀'
+                 : value <= 25 ? 'Bitcoin Season 🟠'
+                 : value >= 55 ? 'Altseason territory ⚡'
+                 : 'Neutral / Bitcoin favored ⚠️';
+
+    console.log(`  ✓ Altseason Index: ${value} (${date}) — ${signal}`);
+    return { value, date, signal, source: 'blockchaincenter.net' };
+
+  } catch (err) {
+    console.warn(`  ⚠️  Altseason Index fetch failed: ${err.message}`);
+    return null;
   }
 }
 
