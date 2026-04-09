@@ -178,7 +178,7 @@ ${fedBlock}
 ### WEEKLY DATA [${weeklySrc}]
 - FCI (Chicago Fed NFCI): ${nfci}  | vs minggu lalu: ${nfciPrev}
 - US 10Y Yield: ${yield10y}%  | arah: ${yieldDir}
-- ETH/BTC ratio: ${ethBtc}  | posisi vs resistance: [isi manual]
+- ETH/BTC ratio: ${ethBtc}  | arah minggu ini: ${v(weekly?.ratioTrend?.ethBtc?.direction)} (${v(weekly?.ratioTrend?.ethBtc?.weekChange)}%)
 - SOL/BTC ratio: ${solBtc}  | arah: ${v(weekly?.ratioTrend?.solBtc?.direction)}
 - BTC.D arah minggu ini: ${btcDomDir}
 - BTC exchange netflow: ${exchangeNetflow}

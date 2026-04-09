@@ -103,7 +103,6 @@ const manualOverrides = {
   warTimteng:      'none',
   warRusiaUkraine: 'none',
   warTaiwan:       'none',
-  btcDominanceDirection: 'naik', // Manual override based on user assumption
   // SENIN:
   // altseasonIndex:   '65',
   // exchangeNetflow:  'outflow (-1,200 BTC)',
