@@ -66,6 +66,7 @@ import {
 import {
   sendDataSummaryToDiscord,
   sendAnalysisToDiscord,
+  sendToDiscord,
 } from './discord-sender.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -260,18 +261,33 @@ async function main() {
       console.log(chalk.bold('═'.repeat(50) + '\n'));
     }
 
-    // ── 4. KIRIM PROMPT KE TELEGRAM (--send-prompt) ──────────────────────
+    // ── 4. KIRIM PROMPT KE CHANNEL (--send-prompt) ──────────────────────
     if (doSendPrompt) {
-      if (hasTelegram()) {
-        console.log(chalk.cyan('\n📋 Mengirim prompt ke Telegram...'));
-        await sendPromptToTelegram(prompt, {
-          botToken: config.telegramBotToken,
-          chatId:   config.telegramChatId,
-          label:    'Prompt',
-        });
-        console.log(chalk.green('  ✓ Prompt terkirim ke Telegram'));
-      } else {
-        console.log(chalk.red('  ✗ --send-prompt: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID belum diset'));
+      console.log(chalk.cyan('\n📋 Mengirim prompt ke channel...'));
+      if (doTelegram || !doDiscord) {
+        if (hasTelegram()) {
+          await sendPromptToTelegram(prompt, {
+            botToken: config.telegramBotToken,
+            chatId:   config.telegramChatId,
+            label:    'Prompt',
+          });
+          console.log(chalk.green('  ✓ Prompt → Telegram'));
+        } else {
+          console.log(chalk.red('  ✗ Telegram: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID belum diset'));
+        }
+      }
+      if (doDiscord) {
+        if (hasDiscord()) {
+          await sendToDiscord(prompt, {
+            webhookUrl: config.discordWebhookUrl,
+            title: '📋 Prompt Analisis',
+            color: 0x5865F2,
+            label: 'Prompt',
+          });
+          console.log(chalk.green('  ✓ Prompt → Discord'));
+        } else {
+          console.log(chalk.red('  ✗ Discord: DISCORD_WEBHOOK_URL belum diset'));
+        }
       }
     }
 

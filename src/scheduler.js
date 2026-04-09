@@ -24,13 +24,51 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT      = join(__dirname, '..');
 
+// ── Session banner helpers ────────────────────────────────────────────────────
+function formatSessionTs() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ` +
+         `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+
+function sessionLabel(label) {
+  // Extract session name from label string (Japan / London / New York)
+  if (/tokyo|japan/i.test(label))     return 'Japan';
+  if (/london/i.test(label))          return 'London';
+  if (/new.?york|ny\b/i.test(label))  return 'New York';
+  return 'Session';
+}
+
+function printSessionStart(session, ts) {
+  const LINE  = '='.repeat(113);
+  const label = ` ${session} ${ts} `;
+  const pad   = Math.max(0, Math.floor((113 - label.length) / 2));
+  const inner = '='.repeat(pad) + label + '='.repeat(113 - pad - label.length);
+  console.log(chalk.bold.cyan(`\n${LINE}`));
+  console.log(chalk.bold.cyan(`${'='.repeat(Math.floor((113-9)/2))}   Start   ${'='.repeat(Math.ceil((113-9)/2))}`));
+  console.log(chalk.bold.cyan(inner));
+  console.log();
+}
+
+function printSessionEnd(session, ts) {
+  const LINE  = '='.repeat(113);
+  const label = ` ${session} ${ts} `;
+  const pad   = Math.max(0, Math.floor((113 - label.length) / 2));
+  const inner = '='.repeat(pad) + label + '='.repeat(113 - pad - label.length);
+  console.log();
+  console.log(chalk.bold.cyan(inner));
+  console.log(chalk.bold.cyan(`${'='.repeat(Math.floor((113-7)/2))}   END   ${'='.repeat(Math.ceil((113-7)/2))}`));
+  console.log(chalk.bold.cyan(`${LINE}\n`));
+}
+
 // ── Jalankan perintah sebagai child process ───────────────────────────────────
 function run(label, args) {
-  const ts = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
-  console.log(chalk.cyan(`\n${'─'.repeat(56)}`));
-  console.log(chalk.cyan(`[${ts}] ▶  ${label}`));
+  const session = sessionLabel(label);
+  const tsStart = formatSessionTs();
+
+  printSessionStart(session, tsStart);
   console.log(chalk.gray(`   $ node src/index.js ${args.join(' ')}`));
-  console.log(chalk.cyan(`${'─'.repeat(56)}`));
 
   const child = spawn('node', ['src/index.js', ...args], {
     cwd:   ROOT,
@@ -43,12 +81,11 @@ function run(label, args) {
   );
 
   child.on('close', code => {
-    const tsEnd = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
-    if (code === 0) {
-      console.log(chalk.green(`[${tsEnd}] ✓ ${label} selesai`));
-    } else {
-      console.error(chalk.red(`[${tsEnd}] ✗ ${label} exit code ${code}`));
+    const tsEnd = formatSessionTs();
+    if (code !== 0) {
+      console.error(chalk.red(`  ✗ ${label} exit code ${code}`));
     }
+    printSessionEnd(session, tsEnd);
   });
 }
 
