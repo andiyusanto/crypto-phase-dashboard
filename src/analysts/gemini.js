@@ -14,11 +14,19 @@ Keahlian: Fed liquidity mechanics, cross-asset correlation (DXY/yields/gold/oil 
 Gaya: ringkas, direct, actionable. Gunakan angka konkret. Format tabel untuk scorecard (✅ ⚠️ 🔴).
 Bahasa Indonesia, terminologi keuangan boleh Inggris.`;
 
+// Models to try in order — update this list as Google releases new ones
+const FALLBACK_MODELS = [
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-1.5-pro',
+  'gemini-1.5-flash',
+  'gemini-pro',
+];
+
 export async function analyze(prompt, options = {}) {
   const {
     apiKey,
-    // model     = 'gemini-1.5-pro',
-    model     = 'gemini-1.5-flash',
+    model     = null,   // null = auto-select from FALLBACK_MODELS
     maxTokens = 4096,
     onChunk   = null,
     silent    = false,
@@ -28,29 +36,47 @@ export async function analyze(prompt, options = {}) {
     throw new Error('GEMINI_API_KEY tidak diset di .env');
   }
 
-  const genAI  = new GoogleGenerativeAI(apiKey);
-  const gemini = genAI.getGenerativeModel({
-    model,
-    systemInstruction: SYSTEM_PROMPT,
-    generationConfig: { maxOutputTokens: maxTokens },
-  });
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const modelsToTry = model ? [model, ...FALLBACK_MODELS] : FALLBACK_MODELS;
 
-  if (!silent) process.stdout.write(`\n${PROVIDER_EMOJI} ${PROVIDER_NAME} menganalisis...\n\n`);
+  let lastError;
 
-  let fullResponse = '';
+  for (const candidate of modelsToTry) {
+    try {
+      const gemini = genAI.getGenerativeModel({
+        model: candidate,
+        systemInstruction: SYSTEM_PROMPT,
+        generationConfig: { maxOutputTokens: maxTokens },
+      });
 
-  // Gemini streaming
-  const result = await gemini.generateContentStream(prompt);
+      if (!silent) process.stdout.write(`\n${PROVIDER_EMOJI} ${PROVIDER_NAME} menganalisis (model: ${candidate})...\n\n`);
 
-  for await (const chunk of result.stream) {
-    const text = chunk.text();
-    if (text) {
-      fullResponse += text;
-      if (onChunk) onChunk(text);
-      else if (!silent) process.stdout.write(text);
+      let fullResponse = '';
+      const result = await gemini.generateContentStream(prompt);
+
+      for await (const chunk of result.stream) {
+        const text = chunk.text();
+        if (text) {
+          fullResponse += text;
+          if (onChunk) onChunk(text);
+          else if (!silent) process.stdout.write(text);
+        }
+      }
+
+      if (!silent) process.stdout.write('\n');
+      return fullResponse;
+
+    } catch (err) {
+      const is404 = err?.message?.includes('404') || err?.message?.includes('not found');
+      if (is404) {
+        if (!silent) process.stderr.write(`⚠️  Model ${candidate} not available, trying next...\n`);
+        lastError = err;
+        continue;
+      }
+      // Non-404 error — rethrow immediately
+      throw err;
     }
   }
 
-  if (!silent) process.stdout.write('\n');
-  return fullResponse;
+  throw new Error(`All Gemini models failed. Last error: ${lastError?.message}`);
 }
