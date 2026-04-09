@@ -153,11 +153,28 @@ ${pmiLine}
     m2Line = `- Global M2 YoY growth: ___`;
   }
 
+  // ISM PMI — from fed.pmi (Google News RSS), shown in monthly block
+  const fedPmi = fed?.pmi;
+  const ismMfg = fedPmi?.manufacturing?.value;
+  const ismSvc = fedPmi?.services?.value;
+  const ismMonth = fedPmi?.releasedMonth
+    ? (() => {
+        const [yr, mo] = fedPmi.releasedMonth.split('-');
+        return `${new Date(+yr, +mo - 1).toLocaleString('en-US', { month: 'long' })} ${yr}`;
+      })()
+    : null;
+  const ismLine = (ismMfg || ismSvc)
+    ? `- ISM PMI${ismMonth ? ` (${ismMonth})` : ''}: Mfg: ${v(ismMfg)} | Svc: ${v(ismSvc)}`
+    : null;
+
   let monthlyBlock = '(kosong — isi manual awal bulan)';
   if (showMonthly) {
-    monthlyBlock = `- CPI YoY: ${cpiYoy}%
-${m2Line}
-- Fed rate keputusan terakhir: ${fedRateLbl}`;
+    monthlyBlock = [
+      ismLine,
+      `- CPI YoY: ${cpiYoy}%`,
+      m2Line,
+      `- Fed rate keputusan terakhir: ${fedRateLbl}`,
+    ].filter(Boolean).join('\n');
   }
 
   // ── ASSEMBLE ──────────────────────────────────────────────────────────────
