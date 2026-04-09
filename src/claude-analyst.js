@@ -189,33 +189,87 @@ export async function analyzeWithChatGPT(prompt, options = {}) {
 }
 
 // ── 3. GEMINI (Google) ────────────────────────────────────────────────────────
+const GEMINI_PREFERRED_MODELS = [
+  'gemini-2.5-pro',
+  'gemini-2.5-flash',
+  'gemini-2.0-pro',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-1.5-pro',
+  'gemini-1.5-flash',
+  'gemini-pro',
+];
+
+async function listGeminiModels(apiKey) {
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=100`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const models = (data.models || [])
+      .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+      .map(m => m.name.replace('models/', ''));
+    models.sort((a, b) => {
+      const ai = GEMINI_PREFERRED_MODELS.findIndex(p => a.startsWith(p));
+      const bi = GEMINI_PREFERRED_MODELS.findIndex(p => b.startsWith(p));
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    });
+    return models;
+  } catch { return null; }
+}
+
 export async function analyzeWithGemini(prompt, options = {}) {
-  const { apiKey, model = 'gemini-1.5-flash', onChunk, silent = false } = options;
+  const { apiKey, model = null, onChunk, silent = false } = options;
   if (!apiKey || apiKey === 'your_gemini_api_key_here')
     throw new Error('GEMINI_API_KEY tidak diset');
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const gemini = genAI.getGenerativeModel({
-    model,
-    systemInstruction: SYSTEM_PROMPT,
-    generationConfig: { maxOutputTokens: 4096, temperature: 0.3 },
-  });
 
-  if (!silent) process.stdout.write('\n✨ Gemini (Google) menganalisis...\n\n');
+  let modelsToTry;
+  if (model) {
+    modelsToTry = [model, ...GEMINI_PREFERRED_MODELS];
+  } else {
+    const live = await listGeminiModels(apiKey);
+    modelsToTry = (live && live.length > 0) ? live : GEMINI_PREFERRED_MODELS;
+    if (!silent && live) process.stderr.write(`ℹ️  Gemini models available: ${live.slice(0, 5).join(', ')}\n`);
+  }
 
-  let full = '';
-  // Standard streaming implementation for @google/generative-ai
-  const result = await gemini.generateContentStream(prompt);
+  let lastError;
+  for (const candidate of modelsToTry) {
+    try {
+      const gemini = genAI.getGenerativeModel({
+        model: candidate,
+        systemInstruction: SYSTEM_PROMPT,
+        generationConfig: { maxOutputTokens: 4096, temperature: 0.3 },
+      });
 
-  for await (const chunk of result.stream) {
-    const t = chunk.text();
-    if (t) {
-      full += t;
-      if (onChunk) onChunk(t); else if (!silent) process.stdout.write(t);
+      if (!silent) process.stdout.write(`\n✨ Gemini (Google) menganalisis (model: ${candidate})...\n\n`);
+
+      let full = '';
+      const result = await gemini.generateContentStream(prompt);
+      for await (const chunk of result.stream) {
+        const t = chunk.text();
+        if (t) {
+          full += t;
+          if (onChunk) onChunk(t); else if (!silent) process.stdout.write(t);
+        }
+      }
+      if (!silent) process.stdout.write('\n');
+      return full;
+
+    } catch (err) {
+      const msg = err?.message ?? '';
+      const isUnavailable = msg.includes('404') || msg.includes('not found') ||
+                            msg.includes('not supported') || msg.includes('deprecated');
+      if (isUnavailable) {
+        if (!silent) process.stderr.write(`⚠️  Gemini model ${candidate} unavailable, trying next...\n`);
+        lastError = err;
+        continue;
+      }
+      throw err;
     }
   }
-  if (!silent) process.stdout.write('\n');
-  return full;
+
+  throw new Error(`All Gemini models exhausted. Last error: ${lastError?.message}`);
 }
 
 // ── 4. PERPLEXITY (Sonar) ─────────────────────────────────────────────────────
