@@ -13,8 +13,8 @@ Keahlian: Fed liquidity mechanics, cross-asset correlation (DXY/yields/gold/oil 
 Gaya: ringkas, direct, actionable. Gunakan angka konkret. Format tabel untuk scorecard (✅ ⚠️ 🔴).
 Bahasa Indonesia, terminologi keuangan boleh Inggris.`;
 
-// Preferred model order — used to rank results from ListModels
-const PREFERRED_MODELS = [
+// Sort priority — higher index = lower priority. Models not in this list go last.
+const MODEL_PRIORITY = [
   'gemini-pro',
   'gemini-2.5-pro',
   'gemini-2.5-flash',
@@ -25,65 +25,35 @@ const PREFERRED_MODELS = [
   'gemini-1.5-flash',
 ];
 
-/**
- * Fetch available models from the API and return a ranked list
- * that supports generateContent.
- */
-async function listAvailableModels(apiKey) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=100`;
-  const res = await fetch(url);
-  if (!res.ok) return null; // if list fails, fall back to static list
+async function fetchAvailableModels(apiKey) {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=100`);
+  if (!res.ok) throw new Error(`ListModels failed: ${res.status}`);
+  const { models = [] } = await res.json();
 
-  const data = await res.json();
-  const models = (data.models || [])
-    .filter(m => Array.isArray(m.supportedGenerationMethods) &&
-                 m.supportedGenerationMethods.includes('generateContent'))
-    .map(m => m.name.replace('models/', '')); // e.g. "models/gemini-2.0-flash" → "gemini-2.0-flash"
-
-  // Sort by preference order; unknown models go to the end
-  models.sort((a, b) => {
-    const ai = PREFERRED_MODELS.findIndex(p => a.startsWith(p));
-    const bi = PREFERRED_MODELS.findIndex(p => b.startsWith(p));
-    const aRank = ai === -1 ? 999 : ai;
-    const bRank = bi === -1 ? 999 : bi;
-    return aRank - bRank;
-  });
-
-  return models;
+  return models
+    .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+    .map(m => m.name.replace('models/', ''))
+    .sort((a, b) => {
+      const rank = name => MODEL_PRIORITY.findIndex(p => name.startsWith(p));
+      const ra = rank(a), rb = rank(b);
+      return (ra === -1 ? 999 : ra) - (rb === -1 ? 999 : rb);
+    });
 }
 
 export async function analyze(prompt, options = {}) {
-  const {
-    apiKey,
-    model     = null,   // null = auto-select via ListModels
-    maxTokens = 4096,
-    onChunk   = null,
-    silent    = false,
-  } = options;
+  const { apiKey, model = null, maxTokens = 4096, onChunk = null, silent = false } = options;
 
   if (!apiKey || apiKey === 'your_gemini_api_key_here') {
     throw new Error('GEMINI_API_KEY tidak diset di .env');
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
+  const candidates = model ? [model] : await fetchAvailableModels(apiKey);
 
-  // Build candidate list: explicit model first, then live list, then static fallback
-  let modelsToTry;
-  if (model) {
-    modelsToTry = [model, ...PREFERRED_MODELS];
-  } else {
-    const liveModels = await listAvailableModels(apiKey);
-    if (liveModels && liveModels.length > 0) {
-      if (!silent) process.stderr.write(`ℹ️  Available Gemini models: ${liveModels.slice(0, 5).join(', ')}${liveModels.length > 5 ? '...' : ''}\n`);
-      modelsToTry = liveModels;
-    } else {
-      modelsToTry = PREFERRED_MODELS;
-    }
-  }
+  if (!silent) process.stderr.write(`ℹ️  Gemini candidates: ${candidates.slice(0, 5).join(', ')}\n`);
 
   let lastError;
-
-  for (const candidate of modelsToTry) {
+  for (const candidate of candidates) {
     try {
       const gemini = genAI.getGenerativeModel({
         model: candidate,
@@ -95,7 +65,6 @@ export async function analyze(prompt, options = {}) {
 
       let fullResponse = '';
       const result = await gemini.generateContentStream(prompt);
-
       for await (const chunk of result.stream) {
         const text = chunk.text();
         if (text) {
@@ -110,14 +79,14 @@ export async function analyze(prompt, options = {}) {
 
     } catch (err) {
       const msg = err?.message ?? '';
-      const isUnavailable = msg.includes('404') || msg.includes('not found') ||
-                            msg.includes('not supported') || msg.includes('deprecated');
-      if (isUnavailable) {
-        if (!silent) process.stderr.write(`⚠️  Model ${candidate} unavailable, trying next...\n`);
+      const skip = msg.includes('404') || msg.includes('not found') ||
+                   msg.includes('not supported') || msg.includes('deprecated') ||
+                   msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests');
+      if (skip) {
+        if (!silent) process.stderr.write(`⚠️  ${candidate}: ${msg.includes('429') ? 'quota exceeded' : 'unavailable'}, trying next...\n`);
         lastError = err;
         continue;
       }
-      // Any other error (auth, quota, network) — rethrow immediately
       throw err;
     }
   }
