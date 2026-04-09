@@ -1,6 +1,7 @@
 // ============================================
-// FORMATTER v2
-// Template prompt baru dengan Fed Liquidity Layer
+// FORMATTER v3
+// Template prompt dengan Fed Liquidity Layer
+// — selalu tampilkan semua section, label sumber data
 // ============================================
 
 export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrides = {}, war = null) {
@@ -8,20 +9,57 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   });
 
-  const dayOfWeek  = new Date().getDay();
-  const isMonday   = dayOfWeek === 1;
-  const isThursday = dayOfWeek === 4;
-  const isFriday   = dayOfWeek === 5;
-  const isFirstWeek = new Date().getDate() <= 7;
-
-  const showFed     = fed && !fed.skipped;
-  const showWeekly  = weekly && !weekly.skipped;
-  const showMonthly = monthly && !monthly.skipped;
-
   // ── Helper ────────────────────────────────────────────────────────────────
-  const v  = (x, fb = '___') => (x === null || x === undefined || x?.skipped) ? fb : x;
-  const pv = (x, fb = '___') => (x === null || x === undefined || x?.skipped) ? fb : `${x}%`;
-  const sign = (n) => n > 0 ? `+${n}` : `${n}`;
+  const v = (x, fb = '___') => (x === null || x === undefined || x?.skipped) ? fb : x;
+
+  // Source label for section headers
+  const srcLabel = (data) => {
+    if (!data || data.skipped) return '⚠️ tidak tersedia';
+    if (data._fromCache) {
+      const d = data._cachedAt ? data._cachedAt.slice(0, 10) : '?';
+      return `💾 cache: ${d}`;
+    }
+    return '✅ live';
+  };
+
+  // ── Phase & War ───────────────────────────────────────────────────────────
+  const faseEstimasi    = manualOverrides.faseEstimasi ?? '?';
+  const warTimteng      = (manualOverrides.warTimteng !== 'none' && manualOverrides.warTimteng)
+                        || war?.timteng || '[fetch gagal — isi manual]';
+  const warRusiaUkraine = (manualOverrides.warRusiaUkraine !== 'none' && manualOverrides.warRusiaUkraine)
+                        || war?.rusiaUkraine || '[fetch gagal — isi manual]';
+  const warTaiwan       = (manualOverrides.warTaiwan !== 'none' && manualOverrides.warTaiwan)
+                        || war?.taiwan || '[fetch gagal — isi manual]';
+  const warSource       = war?.source ? `(sumber: ${war.source})` : '(isi manual)';
+
+  // ── Fed Liquidity ─────────────────────────────────────────────────────────
+  const fedSrc = srcLabel(fed);
+  const w  = fed?.walcl;
+  const r  = fed?.rrp;
+  const rv = fed?.reserves;
+  const p  = fed?.pmi;
+
+  const pmiMonth = p?.releasedMonth ?? null;
+  const pmiLabel = pmiMonth
+    ? (() => {
+        const [yr, mo] = pmiMonth.split('-');
+        return `${new Date(+yr, +mo - 1).toLocaleString('en-US', { month: 'long' })} ${yr}`;
+      })()
+    : null;
+  const pmiSrc = p?._fromCache ? ` 💾` : p ? ` ✅` : '';
+  const pmiLine = (p?.manufacturing?.value || p?.services?.value)
+    ? `- ISM PMI${pmiLabel ? ` (${pmiLabel})` : ''}${pmiSrc}: Mfg: ${v(p?.manufacturing?.value)} | Svc: ${v(p?.services?.value)}`
+    : `- ISM PMI: ___`;
+
+  const fedBlock = `- Fed Balance Sheet (WALCL): $${v(w?.totalTrillions)}T
+  vs minggu lalu: ${w ? (w.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(w.weekChangeBillions) + 'B' : '___'}
+- RRP balance (RRPONTSYD): $${v(r?.balanceBillions)}B
+  vs minggu lalu: ${r ? (r.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(r.weekChangeBillions) + 'B' : '___'}
+  trend: ${v(r?.trend)}
+- Reserve balances (WLRRAL): $${v(rv?.totalTrillions)}T
+  vs minggu lalu: ${rv ? (rv.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(rv.weekChangeBillions) + 'B' : '___'}
+${pmiLine}
+- Fed trifecta: ${v(fed?.trifectaScore)} hijau (${v(fed?.overallStatus)})`;
 
   // ── Daily ─────────────────────────────────────────────────────────────────
   const btcPrice   = v(daily?.crypto?.btc?.price);
@@ -36,82 +74,33 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
   const btcFunding = v(daily?.funding?.btc);
   const ethFunding = v(daily?.funding?.eth);
   const oilPrice   = v(daily?.brentOil?.price ?? weekly?.oil?.price);
+  const oilDir     = v(daily?.brentOil?.direction ?? weekly?.oil?.direction);
 
-  // War: manual override > auto-fetched > placeholder
-  const warTimteng      = (manualOverrides.warTimteng !== 'none' && manualOverrides.warTimteng)
-                        || war?.timteng
-                        || '[isi manual atau set warTimteng di manualOverrides]';
-  const warRusiaUkraine = (manualOverrides.warRusiaUkraine !== 'none' && manualOverrides.warRusiaUkraine)
-                        || war?.rusiaUkraine
-                        || '[isi manual]';
-  const warTaiwan       = (manualOverrides.warTaiwan !== 'none' && manualOverrides.warTaiwan)
-                        || war?.taiwan
-                        || '[isi manual]';
-  const warSource       = war?.source ? `(sumber: ${war.source})` : '(isi manual)';
-  const faseEstimasi    = manualOverrides.faseEstimasi    ?? '?';
-
-  // ── Fed Liquidity ─────────────────────────────────────────────────────────
-  let fedBlock = '(kosong — bukan Kamis/Jumat atau data belum tersedia)';
-  if (showFed) {
-    const w  = fed.walcl;
-    const r  = fed.rrp;
-    const rv = fed.reserves;
-    const p  = fed.pmi;
-
-    const rtPmiMfg = p?.manufacturing?.value;
-    const rtPmiSvc = p?.services?.value;
-    const pmiMonth = p?.releasedMonth ?? null;
-    const pmiLabel = pmiMonth
-      ? (() => {
-          const [yr, mo] = pmiMonth.split('-');
-          const name = new Date(+yr, +mo - 1).toLocaleString('en-US', { month: 'long' });
-          return `${name} ${yr}`;
-        })()
-      : null;
-    const pmiLine = (rtPmiMfg || rtPmiSvc)
-      ? `- ISM PMI${pmiLabel ? ` (${pmiLabel})` : ''}: Mfg: ${v(rtPmiMfg)} | Svc: ${v(rtPmiSvc)}`
-      : '- ISM PMI: data tidak tersedia';
-
-    fedBlock = `- Fed Balance Sheet total (WALCL): $${v(w?.totalTrillions)}T
-  vs minggu lalu: ${w ? (w.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(w.weekChangeBillions) + 'B' : '___'}
-- RRP balance (RRPONTSYD): $${v(r?.balanceBillions)}B
-  vs minggu lalu: ${r ? (r.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(r.weekChangeBillions) + 'B' : '___'}
-  trend: ${v(r?.trend)}
-- Reserve balances (WLRRAL): $${v(rv?.totalTrillions)}T
-  vs minggu lalu: ${rv ? (rv.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(rv.weekChangeBillions) + 'B' : '___'}
-${pmiLine}
-- Fed trifecta self-assessment: ${v(fed.trifectaScore)} hijau (${v(fed.overallStatus)})`;
-  }
+  const total2 = manualOverrides.total2
+    ?? (daily?.cmc?.total2 ? `$${daily.cmc.total2}T` : null)
+    ?? '___';
+  const total3 = manualOverrides.total3
+    ?? (daily?.cmc?.total3 ? `$${daily.cmc.total3}B` : null)
+    ?? '___';
+  const othersDom = manualOverrides.othersDManual
+    ?? v(daily?.cmc?.othersDominance)
+    ?? v(weekly?.othersDom?.othersDominance);
 
   // ── Weekly ────────────────────────────────────────────────────────────────
-  const nfci       = v(weekly?.nfci?.value);
-  const nfciPrev   = v(weekly?.nfci?.prevWeek);
-  const yield10y   = v(weekly?.yield10y?.value);
-  const yieldDir   = v(weekly?.yield10y?.direction);
-  const ethBtc     = v(weekly?.ratioTrend?.ethBtc?.ratio ?? daily?.crypto?.ethBtcRatio);
-  const solBtc     = v(weekly?.ratioTrend?.solBtc?.ratio ?? daily?.crypto?.solBtcRatio);
-  const oilWeekChg = v(weekly?.oil?.weekChange ?? daily?.brentOil?.weekChange);
-  const oilDir     = v(weekly?.oil?.direction ?? daily?.brentOil?.direction);
-  const tvl        = v(weekly?.tvl?.tvl);
-  const tvlChg     = v(weekly?.tvl?.changePercent);
+  const weeklySrc = srcLabel(weekly);
+  const nfci      = v(weekly?.nfci?.value);
+  const nfciPrev  = v(weekly?.nfci?.prevWeek);
+  const yield10y  = v(weekly?.yield10y?.value);
+  const yieldDir  = v(weekly?.yield10y?.direction);
+  const ethBtc    = v(weekly?.ratioTrend?.ethBtc?.ratio ?? daily?.crypto?.ethBtcRatio);
+  const solBtc    = v(weekly?.ratioTrend?.solBtc?.ratio ?? daily?.crypto?.solBtcRatio);
+  const tvl       = v(weekly?.tvl?.tvl);
+  const tvlChg    = v(weekly?.tvl?.changePercent);
+  const msciEm    = v(weekly?.msciEm?.value);
+  const msciDir   = v(weekly?.msciEm?.direction);
   const totalStable = v(daily?.crypto?.stablecoinSupply?.total);
-  const msciEm     = v(weekly?.msciEm?.value);
-  const msciDir    = v(weekly?.msciEm?.direction);
 
-  // CMC Global Indices (New) — priority: manual > CMC (daily) > weekly > placeholder
-  const othersDom  = manualOverrides.othersDManual
-                  ?? v(daily?.cmc?.othersDominance)
-                  ?? v(weekly?.othersDom?.othersDominance);
-
-  const total2     = manualOverrides.total2
-                  ?? (daily?.cmc?.total2 ? `$${daily.cmc.total2}T` : null)
-                  ?? '[isi manual: TradingView]';
-
-  const total3     = manualOverrides.total3
-                  ?? (daily?.cmc?.total3 ? `$${daily.cmc.total3}B` : null)
-                  ?? '[isi manual: TradingView]';
-
-  const btcDomDir  = manualOverrides.btcDominanceDirection
+  const btcDomDir = manualOverrides.btcDominanceDirection
     ?? (weekly?.ratioTrend?.ethBtc
       ? (weekly.ratioTrend.ethBtc.weekChange < -2 ? 'naik' : weekly.ratioTrend.ethBtc.weekChange > 2 ? 'turun' : 'flat')
       : '___');
@@ -119,66 +108,43 @@ ${pmiLine}
   const altseasonFetched = weekly?.altseason?.value != null
     ? `${weekly.altseason.value} — ${weekly.altseason.signal}`
     : null;
-  const altseasonIdx = manualOverrides.altseasonIndex ?? altseasonFetched ?? '[isi manual: blockchaincenter.net]';
+  const altseasonIdx    = manualOverrides.altseasonIndex ?? altseasonFetched ?? '___';
   const exchangeNetflow = manualOverrides.exchangeNetflow ?? '[isi manual: CryptoQuant]';
 
-  let weeklyBlock = '(kosong — isi manual hari Senin)';
-  if (showWeekly) {
-    weeklyBlock = `- FCI (Chicago Fed NFCI): ${nfci}  | vs minggu lalu: ${nfciPrev}
-- US 10Y Yield: ${yield10y}%  | arah: ${yieldDir}
-- ETH/BTC ratio: ${ethBtc}  | posisi vs resistance: [isi manual]
-- SOL/BTC ratio: ${solBtc}  | arah: ${v(weekly?.ratioTrend?.solBtc?.direction)}
-- BTC.D arah minggu ini: ${btcDomDir}
-- BTC exchange netflow: ${exchangeNetflow}
-- Stablecoin supply change: $${totalStable}B total
-- Altseason Index: ${altseasonIdx}
-- TVL DeFi (DefiLlama): $${tvl}B  | vs minggu lalu: ${tvlChg}%
-- Oil Brent: $${v(oilPrice)}  | arah: ${oilDir}
-- MSCI EM: ${msciEm}  | arah: ${msciDir}
-- TOTAL2: ${total2}
-- TOTAL3: ${total3}
-- OTHERS.D: ${othersDom}%  | arah: [isi manual]`;
-  }
-
   // ── Monthly ───────────────────────────────────────────────────────────────
-  const cpiYoy    = v(monthly?.cpi?.yoy);
-  const fedRateLbl = v(monthly?.fedRate?.label);
+  const monthlySrc  = srcLabel(monthly);
+  const cpiYoy      = v(monthly?.cpi?.yoy);
+  const fedRateLbl  = v(monthly?.fedRate?.label);
 
-  // Global M2 — tampilkan breakdown jika tersedia, fallback ke US M2 saja
   const m2 = monthly?.m2;
   let m2Line;
   if (m2 && !m2.skipped && m2.globalYoY !== null && m2.globalTrillions) {
     m2Line = `- Global M2 YoY growth: ${m2.globalYoY}% | Total: $${m2.globalTrillions}T
   (US: $${m2.us}T ${m2.usYoY !== null ? `[${m2.usYoY}% YoY]` : ''} | CN: $${m2.cn}T ${m2.cnYoY !== null ? `[${m2.cnYoY}% YoY]` : ''} | JP: $${m2.jp}T | EZ: $${m2.ez}T)`;
   } else if (m2 && m2.us) {
-    m2Line = `- Global M2 YoY growth: ___ (fallback US M2: $${m2.us}T, ${m2.usYoY}% YoY — CN/JP/EZ gagal fetch)`;
+    m2Line = `- Global M2 YoY growth: ___ (fallback US M2: $${m2.us}T, ${m2.usYoY}% YoY)`;
   } else {
     m2Line = `- Global M2 YoY growth: ___`;
   }
 
-  // ISM PMI — from fed.pmi (Google News RSS), shown in monthly block
-  const fedPmi = fed?.pmi;
-  const ismMfg = fedPmi?.manufacturing?.value;
-  const ismSvc = fedPmi?.services?.value;
-  const ismMonth = fedPmi?.releasedMonth
+  const ismMfg   = fed?.pmi?.manufacturing?.value;
+  const ismSvc   = fed?.pmi?.services?.value;
+  const ismMonth = fed?.pmi?.releasedMonth
     ? (() => {
-        const [yr, mo] = fedPmi.releasedMonth.split('-');
+        const [yr, mo] = fed.pmi.releasedMonth.split('-');
         return `${new Date(+yr, +mo - 1).toLocaleString('en-US', { month: 'long' })} ${yr}`;
       })()
     : null;
   const ismLine = (ismMfg || ismSvc)
-    ? `- ISM PMI${ismMonth ? ` (${ismMonth})` : ''}: Mfg: ${v(ismMfg)} | Svc: ${v(ismSvc)}`
-    : null;
+    ? `- ISM PMI${ismMonth ? ` (${ismMonth})` : ''}${pmiSrc}: Mfg: ${v(ismMfg)} | Svc: ${v(ismSvc)}`
+    : `- ISM PMI: ___`;
 
-  let monthlyBlock = '(kosong — isi manual awal bulan)';
-  if (showMonthly) {
-    monthlyBlock = [
-      ismLine,
-      `- CPI YoY: ${cpiYoy}%`,
-      m2Line,
-      `- Fed rate keputusan terakhir: ${fedRateLbl}`,
-    ].filter(Boolean).join('\n');
-  }
+  const monthlyBlock = [
+    ismLine,
+    `- CPI YoY: ${cpiYoy}%`,
+    m2Line,
+    `- Fed rate keputusan terakhir: ${fedRateLbl}`,
+  ].join('\n');
 
   // ── ASSEMBLE ──────────────────────────────────────────────────────────────
   return `Kamu adalah hedge fund analyst untuk crypto portfolio saya.
@@ -189,32 +155,44 @@ Analisis semua data di bawah dan output dashboard terstruktur.
 ---
 ## DATA — ${today} | FASE ESTIMASI SAYA: ${faseEstimasi}
 
-### FED LIQUIDITY LAYER — update Kamis${showFed ? ' ✅' : ''}
+### FED LIQUIDITY LAYER [${fedSrc}]
 ${fedBlock}
 
-### DAILY DATA — wajib setiap hari
+### DAILY DATA [✅ live]
 - BTC price: $${btcPrice}  | 24h: ${btcChange}%
-- BTC Dominance: ${btcDom}%  | arah: ${v(daily?.crypto?.btcDominance) !== '___' ? 'lihat_trend' : '___'}
+- BTC Dominance: ${btcDom}%  | arah: ${btcDomDir}
+- ETH/BTC: ${ethBtc}  | SOL/BTC: ${solBtc}
 - DXY: ${dxyVal}  | arah: ${dxyDir}
 - Gold (XAUUSD): $${goldPrice}  | 24h: ${goldChange}%
+- Oil Brent: $${oilPrice}  | arah: ${oilDir}
 - Fear & Greed: ${fgValue} (${fgLabel})
 - Funding rate BTC perp: ${btcFunding}%  | ETH perp: ${ethFunding}%
+- Stablecoin supply: $${totalStable}B
+- TOTAL2: ${total2}  | TOTAL3: ${total3}  | OTHERS.D: ${othersDom}%
 - War headline ${warSource}:
   - Timteng: ${warTimteng}
   - Rusia-Ukraine: ${warRusiaUkraine}
   - Taiwan: ${warTaiwan}
 
-### WEEKLY DATA — isi setiap Senin${showWeekly ? ' ✅' : ''}
-${weeklyBlock}
+### WEEKLY DATA [${weeklySrc}]
+- FCI (Chicago Fed NFCI): ${nfci}  | vs minggu lalu: ${nfciPrev}
+- US 10Y Yield: ${yield10y}%  | arah: ${yieldDir}
+- ETH/BTC ratio: ${ethBtc}  | posisi vs resistance: [isi manual]
+- SOL/BTC ratio: ${solBtc}  | arah: ${v(weekly?.ratioTrend?.solBtc?.direction)}
+- BTC.D arah minggu ini: ${btcDomDir}
+- BTC exchange netflow: ${exchangeNetflow}
+- Altseason Index: ${altseasonIdx}
+- TVL DeFi (DefiLlama): $${tvl}B  | vs minggu lalu: ${tvlChg}%
+- MSCI EM: ${msciEm}  | arah: ${msciDir}
 
-### MONTHLY DATA — isi awal bulan saja${showMonthly ? ' ✅' : ''}
+### MONTHLY DATA [${monthlySrc}]
 ${monthlyBlock}
 
 ---
 ## OUTPUT YANG DIMINTA
 
 **1. FED LIQUIDITY STATUS**
-Baca Fed trifecta (jika hari Kamis/Jumat).
+Baca Fed trifecta.
 Apakah likuiditas dari sumber paling upstream mendukung atau menentang fase saat ini?
 Format: [EKSPANSI / KONTRAKSI / MIXED] — alasan singkat.
 
@@ -245,9 +223,8 @@ Jika ada: mana yang lebih dipercaya dan mengapa?
 - Timteng: [level risiko: rendah/sedang/tinggi] + dampak ke oil/gold
 - Rusia-Ukraine: [update singkat]
 - Taiwan: [status]
-- Oil sebagai real-time proxy: $${v(oilPrice)}  | threshold alert: $100
+- Oil sebagai real-time proxy: $${oilPrice}  | threshold alert: $100
 - War override aktif?: Ya / Tidak
-Jika Ya: action spesifik apa yang harus dilakukan?
 
 **6. ACTION HARI INI**
 Maksimal 3 action konkret.
@@ -269,86 +246,94 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
     '  RINGKASAN DATA YANG BERHASIL DIFETCH',
     '═══════════════════════════════════════════',
   ];
-  console.log(fed);
-  if (fed && !fed.skipped) {
-    lines.push('');
-    lines.push('FED LIQUIDITY:');
-    const w  = fed.walcl;
-    const r  = fed.rrp;
-    const rv = fed.reserves;
-    const p  = fed.pmi;
-    if (w && w.totalTrillions != null)
-      lines.push(`  WALCL   : $${w.totalTrillions}T (${(w.weekChangeBillions ?? 0) >= 0 ? '+' : ''}${w.weekChangeBillions ?? '?'}B)`);
-    else
-      lines.push(`  WALCL   : fetch gagal (cek FRED_API_KEY atau series WALCL)`);
-    if (r && r.balanceBillions != null)
-      lines.push(`  RRP     : $${r.balanceBillions}B (${r.trend ?? '?'})`);
-    else
-      lines.push(`  RRP     : fetch gagal`);
-    if (rv && rv.totalTrillions != null)
-      lines.push(`  WLRRAL  : $${rv.totalTrillions}T (${(rv.weekChangeBillions ?? 0) >= 0 ? '+' : ''}${rv.weekChangeBillions ?? '?'}B)`);
-    else
-      lines.push(`  WLRRAL  : fetch gagal`);
-    
-    if (p) {
-      const m = p.manufacturing?.value ?? '??';
-      const s = p.services?.value ?? '??';
-      const mo = p.releasedMonth
-        ? (() => { const [yr, mn] = p.releasedMonth.split('-'); return `${new Date(+yr, +mn - 1).toLocaleString('en-US', { month: 'short' })} ${yr}`; })()
-        : null;
-      lines.push(`  PMI (S) : Mfg ${m} | Svc ${s}${mo ? ` (${mo})` : ''}`);
-    }
 
-    lines.push(`  Trifecta: ${fed.trifectaScore ?? '0/3'} hijau → ${fed.overallStatus ?? 'UNKNOWN'}`);
+  // ── Fed ──────────────────────────────────────────────────────────────────
+  lines.push('');
+  lines.push(`FED LIQUIDITY [${fed?._fromCache ? `💾 cache: ${fed._cachedAt?.slice(0,10)}` : fed && !fed.skipped ? '✅ live' : '⚠️ tidak tersedia'}]:`);
+  const w  = fed?.walcl;
+  const r  = fed?.rrp;
+  const rv = fed?.reserves;
+  const p  = fed?.pmi;
+
+  if (w?.totalTrillions != null)
+    lines.push(`  WALCL   : $${w.totalTrillions}T (${(w.weekChangeBillions ?? 0) >= 0 ? '+' : ''}${w.weekChangeBillions ?? '?'}B)`);
+  else
+    lines.push(`  WALCL   : ___`);
+
+  if (r?.balanceBillions != null)
+    lines.push(`  RRP     : $${r.balanceBillions}B (${r.trend ?? '?'})`);
+  else
+    lines.push(`  RRP     : ___`);
+
+  if (rv?.totalTrillions != null)
+    lines.push(`  WLRRAL  : $${rv.totalTrillions}T (${(rv.weekChangeBillions ?? 0) >= 0 ? '+' : ''}${rv.weekChangeBillions ?? '?'}B)`);
+  else
+    lines.push(`  WLRRAL  : ___`);
+
+  if (p) {
+    const mfg = p.manufacturing?.value ?? '___';
+    const svc = p.services?.value ?? '___';
+    const mo  = p.releasedMonth
+      ? (() => { const [yr, mn] = p.releasedMonth.split('-'); return `${new Date(+yr, +mn - 1).toLocaleString('en-US', { month: 'short' })} ${yr}`; })()
+      : null;
+    const pSrc = p._fromCache ? '💾' : '✅';
+    lines.push(`  PMI     : Mfg ${mfg} | Svc ${svc}${mo ? ` (${mo})` : ''} ${pSrc}`);
+  } else {
+    lines.push(`  PMI     : ___`);
   }
 
+  lines.push(`  Trifecta: ${fed?.trifectaScore ?? '___'} hijau → ${fed?.overallStatus ?? '___'}`);
+
+  // ── Daily ─────────────────────────────────────────────────────────────────
+  lines.push('');
+  lines.push('DAILY [✅ live]:');
   if (daily?.crypto) {
-    lines.push('');
-    lines.push('DAILY:');
-    lines.push(`  BTC    : $${daily.crypto.btc?.price?.toLocaleString()} (${daily.crypto.btc?.change24h > 0 ? '+' : ''}${daily.crypto.btc?.change24h}%)`);
-    lines.push(`  ETH    : $${daily.crypto.eth?.price?.toLocaleString()} (${daily.crypto.eth?.change24h > 0 ? '+' : ''}${daily.crypto.eth?.change24h}%)`);
-    lines.push(`  BTC.D  : ${daily.crypto.btcDominance}%`);
-    lines.push(`  F&G    : ${daily.fearGreed?.value} — ${daily.fearGreed?.label}`);
-    lines.push(`  Funding: BTC ${daily.funding?.btc}% | ETH ${daily.funding?.eth}% (${daily.funding?.source || ''})`);
-    if (!daily.dxy?.skipped)      lines.push(`  DXY    : ${daily.dxy?.value} (${daily.dxy?.direction})`);
-    if (!daily.gold?.skipped)     lines.push(`  Gold   : $${daily.gold?.price} (${daily.gold?.change24h}%)`);
-    if (daily.brentOil)           lines.push(`  Oil    : $${daily.brentOil?.price} (${daily.brentOil?.direction})`);
-    if (daily.cmc && !daily.cmc.skipped) {
-      lines.push(`  TOTAL2 : $${daily.cmc.total2}T`);
-      lines.push(`  TOTAL3 : $${daily.cmc.total3}B`);
-      lines.push(`  Others.D: ${daily.cmc.othersDominance}%`);
-    }
+    lines.push(`  BTC    : $${daily.crypto.btc?.price?.toLocaleString() ?? '___'} (${daily.crypto.btc?.change24h >= 0 ? '+' : ''}${daily.crypto.btc?.change24h ?? '___'}%)`);
+    lines.push(`  ETH    : $${daily.crypto.eth?.price?.toLocaleString() ?? '___'} (${daily.crypto.eth?.change24h >= 0 ? '+' : ''}${daily.crypto.eth?.change24h ?? '___'}%)`);
+    lines.push(`  BTC.D  : ${daily.crypto.btcDominance ?? '___'}%`);
+    lines.push(`  ETH/BTC: ${daily.crypto.ethBtcRatio ?? '___'}  | SOL/BTC: ${daily.crypto.solBtcRatio ?? '___'}`);
+    lines.push(`  F&G    : ${daily.fearGreed?.value ?? '___'} — ${daily.fearGreed?.label ?? '___'}`);
+    lines.push(`  Funding: BTC ${daily.funding?.btc ?? '___'}% | ETH ${daily.funding?.eth ?? '___'}% (${daily.funding?.source ?? ''})`);
+  } else {
+    lines.push(`  crypto : ___`);
   }
-
-  if (weekly && !weekly.skipped) {
-    lines.push('');
-    lines.push('WEEKLY:');
-    if (weekly.yield10y?.value)       lines.push(`  10Y    : ${weekly.yield10y.value}% (${weekly.yield10y.direction})`);
-    if (weekly.nfci?.value)           lines.push(`  NFCI   : ${weekly.nfci.value} (${weekly.nfci.trend})`);
-    if (weekly.tvl?.tvl)              lines.push(`  TVL    : $${weekly.tvl.tvl}B (${weekly.tvl.changePercent > 0 ? '+' : ''}${weekly.tvl.changePercent}%)`);
-    if (weekly.oil?.price)            lines.push(`  Oil 7d : $${weekly.oil.price} (${weekly.oil.weekChange > 0 ? '+' : ''}${weekly.oil.weekChange}%)`);
-    if (weekly.msciEm?.value)         lines.push(`  MSCI EM: ${weekly.msciEm.value} (${weekly.msciEm.direction})`);
-    if (weekly.othersDom?.othersDominance) lines.push(`  Others.D: ${weekly.othersDom.othersDominance}%`);
-    if (weekly.ratioTrend) {
-      lines.push(`  ETH/BTC: ${weekly.ratioTrend.ethBtc?.ratio} (${weekly.ratioTrend.ethBtc?.direction})`);
-      lines.push(`  SOL/BTC: ${weekly.ratioTrend.solBtc?.ratio} (${weekly.ratioTrend.solBtc?.direction})`);
-    }
+  lines.push(`  DXY    : ${daily?.dxy?.value ?? '___'} (${daily?.dxy?.direction ?? '___'})`);
+  lines.push(`  Gold   : $${daily?.gold?.price ?? '___'} (${daily?.gold?.change24h ?? '___'}%)`);
+  lines.push(`  Oil    : $${daily?.brentOil?.price ?? '___'} (${daily?.brentOil?.direction ?? '___'})`);
+  if (daily?.cmc && !daily.cmc.skipped) {
+    lines.push(`  TOTAL2 : $${daily.cmc.total2}T  | TOTAL3: $${daily.cmc.total3}B  | Others.D: ${daily.cmc.othersDominance}%`);
+  } else {
+    lines.push(`  CMC    : ___`);
   }
+  if (daily?.crypto?.stablecoinSupply?.total)
+    lines.push(`  Stable : $${daily.crypto.stablecoinSupply.total}B`);
 
-  if (monthly?.cpi && !monthly.cpi.skipped) {
-    lines.push('');
-    lines.push('MONTHLY:');
-    lines.push(`  CPI    : ${monthly.cpi.yoy}% YoY`);
-    if (monthly.pmi && !monthly.pmi.skipped) lines.push(`  PMI (F): ${monthly.pmi.value} (${monthly.pmi.condition})`);
-    if (!monthly.fedRate?.skipped) lines.push(`  Fed    : ${monthly.fedRate.label}`);
-    if (monthly.m2 && !monthly.m2.skipped) {
-      if (monthly.m2.globalTrillions) {
-        lines.push(`  G-M2   : $${monthly.m2.globalTrillions}T total | YoY: ${monthly.m2.globalYoY}%`);
-        lines.push(`           US $${monthly.m2.us}T | CN $${monthly.m2.cn}T | JP $${monthly.m2.jp}T | EZ $${monthly.m2.ez}T`);
-      } else {
-        lines.push(`  US M2  : $${monthly.m2.us}T | YoY: ${monthly.m2.usYoY}%`);
-      }
-    }
+  // ── Weekly ────────────────────────────────────────────────────────────────
+  lines.push('');
+  lines.push(`WEEKLY [${weekly?._fromCache ? `💾 cache: ${weekly._cachedAt?.slice(0,10)}` : weekly && !weekly.skipped ? '✅ live' : '⚠️ tidak tersedia'}]:`);
+  lines.push(`  10Y    : ${weekly?.yield10y?.value ?? '___'}% (${weekly?.yield10y?.direction ?? '___'})`);
+  lines.push(`  NFCI   : ${weekly?.nfci?.value ?? '___'} (${weekly?.nfci?.trend ?? '___'})`);
+  lines.push(`  TVL    : $${weekly?.tvl?.tvl ?? '___'}B (${weekly?.tvl?.changePercent != null ? (weekly.tvl.changePercent >= 0 ? '+' : '') + weekly.tvl.changePercent : '___'}%)`);
+  lines.push(`  MSCI EM: ${weekly?.msciEm?.value ?? '___'} (${weekly?.msciEm?.direction ?? '___'})`);
+  lines.push(`  ETH/BTC: ${weekly?.ratioTrend?.ethBtc?.ratio ?? '___'} (${weekly?.ratioTrend?.ethBtc?.direction ?? '___'})`);
+  lines.push(`  SOL/BTC: ${weekly?.ratioTrend?.solBtc?.ratio ?? '___'} (${weekly?.ratioTrend?.solBtc?.direction ?? '___'})`);
+  if (weekly?.altseason?.value != null)
+    lines.push(`  Altszn : ${weekly.altseason.value} — ${weekly.altseason.signal} ✅`);
+  else
+    lines.push(`  Altszn : ___`);
+
+  // ── Monthly ───────────────────────────────────────────────────────────────
+  lines.push('');
+  lines.push(`MONTHLY [${monthly?._fromCache ? `💾 cache: ${monthly._cachedAt?.slice(0,10)}` : monthly && !monthly.skipped ? '✅ live' : '⚠️ tidak tersedia'}]:`);
+  lines.push(`  CPI    : ${monthly?.cpi?.yoy ?? '___'}% YoY`);
+  lines.push(`  Fed    : ${monthly?.fedRate?.label ?? '___'}`);
+  if (monthly?.m2?.globalTrillions) {
+    lines.push(`  G-M2   : $${monthly.m2.globalTrillions}T total | YoY: ${monthly.m2.globalYoY}%`);
+    lines.push(`           US $${monthly.m2.us}T | CN $${monthly.m2.cn}T | JP $${monthly.m2.jp}T | EZ $${monthly.m2.ez}T`);
+  } else if (monthly?.m2?.us) {
+    lines.push(`  US M2  : $${monthly.m2.us}T | YoY: ${monthly.m2.usYoY}%`);
+  } else {
+    lines.push(`  G-M2   : ___`);
   }
 
   lines.push('', '═══════════════════════════════════════════');
