@@ -260,8 +260,11 @@ export async function analyzeWithGemini(prompt, options = {}) {
       const msg = err?.message ?? '';
       const isUnavailable = msg.includes('404') || msg.includes('not found') ||
                             msg.includes('not supported') || msg.includes('deprecated');
-      if (isUnavailable) {
-        if (!silent) process.stderr.write(`⚠️  Gemini model ${candidate} unavailable, trying next...\n`);
+      const isQuotaExceeded = msg.includes('429') || msg.includes('quota') ||
+                              msg.includes('Too Many Requests');
+      if (isUnavailable || isQuotaExceeded) {
+        const reason = isQuotaExceeded ? 'quota exceeded' : 'unavailable';
+        if (!silent) process.stderr.write(`⚠️  Gemini model ${candidate} ${reason}, trying next...\n`);
         lastError = err;
         continue;
       }
