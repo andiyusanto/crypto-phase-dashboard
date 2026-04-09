@@ -50,6 +50,7 @@ import { fetchAllDailyData }    from './fetchers/daily.js';
 import { fetchAllWeeklyData }   from './fetchers/weekly.js';
 import { fetchAllMonthlyData }  from './fetchers/monthly.js';
 import { fetchAllFedLiquidity } from './fetchers/fedliquidity.js';
+import { fetchRealtimePMI }    from './fetchers/pmi.js';
 import { fetchAllWarHeadlines } from './fetchers/warheadlines.js';
 import { saveFedData, getLatestFedData } from './db.js';
 import { formatDashboardPrompt, formatDataSummary } from './formatter.js';
@@ -208,12 +209,19 @@ async function main() {
         }
       }
 
+      // PMI fetched independently — not gated by Thu/Fri so new monthly releases
+      // (ISM releases on first business day of each month) are always picked up.
+      const freshPmi = await fetchRealtimePMI();
+      if (freshPmi) {
+        fed = { ...(fed ?? {}), pmi: freshPmi };
+      }
+
       console.log(chalk.green('✓ Fed Liquidity (+ PMI)'));
-      
+
       if (mode === 'pmi') {
-        const p = fed.pmi;
+        const p = fed?.pmi;
         if (p) {
-          console.log(chalk.cyan(`  Mfg: ${p.manufacturing?.value ?? 'N/A'} | Svc: ${p.services?.value ?? 'N/A'}`));
+          console.log(chalk.cyan(`  Mfg: ${p.manufacturing?.value ?? 'N/A'} | Svc: ${p.services?.value ?? 'N/A'} (${p.releasedMonth ?? '?'})`));
         }
         if (!doAnalyze && !doTelegram && !doDiscord) {
           console.log(chalk.yellow('\nPMI Data Only:'));
