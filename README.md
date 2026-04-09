@@ -9,26 +9,31 @@ Setiap AI provider, Telegram, dan Discord **sepenuhnya independen** — menjalan
 ## Arsitektur
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      DATA SOURCES                           │
-│  CoinGecko · Hyperliquid · DefiLlama · FRED · OilPriceAPI   │
-│  alternative.me · Google News RSS · Twelve Data             │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ generate prompt
-         ┌─────────────────┼────────────────────────────────────────┐
-         ▼                 ▼          ▼            ▼                ▼
-    🤖 Claude         ✨ Gemini   🔍 Perplexity  ⚡ Grok (Puter)  🤖 Qwen (Puter)
-    Anthropic         Google      Sonar         xAI              Alibaba
-         │                 │          │            │                │
-         └─────────────────┼──────────┘            └──────┬─────────┘
-                           │      🟢 ChatGPT              │
-                           │       (Puter)                │
-                           └──────────┬───────────────────┘
-                                      │
-                  ┌───────────────────┴───────────────────┐
-                  ▼                                       ▼
-            📱 Telegram                           🎮 Discord
-            (Bot API)                             (Webhook)
+┌──────────────────────────────────────────────────────────────────────┐
+│                            DATA SOURCES                              │
+│  CoinGecko · Hyperliquid · DefiLlama · FRED · OilPriceAPI            │
+│  alternative.me · Google News RSS · Twelve Data · blockchaincenter   │
+└──────────────────────────────┬───────────────────────────────────────┘
+                               │
+              ┌────────────────┼───────────────────┐
+              │                │                   │
+       SQLite Cache        generate prompt      War Headlines
+       (Fed + PMI)             │               (Google News RSS)
+                               │
+         ┌─────────────────────┼──────────────────────────────────────┐
+         ▼                     ▼          ▼            ▼              ▼
+    🤖 Claude             ✨ Gemini  🔍 Perplexity  ⚡ Grok       🤖 Qwen
+    Anthropic             Google     Sonar          OpenRouter    OpenRouter
+         │                     │          │            │              │
+         └─────────────────────┼──────────┘            └──────┬───────┘
+                               │      🟢 ChatGPT              │
+                               │       (OpenRouter)           │
+                               └──────────┬───────────────────┘
+                                          │
+                      ┌───────────────────┴───────────────────┐
+                      ▼                                       ▼
+                📱 Telegram                           🎮 Discord
+                (Bot API)                             (Webhook)
 ```
 
 ---
@@ -49,24 +54,18 @@ cp .env.example .env
 
 Edit `.env` — isi **hanya** yang dibutuhkan:
 
-#### 🚀 Getting Started with OpenRouter (ChatGPT, Grok, Qwen)
-Dashboard ini menggunakan **OpenRouter** untuk mengakses model Qwen (Gratis), Grok, dan ChatGPT:
-1.  Daftar di [openrouter.ai](https://openrouter.ai).
-2.  Buka **Keys** → **Create Key**.
-3.  Simpan di `.env`: `OPENROUTER_API_KEY=sk-or-xxxxxx`
-
 #### AI Providers (pilih minimal satu)
 
 | Variabel | Provider | Model | Link | Harga |
 |----------|----------|-------|------|-------|
-| `ANTHROPIC_API_KEY` | Claude | claude-3-5-sonnet | [console.anthropic.com](https://console.anthropic.com) | Berbayar |
-| `OPENROUTER_API_KEY` | ChatGPT (OpenRouter) | gpt-4o-mini | [openrouter.ai](https://openrouter.ai) | Berbayar |
-| `GEMINI_API_KEY` | Gemini | gemini-1.5-flash | [aistudio.google.com](https://aistudio.google.com/apikey) | **Gratis** |
+| `ANTHROPIC_API_KEY` | Claude | claude-sonnet-4-5 | [console.anthropic.com](https://console.anthropic.com) | Berbayar |
+| `OPENROUTER_API_KEY` | ChatGPT (OpenRouter) | openai/gpt-4o | [openrouter.ai](https://openrouter.ai) | Berbayar |
+| `GEMINI_API_KEY` | Gemini | gemini-2.5-flash | [aistudio.google.com](https://aistudio.google.com/apikey) | **Gratis** |
 | `PERPLEXITY_API_KEY` | Perplexity | sonar-pro | [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) | Berbayar |
-| `OPENROUTER_API_KEY` | Grok (OpenRouter) | x-ai/grok-beta | [openrouter.ai](https://openrouter.ai) | Berbayar |
-| `OPENROUTER_API_KEY` | Qwen (OpenRouter) | qwen-3-next... (fallback) | [openrouter.ai](https://openrouter.ai) | **Gratis** |
+| `OPENROUTER_API_KEY` | Grok (OpenRouter) | x-ai/grok-4-1-fast | [openrouter.ai](https://openrouter.ai) | Berbayar |
+| `OPENROUTER_API_KEY` | Qwen (OpenRouter) | qwen/qwen3-plus:free | [openrouter.ai](https://openrouter.ai) | **Gratis** |
 
-> **OpenRouter**: Satu API key untuk mengakses ratusan model. Model Qwen tersedia gratis!
+> **OpenRouter**: Satu API key untuk mengakses Grok, ChatGPT, Qwen, dan ratusan model lain.
 
 #### Messaging Channels (opsional)
 
@@ -83,13 +82,14 @@ DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/ID/TOKEN
 ```
 Setup: Channel Settings → Integrations → Webhooks → **New Webhook** → Copy URL
 
-#### Data Sources (untuk data lebih lengkap)
+#### Data Sources
 
 | Variabel | Data | Harga |
 |----------|------|-------|
-| `FRED_API_KEY` | 10Y Yield, NFCI, CPI, PMI, Global M2, Fed Balance Sheet, RRP, Reserves | **Gratis** |
+| `FRED_API_KEY` | 10Y Yield, NFCI, CPI, Fed Rate, Global M2, Fed Balance Sheet, RRP, Reserves | **Gratis** |
 | `TWELVE_DATA_API_KEY` | DXY, Gold, MSCI EM | **Gratis** (800 req/hari) |
 | `OIL_PRICE_API_KEY` | Brent Crude Oil | **Gratis** (200 req/bulan) |
+| `COINMARKETCAP_API_KEY` | TOTAL2, TOTAL3, OTHERS.D | **Gratis** |
 
 ### 3. Update manual overrides harian
 
@@ -101,9 +101,10 @@ const manualOverrides = {
   warTimteng:      'none',  // 'none' = auto-fetch Google News
   warRusiaUkraine: 'none',
   warTaiwan:       'none',
+  btcDominanceDirection: 'naik',  // override arah BTC.D
 
-  // Setiap SENIN (uncomment):
-  // altseasonIndex:   '65',
+  // Uncomment untuk override manual:
+  // altseasonIndex:   '65',              // auto-fetched dari blockchaincenter.net
   // exchangeNetflow:  'outflow (-1,200 BTC)',
   // total2:           '$1.12T | di bawah $1.2T',
   // total3:           '$680B | mendekati $700B',
@@ -123,24 +124,24 @@ const manualOverrides = {
 | `npm run fetch:discord` | Fetch + data summary → Discord |
 | `npm run fetch:all-channels` | Fetch + data summary → Telegram **+** Discord |
 
-### Kirim Prompt
+### Kirim Prompt ke Channel
 
 | Command | Deskripsi |
 |---------|-----------|
-| `npm run send:prompt` | Kirim prompt ke Telegram (tanpa analisis) |
-| `npm run send:prompt:analyze` | Kirim prompt + jalankan semua AI + kirim ke semua channel |
-| `node src/index.js --send-prompt --analyze --provider grok --telegram` | Kirim prompt + Grok → Telegram |
+| `node src/index.js --send-prompt --telegram` | Kirim prompt → Telegram |
+| `node src/index.js --send-prompt --discord` | Kirim prompt → Discord |
+| `node src/index.js --send-prompt --telegram --discord` | Kirim prompt → keduanya |
 
 ### Analisis AI (tanpa channel)
 
 | Command | AI |
 |---------|----|
 | `npm run analyze:claude` | 🤖 Claude (Anthropic) |
-| `npm run analyze:chatgpt` | 🟢 ChatGPT (OpenAI) |
+| `npm run analyze:chatgpt` | 🟢 ChatGPT (OpenRouter) |
 | `npm run analyze:gemini` | ✨ Gemini (Google) |
 | `npm run analyze:perplexity` | 🔍 Perplexity Sonar |
-| `npm run analyze:grok` | ⚡ Grok (Puter AI) |
-| `npm run analyze:qwen` | 🤖 Qwen (Puter AI) |
+| `npm run analyze:grok` | ⚡ Grok (OpenRouter) |
+| `npm run analyze:qwen` | 🤖 Qwen (OpenRouter) |
 | `npm run analyze:all` | Semua AI yang ada key-nya |
 
 ### Analisis + Telegram
@@ -183,48 +184,59 @@ const manualOverrides = {
 
 | Flag | Deskripsi |
 |------|-----------|
-| `--send-prompt` | Kirim prompt ke Telegram sebelum analisis dimulai |
+| `--send-prompt` | Kirim prompt ke channel (Telegram dan/atau Discord) sebelum analisis |
 | `--print` | Print prompt lengkap ke terminal |
 | `--no-save` | Jangan simpan file ke `output/` |
-| `--mode=daily\|weekly\|monthly\|fed` | Fetch data tertentu saja |
-| `--provider=claude\|chatgpt\|gemini\|perplexity\|grok\|all` | Pilih AI |
+| `--mode=daily\|weekly\|monthly\|fed\|pmi` | Fetch data tertentu saja |
+| `--provider=claude\|chatgpt\|gemini\|perplexity\|grok\|qwen\|all` | Pilih AI |
 | `--telegram` | Aktifkan Telegram |
 | `--discord` | Aktifkan Discord |
 
 **Contoh kombinasi:**
 ```bash
-# Grok + kirim prompt + Telegram + Discord
-node src/index.js --analyze --provider grok --send-prompt --telegram --discord
+# Fetch + print prompt ke terminal (test tanpa side-effect)
+node src/index.js --print --no-save
 
-# Semua AI, print prompt dulu, kirim ke semua channel
+# Gemini + kirim prompt + Telegram + Discord
+node src/index.js --analyze --provider gemini --send-prompt --telegram --discord
+
+# Semua AI + print prompt + semua channel
 node src/index.js --analyze --provider all --print --telegram --discord
 
-# Fetch weekly saja + Discord
-node src/index.js --mode=weekly --discord
+# Cek data PMI saja
+node src/index.js --mode=pmi --no-save
 
-# Kirim prompt ke Telegram saja (tanpa analisis)
-node src/index.js --send-prompt
+# Fetch weekly + Discord
+node src/index.js --mode=weekly --discord
 ```
 
 ### Scheduler Otomatis
 
 ```bash
 npm run schedule
+# atau
+node src/scheduler.js
 ```
 
-Analisis Gemini + Prompt + Telegram + Discord berjalan **3× sehari**:
+Analisis berjalan **3× sehari** pada market session open dengan banner visual:
 
-| Waktu WIB | Setara | Hari | Aksi |
-|-----------|--------|------|------|
-| 06:00 | Tokyo 08:00 JST | Setiap hari | ✨ Gemini → Prompt + Telegram + Discord |
-| 06:00 | — | **Senin** | Weekly fetch → Gemini → Prompt + semua channel |
-| 07:00 | — | Setiap hari | Daily fetch |
-| 07:05 | — | **Senin** | Weekly fetch |
-| 07:10 | — | **Tgl 1** | Monthly fetch |
-| 08:00 | — | **Kamis & Jumat** | Fed Liquidity fetch |
-| 15:00 | London 08:00 GMT | Setiap hari | ✨ Gemini → Prompt + Telegram + Discord |
-| 19:00 | New York 08:00 EDT | Setiap hari | ✨ Gemini → Prompt + Telegram + Discord |
-| 19:00 | — | **Kamis & Jumat** | Fed fetch → Gemini → Prompt + semua channel |
+```
+=================================================================================================================
+====================================================   Start   ====================================================
+=========================================== Japan 2026-04-09 06:00:00 ===========================================
+
+   ... semua output analisis + pengiriman channel ...
+
+=========================================== Japan 2026-04-09 06:08:43 ===========================================
+=====================================================   END   =====================================================
+=================================================================================================================
+```
+
+| Waktu WIB | Session | Aksi |
+|-----------|---------|------|
+| 06:00 | 🇯🇵 Tokyo Open (08:00 JST) | Semua AI → Prompt + Telegram + Discord |
+| 15:00 | 🇬🇧 London Open (08:00 GMT) | Semua AI → Prompt + Telegram + Discord |
+| 19:00 | 🇺🇸 New York Open (08:00 EDT) | Semua AI → Prompt + Telegram + Discord |
 
 **Run di background:**
 ```bash
@@ -239,75 +251,93 @@ nohup node src/scheduler.js > logs/scheduler.log 2>&1 &
 
 ---
 
+## Data Coverage
+
+### Selalu (tanpa API key)
+
+| Data | Sumber |
+|------|--------|
+| BTC, ETH, SOL price + 24h change | CoinGecko |
+| BTC Dominance, ETH/BTC, SOL/BTC ratio | CoinGecko |
+| Fear & Greed Index | alternative.me |
+| Funding rate BTC + ETH | Hyperliquid → CoinGecko fallback |
+| TVL DeFi + 7d change | DefiLlama |
+| Altseason Index (0–100) | blockchaincenter.net (HTML scrape) |
+| ISM Manufacturing PMI + Services PMI | Google News RSS (ISM press release) |
+| War headlines — Middle East, Russia-Ukraine, Taiwan | Google News RSS |
+
+### FRED API (gratis)
+
+| Data | Series |
+|------|--------|
+| US 10Y Yield | DGS10 |
+| Chicago Fed NFCI | NFCI |
+| CPI YoY | CPIAUCSL |
+| Fed Funds Rate | FEDFUNDS |
+| Global M2 (US + CN + JP + EZ) | M2SL + MYAGM2CNM189N + MYAGM2JPM189N + MABMM301EZM189S |
+| Fed Balance Sheet (WALCL) | WALCL |
+| RRP Balance | RRPONTSYD |
+| Reserve Balances (WLRRAL) | WLRRAL |
+
+### Twelve Data (gratis, 800 req/hari)
+DXY, Gold (XAU/USD), MSCI EM via EEM ETF
+
+### OilPriceAPI (gratis, 200 req/bulan)
+Brent Crude Oil — harga terkini + 7d change
+
+### CoinMarketCap (gratis)
+TOTAL2, TOTAL3, OTHERS.D dominance
+
+### Manual (di `manualOverrides` jika diperlukan)
+BTC Exchange Netflow (CryptoQuant)
+
+---
+
+## SQLite Cache (`data/dashboard.db`)
+
+Data di-cache lokal untuk fallback ketika fetch gagal:
+
+| Tabel | Data | Dedup logic |
+|-------|------|-------------|
+| `fed_liquidity` | WALCL + RRP + WLRRAL snapshot | Berdasarkan tanggal observasi FRED (walcl.date + rrp.date + reserves.date) |
+| `pmi_data` | ISM Manufacturing + Services PMI | Berdasarkan `released_month` (YYYY-MM) — satu record per bulan |
+
+**Fallback hierarchy:**
+- Fed data: Thu/Fri fetch → jika skip/gagal → SQLite cache
+- PMI data: Google News RSS → jika gagal → SQLite cache
+
+---
+
 ## Output Files
 
 ```
 output/
-├── latest_prompt.txt                  ← Prompt terbaru (bisa paste ke AI manapun)
-├── latest_data.json                   ← Raw data JSON
-├── latest_analysis.txt                ← Analisis terbaru
+├── latest_prompt.txt                    ← Prompt terbaru
+├── latest_data.json                     ← Raw data JSON
+├── latest_analysis.txt                  ← Analisis terbaru
 ├── latest_analysis_claude.txt
 ├── latest_analysis_chatgpt.txt
 ├── latest_analysis_gemini.txt
 ├── latest_analysis_perplexity.txt
 ├── latest_analysis_grok.txt
+├── latest_analysis_qwen.txt
 │
-├── prompt_2026-03-27T07-00-00.txt
-├── data_2026-03-27T07-00-00.json
-└── analysis_grok_2026-03-27T07-00-00.txt
+├── prompt_2026-04-09T06-00-00.txt
+└── analysis_gemini_2026-04-09T06-00-00.txt
 ```
-
----
-
-## Data Coverage
-
-### Tanpa API key
-
-| Data | Sumber |
-|------|--------|
-| BTC, ETH, SOL price + 24h | CoinGecko |
-| BTC Dominance, ETH/BTC, SOL/BTC | CoinGecko |
-| Stablecoin supply, OTHERS.D | CoinGecko |
-| Fear & Greed Index | alternative.me |
-| Funding rate BTC+ETH | Hyperliquid → CoinGecko fallback |
-| TVL DeFi + 7d change | DefiLlama |
-| War headlines (3 wilayah) | Google News RSS |
-
-### FRED API (gratis)
-
-| Data | FRED Series |
-|------|-------------|
-| US 10Y Yield | DGS10 |
-| NFCI | NFCI |
-| CPI YoY | CPIAUCSL |
-| ISM PMI | MANPMI |
-| Fed Funds Rate | FEDFUNDS |
-| Global M2 (US+CN+JP+EZ) | M2SL + MYAGM2CNM189N + MYAGM2JPM189N + MABMM301EZM189S |
-| Fed Balance Sheet | WALCL |
-| RRP Balance | RRPONTSYD |
-| Reserve Balances | WLRRAL |
-
-### Twelve Data (gratis)
-DXY, Gold (XAU/USD), MSCI EM via EEM ETF
-
-### OilPriceAPI (gratis)
-Brent Crude Oil — harga terkini + 7d change
-
-### Manual (di `manualOverrides`)
-Altseason Index (blockchaincenter.net), BTC Exchange Netflow (CryptoQuant), TOTAL2/TOTAL3 (TradingView)
 
 ---
 
 ## Perbandingan AI
 
-| Provider | Keunggulan | Model | Harga |
-|----------|-----------|-------|-------|
-| 🤖 **Claude** | Reasoning terdalam, analisis fase paling konsisten | claude-sonnet-4-5 | Berbayar |
-| 🟢 **ChatGPT** | Balanced, risk management (via Puter) | openai/gpt-4o | **Gratis** |
-| ✨ **Gemini** | Paling cepat, free tier generous | gemini-2.5-flash | **Gratis** |
-| 🔍 **Perplexity** | Real-time web search + citations | sonar-pro | Berbayar |
-| ⚡ **Grok** | Reasoning kuat, xAI model via Puter | x-ai/grok-4-1-fast | **Gratis** |
-| 🤖 **Qwen** | Alibaba Qwen model via Puter | qwen/qwen3.6-plus:free | **Gratis** |
+| Provider | Keunggulan | Harga |
+|----------|-----------|-------|
+| 🤖 **Claude** | Reasoning terdalam, analisis fase paling konsisten | Berbayar |
+| 🟢 **ChatGPT** | Balanced, risk management | Berbayar |
+| ✨ **Gemini** | Paling cepat, free tier generous | **Gratis** |
+| 🔍 **Perplexity** | Real-time web search + citations | Berbayar |
+| ⚡ **Grok** | Reasoning kuat via OpenRouter | Berbayar |
+| 🤖 **Qwen** | Alibaba model via OpenRouter | **Gratis** |
 
 ---
 
@@ -315,18 +345,20 @@ Altseason Index (blockchaincenter.net), BTC Exchange Netflow (CryptoQuant), TOTA
 
 ### Telegram
 - Data summary: teks Markdown dengan bold header
-- Prompt (jika `--send-prompt`): teks full prompt dengan header tanggal
+- Prompt (`--send-prompt`): teks full prompt
 - Analisis AI: header per provider + teks analisis
 - Pesan panjang auto-split dengan label `(1/N)`
 
 ### Discord
-- Data summary: Rich Embed kuning dengan fields terstruktur
-- Analisis AI: Rich Embed dengan warna per provider
+- Data summary: Rich Embed kuning dengan fields terstruktur (Fed, Daily, Macro, Weekly, Monthly)
+- Prompt (`--send-prompt --discord`): embed biru dengan judul "📋 Prompt Analisis"
+- Analisis AI: Rich Embed dengan warna per provider, auto-split per ≤3800 karakter
   - 🤖 Claude: oranye `#CC785C`
   - 🟢 ChatGPT: hijau `#10A37F`
   - ✨ Gemini: biru `#4285F4`
   - 🔍 Perplexity: cyan `#1FB8CD`
   - ⚡ Grok: abu gelap `#1A1A1A`
+  - 🤖 Qwen: kuning `#F0B429`
 
 ---
 
@@ -336,8 +368,9 @@ Altseason Index (blockchaincenter.net), BTC Exchange Netflow (CryptoQuant), TOTA
 |-------|--------|
 | `API key tidak diset` | Isi di `.env`, atau gunakan provider lain |
 | `Hostname/IP does not match` | ISP SSL intercept — funding rate pakai fallback otomatis |
-| `WALCL undefined` | Bukan Kamis/Jumat — set `forceFed: true` di manualOverrides |
+| `WALCL undefined / skipped` | Bukan Kamis/Jumat — data diambil dari SQLite cache otomatis |
+| `PMI data tidak tersedia` | Google News RSS gagal — data diambil dari SQLite cache otomatis |
+| `Altseason Index [isi manual]` | blockchaincenter.net tidak bisa diakses — set manual di `manualOverrides.altseasonIndex` |
 | Telegram `parse error` | Otomatis fallback ke plain text |
 | Discord `Invalid Form Body` | Otomatis di-split per ≤3800 karakter |
 | `getaddrinfo EAI_AGAIN` | DNS/network issue — cek koneksi server |
-| Grok `401 Unauthorized` | XAI_API_KEY tidak valid — cek di console.x.ai |
