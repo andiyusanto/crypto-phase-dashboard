@@ -109,7 +109,8 @@ ${pmiLine}
     ? `${weekly.altseason.value} — ${weekly.altseason.signal}`
     : null;
   const altseasonIdx    = manualOverrides.altseasonIndex ?? altseasonFetched ?? '___';
-  const exchangeNetflow = manualOverrides.exchangeNetflow ?? '[isi manual: CryptoQuant]';
+  const exchangeNetflow = manualOverrides.exchangeNetflow
+    ?? (weekly?.exchangeNetflow?.label ?? '[data tidak tersedia]');
 
   // ── Monthly ───────────────────────────────────────────────────────────────
   const monthlySrc  = srcLabel(monthly);

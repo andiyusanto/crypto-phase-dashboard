@@ -316,6 +316,46 @@ export async function fetchOthersDominance() {
   }
 }
 
+// ── 9. BTC EXCHANGE NETFLOW (CoinMetrics Community API — no key required) ──────
+export async function fetchExchangeNetflow() {
+  try {
+    const res = await axios.get('https://community-api.coinmetrics.io/v4/timeseries/asset-metrics', {
+      params: {
+        assets: 'btc',
+        metrics: 'FlowInExNtv,FlowOutExNtv',
+        frequency: '1d',
+        limit_per_asset: 2,
+      },
+      timeout: 12000,
+    });
+
+    const data = res.data?.data;
+    if (!data || data.length === 0) throw new Error('No data returned');
+
+    // Use latest entry
+    const latest = data[data.length - 1];
+    const inflow  = parseFloat(latest.FlowInExNtv);
+    const outflow = parseFloat(latest.FlowOutExNtv);
+    const netflow = inflow - outflow;
+
+    const direction = netflow > 0 ? 'inflow' : 'outflow';
+    const absNet    = Math.abs(Math.round(netflow));
+    const label     = `${direction} (${netflow > 0 ? '+' : '-'}${absNet.toLocaleString()} BTC)`;
+
+    return {
+      inflow:  parseFloat(inflow.toFixed(2)),
+      outflow: parseFloat(outflow.toFixed(2)),
+      netflow: parseFloat(netflow.toFixed(2)),
+      direction,
+      label,
+      date: latest.time.split('T')[0],
+    };
+  } catch (err) {
+    console.error('❌ CoinMetrics exchange netflow error:', err.message);
+    return null;
+  }
+}
+
 // ── AGGREGATE: SEMUA WEEKLY DATA ──────────────────────────────────────────────
 export async function fetchAllWeeklyData(config = {}) {
   console.log('📅 Fetching weekly data...');
@@ -329,9 +369,10 @@ export async function fetchAllWeeklyData(config = {}) {
     fetchBrentOilWeekly(config.oilPriceApiKey),
     fetchMSCIEM(config.twelveDataKey),
     fetchOthersDominance(),
+    fetchExchangeNetflow(),
   ]);
 
-  const [yield10y, nfci, tvl, altseason, ratioTrend, oil, msciEm, othersDom] =
+  const [yield10y, nfci, tvl, altseason, ratioTrend, oil, msciEm, othersDom, exchangeNetflow] =
     results.map(r => r.status === 'fulfilled' ? r.value : null);
 
   return {
@@ -344,10 +385,10 @@ export async function fetchAllWeeklyData(config = {}) {
     oil,
     msciEm,
     othersDom,
+    exchangeNetflow,
     // Manual fields
     total2: null,
     total3: null,
-    exchangeNetflow: null,
   };
 }
 
