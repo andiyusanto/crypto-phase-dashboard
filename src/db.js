@@ -6,7 +6,6 @@ import Database from 'better-sqlite3';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 
-// Pastikan direktori data ada
 const dataDir = './data';
 if (!existsSync(dataDir)) {
   mkdirSync(dataDir);
@@ -14,7 +13,8 @@ if (!existsSync(dataDir)) {
 
 const db = new Database(join(dataDir, 'dashboard.db'));
 
-// Inisialisasi tabel
+// ── SCHEMA ────────────────────────────────────────────────────────────────────
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS pmi_data (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,33 +28,56 @@ db.exec(`
   )
 `);
 
-// Migrate existing tables that lack released_month
-try {
-  db.exec('ALTER TABLE pmi_data ADD COLUMN released_month TEXT');
-} catch (_) { /* column already exists */ }
-
 db.exec(`
   CREATE TABLE IF NOT EXISTS fed_liquidity (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    snapshot_date TEXT,
     data TEXT NOT NULL,
     fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS weekly_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fetch_date TEXT,
+    data TEXT NOT NULL,
+    fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS monthly_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    period TEXT,
+    data TEXT NOT NULL,
+    fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+// ── MIGRATIONS (add columns to existing installs) ─────────────────────────────
+const migrate = (sql) => { try { db.exec(sql); } catch (_) { /* column/index exists */ } };
+
+migrate('ALTER TABLE pmi_data      ADD COLUMN released_month TEXT');
+migrate('ALTER TABLE fed_liquidity ADD COLUMN snapshot_date TEXT');
+migrate('ALTER TABLE weekly_data   ADD COLUMN fetch_date TEXT');
+migrate('ALTER TABLE monthly_data  ADD COLUMN period TEXT');
+
+// ── UNIQUE INDEXES ────────────────────────────────────────────────────────────
+migrate('CREATE UNIQUE INDEX IF NOT EXISTS idx_pmi_released_month   ON pmi_data(released_month)   WHERE released_month IS NOT NULL');
+migrate('CREATE UNIQUE INDEX IF NOT EXISTS idx_fed_snapshot_date    ON fed_liquidity(snapshot_date) WHERE snapshot_date IS NOT NULL');
+migrate('CREATE UNIQUE INDEX IF NOT EXISTS idx_weekly_fetch_date    ON weekly_data(fetch_date)     WHERE fetch_date IS NOT NULL');
+migrate('CREATE UNIQUE INDEX IF NOT EXISTS idx_monthly_period       ON monthly_data(period)        WHERE period IS NOT NULL');
+
+// ── PMI ───────────────────────────────────────────────────────────────────────
 
 export const savePMI = (data) => {
   if (!data || (!data.manufacturing && !data.services)) return;
 
   const releasedMonth = data.releasedMonth || null;
 
-  // Dedup by released_month (primary) — exact same report month already stored
-  if (releasedMonth) {
-    const existing = db.prepare('SELECT id FROM pmi_data WHERE released_month = ? LIMIT 1').get(releasedMonth);
-    if (existing) {
-      console.log(`  ℹ️  PMI ${releasedMonth} already stored — skipping SQLite insert`);
-      return;
-    }
-  } else {
-    // Fallback: compare values when month is unknown
+  if (!releasedMonth) {
+    // No month known — fallback value comparison
     const latest = getLatestPMI();
     if (latest) {
       const sameMfg = String(latest.manufacturing?.value) === String(data.manufacturing?.value);
@@ -67,7 +90,7 @@ export const savePMI = (data) => {
   }
 
   db.prepare(`
-    INSERT INTO pmi_data (released_month, mfg_value, svc_value, mfg_url, svc_url, source, fetched_at)
+    INSERT OR REPLACE INTO pmi_data (released_month, mfg_value, svc_value, mfg_url, svc_url, source, fetched_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(
     releasedMonth,
@@ -86,43 +109,73 @@ export const getLatestPMI = () => {
   if (!row) return null;
 
   return {
-    manufacturing: row.mfg_value ? {
-      value: row.mfg_value,
-      url: row.mfg_url,
-      label: 'Manufacturing PMI'
-    } : null,
-    services: row.svc_value ? {
-      value: row.svc_value,
-      url: row.svc_url,
-      label: 'Services PMI'
-    } : null,
+    manufacturing: row.mfg_value ? { value: row.mfg_value, url: row.mfg_url, label: 'Manufacturing PMI' } : null,
+    services:      row.svc_value ? { value: row.svc_value, url: row.svc_url, label: 'Services PMI' }      : null,
     releasedMonth: row.released_month || null,
-    fetchedAt: row.fetched_at,
-    source: `${row.source} (Database Fallback)`
+    fetchedAt:     row.fetched_at,
+    source:        `${row.source} (Database Fallback)`,
   };
 };
+
+// ── FED LIQUIDITY ─────────────────────────────────────────────────────────────
 
 export const saveFedData = (data) => {
   if (!data || data.skipped) return;
 
-  const latest = getLatestFedData();
-  if (latest) {
-    const sameWalcl    = latest.walcl?.date    === data.walcl?.date;
-    const sameRrp      = latest.rrp?.date      === data.rrp?.date;
-    const sameReserves = latest.reserves?.date === data.reserves?.date;
-    if (sameWalcl && sameRrp && sameReserves) {
-      console.log('  ℹ️  Fed data unchanged (same dates) — skipping SQLite insert');
-      return;
-    }
-  }
+  // Use walcl.date as the unique snapshot key; fallback to today
+  const snapshotDate = data.walcl?.date ?? new Date().toISOString().slice(0, 10);
 
-  db.prepare('INSERT INTO fed_liquidity (data, fetched_at) VALUES (?, ?)')
-    .run(JSON.stringify(data), new Date().toISOString());
-  console.log('  ✓ Fed data saved to SQLite');
+  db.prepare('INSERT OR REPLACE INTO fed_liquidity (snapshot_date, data, fetched_at) VALUES (?, ?, ?)')
+    .run(snapshotDate, JSON.stringify(data), new Date().toISOString());
+  console.log(`  ✓ Fed data saved to SQLite (${snapshotDate})`);
 };
 
 export const getLatestFedData = () => {
   const row = db.prepare('SELECT * FROM fed_liquidity ORDER BY fetched_at DESC LIMIT 1').get();
+  if (!row) return null;
+  const parsed = JSON.parse(row.data);
+  return { ...parsed, _fromCache: true, _cachedAt: row.fetched_at };
+};
+
+// ── WEEKLY DATA ───────────────────────────────────────────────────────────────
+
+export const saveWeeklyData = (data) => {
+  if (!data) return;
+  const hasAnyData = data.yield10y || data.nfci || data.altseason || data.exchangeNetflow || data.tvl || data.ratioTrend;
+  if (!hasAnyData) return;
+
+  // One row per calendar day — INSERT OR REPLACE refreshes with latest fetch
+  const fetchDate = new Date().toISOString().slice(0, 10);
+
+  db.prepare('INSERT OR REPLACE INTO weekly_data (fetch_date, data, fetched_at) VALUES (?, ?, ?)')
+    .run(fetchDate, JSON.stringify(data), new Date().toISOString());
+  console.log(`  ✓ Weekly data saved to SQLite (${fetchDate})`);
+};
+
+export const getLatestWeeklyData = () => {
+  const row = db.prepare('SELECT * FROM weekly_data ORDER BY fetched_at DESC LIMIT 1').get();
+  if (!row) return null;
+  const parsed = JSON.parse(row.data);
+  return { ...parsed, _fromCache: true, _cachedAt: row.fetched_at };
+};
+
+// ── MONTHLY DATA ──────────────────────────────────────────────────────────────
+
+export const saveMonthlyData = (data) => {
+  if (!data) return;
+  const hasAnyData = data.cpi || data.fedRate || data.m2;
+  if (!hasAnyData) return;
+
+  // One row per calendar month — derived from cpi.date, fallback to current month
+  const period = (data.cpi?.date ?? new Date().toISOString()).slice(0, 7); // YYYY-MM
+
+  db.prepare('INSERT OR REPLACE INTO monthly_data (period, data, fetched_at) VALUES (?, ?, ?)')
+    .run(period, JSON.stringify(data), new Date().toISOString());
+  console.log(`  ✓ Monthly data saved to SQLite (${period})`);
+};
+
+export const getLatestMonthlyData = () => {
+  const row = db.prepare('SELECT * FROM monthly_data ORDER BY fetched_at DESC LIMIT 1').get();
   if (!row) return null;
   const parsed = JSON.parse(row.data);
   return { ...parsed, _fromCache: true, _cachedAt: row.fetched_at };

@@ -52,7 +52,11 @@ import { fetchAllMonthlyData }  from './fetchers/monthly.js';
 import { fetchAllFedLiquidity } from './fetchers/fedliquidity.js';
 import { fetchRealtimePMI }    from './fetchers/pmi.js';
 import { fetchAllWarHeadlines } from './fetchers/warheadlines.js';
-import { saveFedData, getLatestFedData } from './db.js';
+import {
+  saveFedData,     getLatestFedData,
+  saveWeeklyData,  getLatestWeeklyData,
+  saveMonthlyData, getLatestMonthlyData,
+} from './db.js';
 import { formatDashboardPrompt, formatDataSummary } from './formatter.js';
 import { analyzeWith, saveAnalysis } from './claude-analyst.js';
 
@@ -182,6 +186,20 @@ async function main() {
 
   let daily = null, weekly = null, monthly = null, fed = null, war = null;
 
+  // Merge null/skipped fields in fresh data with cached fallback values
+  const mergeWithCache = (fresh, cached, fields) => {
+    if (!cached || !fresh) return fresh;
+    const result = { ...fresh };
+    for (const key of fields) {
+      if ((result[key] === null || result[key] === undefined || result[key]?.skipped) &&
+          cached[key] && !cached[key]?.skipped) {
+        result[key] = { ...cached[key], _fromCache: true };
+        console.log(chalk.yellow(`  ↩ ${key}: fetch gagal — menggunakan cache (${cached._cachedAt?.slice(0, 10)})`));
+      }
+    }
+    return result;
+  };
+
   try {
     // ── 1. FETCH ────────────────────────────────────────────────────────
     if (mode === 'all' || mode === 'daily') {
@@ -189,11 +207,30 @@ async function main() {
       console.log(chalk.green('✓ Daily data'));
     }
     if (mode === 'all' || mode === 'weekly') {
-      weekly  = await fetchAllWeeklyData(config);
+      weekly = await fetchAllWeeklyData(config);
+      const cachedWeekly = getLatestWeeklyData();
+      if (weekly) {
+        weekly = mergeWithCache(weekly, cachedWeekly, [
+          'yield10y', 'nfci', 'tvl', 'altseason', 'ratioTrend',
+          'oil', 'msciEm', 'othersDom', 'exchangeNetflow',
+        ]);
+        saveWeeklyData(weekly);
+      } else if (cachedWeekly) {
+        console.log(chalk.yellow(`⚠️  Weekly fetch gagal — menggunakan cache dari ${cachedWeekly._cachedAt?.slice(0, 10)}`));
+        weekly = cachedWeekly;
+      }
       console.log(chalk.green('✓ Weekly data'));
     }
     if (mode === 'all' || mode === 'monthly') {
       monthly = await fetchAllMonthlyData(config);
+      const cachedMonthly = getLatestMonthlyData();
+      if (monthly) {
+        monthly = mergeWithCache(monthly, cachedMonthly, ['cpi', 'fedRate', 'm2']);
+        saveMonthlyData(monthly);
+      } else if (cachedMonthly) {
+        console.log(chalk.yellow(`⚠️  Monthly fetch gagal — menggunakan cache dari ${cachedMonthly._cachedAt?.slice(0, 10)}`));
+        monthly = cachedMonthly;
+      }
       console.log(chalk.green('✓ Monthly data'));
     }
     if (mode === 'all' || mode === 'fed' || mode === 'pmi') {
