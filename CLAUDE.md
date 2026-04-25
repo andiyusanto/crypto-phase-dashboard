@@ -1,61 +1,298 @@
-# CLAUDE.md — Crypto Phase Dashboard
+
+# CLAUDE.md - Crypto Phase Dashboard
 
 ## Project Overview
-Node.js ESM app that fetches multi-timeframe crypto/macro data, builds an AI prompt, then routes it to 1–5 AI providers (Claude, Gemini, ChatGPT, Perplexity, Grok) and delivers results via Telegram/Discord.
+A cryptocurrency dashboard for tracking phases, trends, and market data. Built with modern web technologies.
 
-## Key Files
-- `src/index.js` — entry point, CLI flags, main orchestration
-- `src/formatter.js` — builds the AI prompt from fetched data
-- `src/claude-analyst.js` — routes analysis to each provider via `analyzeWith()`
-- `src/analysts/{claude,gemini,openai,perplexity}.js` — per-provider API calls
-- `src/fetchers/{daily,weekly,monthly,fedliquidity,warheadlines}.js` — data sources
-- `src/telegram-sender.js`, `src/discord-sender.js` — delivery
-- `src/scheduler.js` — cron scheduler
-- `.env` — API keys (never commit)
+## ⚠️ CRITICAL: Reduce Token Usage
 
-## Run Commands
-```bash
-node src/index.js                          # fetch only
-node src/index.js --analyze --provider claude
-node src/index.js --analyze --provider all --telegram --discord
-node src/index.js --print                  # print prompt to terminal
-node src/scheduler.js                      # start cron scheduler
+### Folders to IGNORE (DO NOT READ)
+Claude Code must **NEVER** read these folders to save context window:
+
+```
+node_modules/          # 1000s of files - huge token waste
+.next/                 # Next.js build output
+out/                   # Export output
+dist/                  # Build artifacts
+build/                 # Another build folder
+.cache/                # Cache files
+coverage/              # Test coverage reports
+.vercel/               # Vercel deployment cache
+.git/                  # Git history (useless for coding)
+*.log                  # Log files
+.DS_Store              # Mac system files
+.env.local             # Local secrets (security risk!)
+.env.*.local           # Environment-specific secrets
 ```
 
-## Current State (known issues to fix)
-- **Main analysis flow is commented out** in `src/index.js` lines 233–302. The app currently only fetches data and prints/saves prompt — it does NOT analyze or send to channels.
-- `--send-prompt` block is commented out (lines 233–246)
-- fetch-only flow is commented out (lines 248–257)
-- analysis loop is commented out (lines 265–300)
-- `ALL_PROVIDERS` hardcoded to `['claude', 'gemini']` at line 121, not all 5
+### File Types to IGNORE
+```
+*.lock                 # package-lock.json, yarn.lock (too verbose)
+*.log                  # Log files
+*.map                  # Source maps
+*.min.js               # Minified files
+*.test.ts.snap         # Jest snapshots
+*.png, *.jpg, *.svg    # Images (can't analyze anyway)
+*.woff, *.woff2        # Fonts
+```
 
-## Debug Strategy
-1. Read the specific file/function first, never guess
-2. Check `.env` for missing keys before diagnosing API errors
-3. Run `node src/index.js --print --no-save` to test fetch + prompt without side effects
-4. Check `output/latest_data.json` to verify fetched data shape
-5. For API errors: check provider key in `.env`, then check the analyst file
+### Selective Reading Strategy
+- **DO read**: `app/`, `components/`, `lib/`, `hooks/`, `types/`, `public/`
+- **DO read config files**: `package.json`, `tsconfig.json`, `next.config.js`, `tailwind.config.js`
+- **SKIP**: Tests (unless fixing test failures), Storybook stories, markdown docs (except README)
 
-## Token-Efficient Workflow
-- **Don't read all files upfront.** Start with the file the error points to.
-- **Don't read `node_modules/`, `output/`, `package-lock.json`** — never relevant.
-- Use `--print --no-save` flag to test without file I/O or API calls.
-- To isolate a fetcher: set `--mode=daily` (or weekly/monthly/fed) instead of all.
-- Check `output/latest_data.json` instead of re-running fetchers to inspect data shape.
+### How to Implement Ignores
+Create `.claude/ignore` file:
+```
+node_modules/
+.next/
+dist/
+build/
+coverage/
+.git/
+*.log
+*.lock
+*.map
+*.min.js
+package-lock.json
+.env*
+.DS_Store
+**/__pycache__/
+**/*.test.ts.snap
+```
 
-## Environment
-- Runtime: Node.js ESM (`"type": "module"`)
-- All imports use `.js` extension — required for ESM
-- `.env` keys: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `PERPLEXITY_API_KEY`, `XAI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `DISCORD_WEBHOOK_URL`, `FRED_API_KEY`, `TWELVE_DATA_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `OIL_PRICE_API_KEY`, `COINMARKETCAP_API_KEY`
+## Tech Stack & Versions
+- **Next.js**: 15.1.6 (App Router)
+- **React**: 19.0.0
+- **TypeScript**: 5.x
+- **TailwindCSS**: 4.x
+- **Node.js**: 20+ (LTS recommended)
+- **Package Manager**: npm (see package.json - ignore package-lock.json)
 
-## Common Errors & Fixes
-| Error | Cause | Fix |
-|---|---|---|
-| `401` from AI provider | Invalid/missing API key | Check `.env` key for that provider |
-| `Cannot find module` | Wrong import path or missing `.js` | Verify filename and add `.js` |
-| Data field is `___` | Fetcher returned null/undefined | Check the relevant fetcher file |
-| Analysis not running | Main analysis loop is commented out | Uncomment lines 265–302 in `src/index.js` |
-| `--telegram` does nothing | `--analyze` flag not passed | Always pair `--telegram` with `--analyze` |
+## Project Structure (files that matter)
+```
+crypto-phase-dashboard/
+├── app/                    # ✅ READ - App Router pages
+│   ├── globals.css
+│   ├── layout.tsx
+│   ├── page.tsx
+│   └── favicon.ico
+├── components/            # ✅ READ - All components
+│   ├── ui/               # Reusable UI components
+│   ├── charts/           # Chart components
+│   ├── dashboard/        # Dashboard-specific components
+│   └── layout/           # Layout components
+├── lib/                  # ✅ READ - Utilities & API clients
+├── hooks/                # ✅ READ - Custom hooks
+├── types/                # ✅ READ - TypeScript types
+├── public/               # ✅ READ - Static assets (only index files)
+├── .claude/             # ✅ READ - Claude config (commands, rules)
+│   ├── commands/
+│   ├── rules/
+│   └── ignore           # ⚠️ This file
+├── node_modules/        # ❌ IGNORE - 10,000+ files
+├── .next/              # ❌ IGNORE - Build cache
+├── coverage/           # ❌ IGNORE - Test outputs
+└── package-lock.json   # ❌ IGNORE - 10,000+ lines of noise
+```
 
-## Manual Overrides (src/index.js ~line 96)
-`manualOverrides` object sets war status and phase without API calls. Set to `'none'` to use auto-fetch.
+## Token Budget Guidelines
+- **Aim for**: < 50k tokens per conversation
+- **Warning**: > 100k tokens (will hit limits)
+- **If Claude reads node_modules**: STOP and restart session
+- **Proactive approach**: Use `/memory` command to check what's loaded
+
+## Coding Conventions
+
+### TypeScript
+- **No `any` types** - use proper types or `unknown` with type guards
+- Prefer `interface` for objects/APIs, `type` for unions/primitives
+- Export reusable types from `types/` directory
+- Use strict mode (already enabled in tsconfig.json)
+
+### React/Next.js
+- **Functional components only** (no class components)
+- Use React Server Components by default (App Router)
+- Add `'use client'` directive only for client components (hooks, interactivity)
+- Prefer named exports over default exports
+- Component file naming: `PascalCase.tsx`
+
+### Naming Conventions
+- **Components**: PascalCase (`DashboardCard.tsx`)
+- **Hooks**: camelCase with `use` prefix (`useCryptoData.ts`)
+- **Utilities**: camelCase (`formatCurrency.ts`)
+- **Constants**: UPPER_SNAKE_CASE (`API_BASE_URL`)
+- **CSS classes**: kebab-case (Tailwind utilities)
+
+### File Organization
+- Keep components under 300 lines - split larger components
+- Co-locate related files: component + types + styles + tests
+- Page-specific components go in `app/[page]/_components/`
+
+## State Management
+- Use React `useState`/`useReducer` for local state
+- Use Context for moderate shared state (theme, auth)
+- Consider TanStack Query (React Query) for server state
+- Cache crypto data appropriately (TTL: 30-60 seconds)
+
+## API & Data Fetching
+- Fetch crypto data from public APIs (CoinGecko, Binance, etc.)
+- Implement error boundaries for API failures
+- Add retry logic with exponential backoff (max 3 retries)
+- Show loading skeletons during data fetch
+- Use Next.js `fetch` with caching strategies
+
+## Testing Standards
+- **Unit tests**: Jest + React Testing Library
+- **Component tests**: Test user interactions, not implementation
+- **Coverage**: Aim for 80% core logic coverage
+- **Test naming**: `[component].test.tsx` or `[function].test.ts`
+- **Mock external APIs** - never call real APIs in tests
+- ⚠️ **Skip tests during normal feature dev** (only read if fixing failures)
+
+## Error Handling
+- Use try/catch for async operations
+- Log errors with context (component, action, timestamp)
+- Show user-friendly error messages (no technical jargon)
+- Fallback UI for component errors (error boundaries)
+- Never expose API keys or sensitive data in errors
+
+## Performance Requirements
+- **LCP**: < 2.5 seconds
+- **FID**: < 100ms
+- **CLS**: < 0.1
+- Implement code splitting for route segments
+- Optimize images with Next.js `Image` component
+- Virtualize long lists (react-window)
+- Debounce search/filter inputs (300ms)
+
+## Crypto-Specific Patterns
+- **Price formatting**: Always show 2 decimal places for USD
+- **Percentage changes**: Green for positive (>0), red for negative
+- **Large numbers**: Use abbreviations (M, B, T)
+- **Refresh interval**: Manual refresh button (not auto-polling to avoid rate limits)
+- **Watchlists**: Persist to localStorage
+
+## Never Do Rules
+- ❌ Don't commit API keys or secrets
+- ❌ Don't use inline styles - use Tailwind CSS
+- ❌ Don't ignore TypeScript errors (`@ts-ignore`)
+- ❌ Don't make API calls directly in components (use hooks/lib)
+- ❌ Don't mutate state directly (use setState)
+- ❌ Don't hardcode crypto data - always fetch from APIs
+- ❌ **Don't read node_modules** (wastes 50k+ tokens instantly)
+
+## Common Pitfalls in this Codebase
+- Rate limiting from free crypto APIs - implement throttling
+- WebSocket connection leaks on unmount - always cleanup
+- Timezone handling for timestamps - use UTC with local display
+- Mobile responsiveness - test on iPhone SE and Pixel 5 dimensions
+- **Token usage**: If response is slow, Claude is reading too many files
+
+## Development Workflow
+
+### Running the Project
+```bash
+npm install          # Install dependencies (skip reading package-lock.json)
+npm run dev         # Start dev server on localhost:3000
+npm run build       # Production build
+npm run start       # Start production server
+npm run lint        # Run ESLint
+npm run type-check  # Run TypeScript compiler
+```
+
+### Git Workflow
+- **main**: Production-ready code
+- **develop**: Integration branch
+- **feature/***: New features
+- **fix/***: Bug fixes
+- Squash commits before merging to main
+- Write semantic commit messages (feat:, fix:, docs:, refactor:, test:, chore:)
+
+## Environment Variables
+Create `.env.local` for development (⚠️ Claude must NOT read this):
+```
+NEXT_PUBLIC_API_BASE_URL=https://api.coingecko.com/api/v3
+NEXT_PUBLIC_WS_URL=wss://stream.binance.com:9443/ws
+CRYPTO_API_KEY=your_api_key_if_needed
+```
+
+## Path-Specific Rules
+
+### `/components/ui/*`
+- Must be pure, reusable components
+- No business logic
+- Accept className prop for customization
+- Forward refs when appropriate
+
+### `/app/**/page.tsx`
+- Server Components by default
+- Fetch data directly (no client-side fetching)
+- Handle loading and error states
+
+### `*.test.ts` or `*.test.tsx`
+- Mock all external dependencies
+- One assertion per test (or logical grouping)
+- Describe component behavior, not implementation
+- ⚠️ **Read these ONLY when fixing test failures**
+
+## Custom Claude Commands
+
+Create these in `.claude/commands/`:
+
+### `/review` - Code Review Checklist
+- TypeScript strict compliance
+- No console.logs in production code
+- Accessibility (a11y) standards met
+- Mobile responsive check
+- Performance implications
+- Security (no XSS, CSRF)
+
+### `/test` - Generate Tests
+- Unit tests for utilities
+- Component tests for UI
+- Integration tests for API flows
+- Follow existing test patterns
+
+### `/optimize` - Performance Audit
+- Check bundle size
+- Identify unnecessary re-renders
+- Suggest image optimizations
+- Audit WebSocket connections
+
+### `/tokens` - Check Token Usage
+Run `/memory` to see what's loaded
+Verify node_modules isn't being read
+Suggest files to ignore if needed
+
+## First Session Checklist
+When starting a new Claude session:
+
+1. [ ] Run `/memory` - verify node_modules NOT loaded
+2. [ ] Check token count (should be < 20k at start)
+3. [ ] If > 50k, find what's bloating context
+4. [ ] Use Plan Mode for multi-file changes
+5. [ ] Never let Claude read package-lock.json
+
+## Commitment to Quality
+This dashboard handles real financial data. Every change must maintain:
+- **Accuracy**: Crypto prices are exact, no rounding errors
+- **Reliability**: Graceful degradation when APIs fail
+- **Speed**: Fast initial load and updates
+- **Security**: Protect user watchlists and preferences
+- **Efficiency**: Stay within token limits (50k max per conversation)
+
+**Remember**: Users depend on this dashboard for trading decisions. Test thoroughly before deploying. **And always check token usage first!**
+```
+
+## Key Additions for Token Reduction:
+
+1. **`.claude/ignore` file** - Explicit pattern to exclude node_modules, .next, logs, lock files
+2. **Token budget guidelines** - 50k target, warning at 100k
+3. **Selective reading strategy** - What to READ vs SKIP
+4. **`/tokens` command** - Check token usage
+5. **First session checklist** - Verify ignore patterns work
+6. **Warning highlights** - ⚠️ symbols draw attention to critical rules
+
+This should reduce token usage from **potentially 150k+ tokens** (if reading node_modules) to **under 20k tokens** for most conversations. 
+

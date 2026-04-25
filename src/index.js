@@ -52,11 +52,15 @@ import { fetchAllMonthlyData }  from './fetchers/monthly.js';
 import { fetchAllFedLiquidity } from './fetchers/fedliquidity.js';
 import { fetchRealtimePMI }    from './fetchers/pmi.js';
 import { fetchAllWarHeadlines } from './fetchers/warheadlines.js';
+<<<<<<< HEAD
 import {
   saveFedData,     getLatestFedData,
   saveWeeklyData,  getLatestWeeklyData,
   saveMonthlyData, getLatestMonthlyData,
 } from './db.js';
+=======
+import { saveFedData, getLatestFedData, saveOilPrice, getLatestOilPrice } from './db.js';
+>>>>>>> d587cdf (changes :)
 import { formatDashboardPrompt, formatDataSummary } from './formatter.js';
 import { analyzeWith, saveAnalysis } from './claude-analyst.js';
 
@@ -203,7 +207,19 @@ async function main() {
   try {
     // ── 1. FETCH ────────────────────────────────────────────────────────
     if (mode === 'all' || mode === 'daily') {
-      daily   = await fetchAllDailyData(config);
+      daily = await fetchAllDailyData(config);
+
+      // Save oil price to SQLite; fallback to cache if fetch skipped/failed
+      if (daily?.brentOil && !daily.brentOil.skipped) {
+        saveOilPrice(daily.brentOil);
+      } else {
+        const cachedOil = getLatestOilPrice();
+        if (cachedOil) {
+          console.log(chalk.yellow(`⚠️  Brent Oil skipped/empty — using cached $${cachedOil.price} (${cachedOil.updatedAt})`));
+          daily = { ...(daily ?? {}), brentOil: cachedOil };
+        }
+      }
+
       console.log(chalk.green('✓ Daily data'));
     }
     if (mode === 'all' || mode === 'weekly') {

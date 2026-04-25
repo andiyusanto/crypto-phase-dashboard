@@ -38,14 +38,23 @@ db.exec(`
 `);
 
 db.exec(`
+<<<<<<< HEAD
   CREATE TABLE IF NOT EXISTS weekly_data (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     fetch_date TEXT,
     data TEXT NOT NULL,
+=======
+  CREATE TABLE IF NOT EXISTS oil_prices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    price REAL NOT NULL,
+    price_date TEXT NOT NULL UNIQUE,
+    source TEXT,
+>>>>>>> d587cdf (changes :)
     fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
 
+<<<<<<< HEAD
 db.exec(`
   CREATE TABLE IF NOT EXISTS monthly_data (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,6 +80,8 @@ migrate('CREATE UNIQUE INDEX IF NOT EXISTS idx_monthly_period       ON monthly_d
 
 // ── PMI ───────────────────────────────────────────────────────────────────────
 
+=======
+>>>>>>> d587cdf (changes :)
 export const savePMI = (data) => {
   if (!data || (!data.manufacturing && !data.services)) return;
 
@@ -137,6 +148,7 @@ export const getLatestFedData = () => {
   return { ...parsed, _fromCache: true, _cachedAt: row.fetched_at };
 };
 
+<<<<<<< HEAD
 // ── WEEKLY DATA ───────────────────────────────────────────────────────────────
 
 export const saveWeeklyData = (data) => {
@@ -179,6 +191,45 @@ export const getLatestMonthlyData = () => {
   if (!row) return null;
   const parsed = JSON.parse(row.data);
   return { ...parsed, _fromCache: true, _cachedAt: row.fetched_at };
+=======
+// ── Oil Prices ────────────────────────────────────────────────────────────────
+export const saveOilPrice = (data) => {
+  if (!data || data.skipped || data.price == null) return;
+
+  // Dedup by date — one record per calendar day
+  const date = (data.updatedAt ?? new Date().toISOString()).slice(0, 10);
+  const existing = db.prepare('SELECT id FROM oil_prices WHERE price_date = ? LIMIT 1').get(date);
+  if (existing) {
+    console.log(`  ℹ️  Oil price ${date} already stored — skipping SQLite insert`);
+    return;
+  }
+
+  db.prepare('INSERT INTO oil_prices (price, price_date, source, fetched_at) VALUES (?, ?, ?, ?)')
+    .run(data.price, date, data.source ?? 'OilPriceAPI', new Date().toISOString());
+  console.log(`  ✓ Oil price $${data.price} (${date}) saved to SQLite`);
+};
+
+export const getLatestOilPrice = () => {
+  const rows = db.prepare('SELECT * FROM oil_prices ORDER BY price_date DESC LIMIT 2').all();
+  if (!rows.length) return null;
+
+  const latest = rows[0];
+  let direction = 'flat';
+  if (rows.length >= 2) {
+    const prev = rows[1];
+    const pct = ((latest.price - prev.price) / prev.price) * 100;
+    direction = pct > 0.5 ? 'naik' : pct < -0.5 ? 'turun' : 'flat';
+  }
+
+  return {
+    price: latest.price,
+    direction,
+    updatedAt: latest.price_date,
+    source: `${latest.source} (SQLite cache)`,
+    _fromCache: true,
+    _cachedAt: latest.fetched_at,
+  };
+>>>>>>> d587cdf (changes :)
 };
 
 export default db;
