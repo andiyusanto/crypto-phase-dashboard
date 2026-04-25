@@ -4,6 +4,7 @@
 // ============================================
 
 import axios from 'axios';
+import { parseStringPromise } from 'xml2js';
 
 // Helper: delay untuk hindari rate limit
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -255,6 +256,91 @@ export async function fetchBrentOilHyperliquid(apiKey) {
   }
 }
 
+// ── 3d. BRENT OIL — Fallback via Google News RSS ─────────────────────────────
+// Parses Brent spot price from news headlines when OilPriceAPI is unavailable.
+// Scoring system prefers direct spot-price headlines over analyst targets/forecasts.
+export async function fetchBrentOilFromNews() {
+  try {
+    const url = 'https://news.google.com/rss/search?q=brent+crude+oil+price&ceid=US:en&hl=en-US&gl=US';
+    const res = await axios.get(url, {
+      timeout: 10000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)',
+        'Accept': 'application/rss+xml, application/xml, text/xml',
+      },
+    });
+
+    const parsed = await parseStringPromise(res.data, { explicitArray: false });
+    const items = parsed?.rss?.channel?.item || [];
+    const arr = Array.isArray(items) ? items : [items];
+
+    // Match "$66.87", "66.87 per barrel", "66.87 a barrel", "66.87/bbl"
+    const PRICE_RE = /\$\s*(\d{2,3}(?:\.\d{1,2})?)|(\d{2,3}(?:\.\d{1,2})?)\s*(?:per barrel|\/bbl|\s+a barrel)/gi;
+    const VALID_MIN = 40;
+    const VALID_MAX = 160;
+
+    // Skip headlines that are clearly forecasts/analysis (not spot price reports)
+    const SPECULATIVE_RE = /\b(could|might|may|would|should|forecast|target|equilibrium|predict|analyst|projection|if oil|new high|record|fear|vs\.)\b/i;
+
+    // Score headlines: higher = more likely to be actual spot price
+    const SPOT_SIGNAL_RE = /\b(trades?|trading|settles?|settling|opens?|closed|closes|at \$|rose to|fell to|climbs? to|drops? to|slips? to|dips? to|gains? to|surges? to|plunges? to|holds?|steady|stable|session)\b/i;
+
+    const candidates = [];
+
+    for (const item of arr.slice(0, 30)) {
+      const title = typeof item.title === 'string' ? item.title.replace(/<[^>]*>/g, '').trim() : '';
+      if (!title) continue;
+
+      // Skip speculative/analytical headlines
+      if (SPECULATIVE_RE.test(title)) continue;
+
+      // Extract all prices from title; skip if multiple conflicting prices (e.g., "$133 vs $99")
+      const prices = [];
+      let m;
+      PRICE_RE.lastIndex = 0;
+      while ((m = PRICE_RE.exec(title)) !== null) {
+        const p = parseFloat(m[1] ?? m[2]);
+        if (!isNaN(p) && p >= VALID_MIN && p <= VALID_MAX) prices.push(p);
+      }
+      if (!prices.length) continue;
+      // If two very different prices (spread > 20%), skip — likely comparison headline
+      if (prices.length >= 2 && (Math.max(...prices) - Math.min(...prices)) / Math.min(...prices) > 0.2) continue;
+
+      const price = prices[0];
+      const score = SPOT_SIGNAL_RE.test(title) ? 2 : 1;
+      const pubDate = item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString();
+
+      const lower = title.toLowerCase();
+      const isUp   = /\b(rise|rose|gain|up|higher|climb|surge|rally|increase[sd]?|advance[sd]?|tops?|above)\b/.test(lower);
+      const isDown = /\b(fall|fell|drop|down|lower|slide|slump|decline[sd]?|decrease[sd]?|sink|sank|plunge[sd]?|dip[ps]?)\b/.test(lower);
+      const direction = isUp && !isDown ? 'naik' : isDown && !isUp ? 'turun' : 'flat';
+
+      candidates.push({ price, direction, score, title, pubDate });
+    }
+
+    if (!candidates.length) {
+      console.warn('⚠️  Brent Oil: tidak ada harga valid ditemukan di Google News RSS');
+      return null;
+    }
+
+    // Pick highest-scored candidate (stable sort: first occurrence wins on tie)
+    candidates.sort((a, b) => b.score - a.score);
+    const best = candidates[0];
+
+    console.log(`  ✓ Brent Oil via Google News RSS | $${best.price} (${best.direction}) | "${best.title.slice(0, 70)}"`);
+    return {
+      price: best.price,
+      direction: best.direction,
+      updatedAt: best.pubDate.slice(0, 10),
+      source: 'Google News RSS (Brent estimate)',
+      _fromNews: true,
+    };
+  } catch (err) {
+    console.warn(`⚠️  Brent Oil Google News fallback error: ${err.message}`);
+    return null;
+  }
+}
+
 // ── 4. DXY (DOLLAR INDEX) — via Twelve Data ───────────────────────────────────
 // Symbol yang valid di Twelve Data: "DX-Y.NYB" atau "DXY"
 export async function fetchDXY(keys = {}) {
@@ -490,12 +576,17 @@ export async function fetchAllDailyData(config = {}) {
     fetchCoinMarketCapGlobal(config.coinMarketCapApiKey),
   ]);
 
-  // Brent Oil via OilPriceAPI
+  // Brent Oil: OilPriceAPI → Google News RSS → null (SQLite cache handled in index.js)
   let brentOil = null;
   try {
     brentOil = await fetchBrentOilHyperliquid(config.oilPriceApiKey);
+    if (!brentOil || brentOil.skipped) {
+      console.log('  ⚠️  OilPriceAPI tidak tersedia — mencoba Google News RSS...');
+      brentOil = await fetchBrentOilFromNews();
+    }
   } catch (e) {
-    console.warn('⚠️  Brent Oil fetch error:', e.message);
+    console.warn('⚠️  Brent Oil OilPriceAPI error:', e.message);
+    brentOil = await fetchBrentOilFromNews().catch(() => null);
   }
 
   return {
