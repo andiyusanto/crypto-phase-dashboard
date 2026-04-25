@@ -38,28 +38,29 @@ db.exec(`
 `);
 
 db.exec(`
-<<<<<<< HEAD
   CREATE TABLE IF NOT EXISTS weekly_data (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     fetch_date TEXT,
     data TEXT NOT NULL,
-=======
-  CREATE TABLE IF NOT EXISTS oil_prices (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    price REAL NOT NULL,
-    price_date TEXT NOT NULL UNIQUE,
-    source TEXT,
->>>>>>> d587cdf (changes :)
     fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
 
-<<<<<<< HEAD
 db.exec(`
   CREATE TABLE IF NOT EXISTS monthly_data (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     period TEXT,
     data TEXT NOT NULL,
+    fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS oil_prices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    price REAL NOT NULL,
+    price_date TEXT NOT NULL UNIQUE,
+    source TEXT,
     fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
@@ -80,8 +81,6 @@ migrate('CREATE UNIQUE INDEX IF NOT EXISTS idx_monthly_period       ON monthly_d
 
 // ── PMI ───────────────────────────────────────────────────────────────────────
 
-=======
->>>>>>> d587cdf (changes :)
 export const savePMI = (data) => {
   if (!data || (!data.manufacturing && !data.services)) return;
 
@@ -148,7 +147,6 @@ export const getLatestFedData = () => {
   return { ...parsed, _fromCache: true, _cachedAt: row.fetched_at };
 };
 
-<<<<<<< HEAD
 // ── WEEKLY DATA ───────────────────────────────────────────────────────────────
 
 export const saveWeeklyData = (data) => {
@@ -191,8 +189,10 @@ export const getLatestMonthlyData = () => {
   if (!row) return null;
   const parsed = JSON.parse(row.data);
   return { ...parsed, _fromCache: true, _cachedAt: row.fetched_at };
-=======
-// ── Oil Prices ────────────────────────────────────────────────────────────────
+};
+
+// ── OIL PRICES ────────────────────────────────────────────────────────────────
+
 export const saveOilPrice = (data) => {
   if (!data || data.skipped || data.price == null) return;
 
@@ -229,7 +229,6 @@ export const getLatestOilPrice = () => {
     _fromCache: true,
     _cachedAt: latest.fetched_at,
   };
->>>>>>> d587cdf (changes :)
 };
 
 export default db;

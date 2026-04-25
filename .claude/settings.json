@@ -3,7 +3,11 @@
     "allow": [
       "Bash(node --input-type=module --eval ' *)",
       "Bash(curl -s --max-time 15 -A \"Mozilla/5.0 \\(compatible; NewsBot/1.0\\)\" \"https://news.google.com/rss/search?q=brent+crude+oil+price+barrel&ceid=US:en&hl=en-US&gl=US\")",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(pm2 restart *)",
+      "Bash(pm2 list *)",
+      "Bash(sudo -u yusantoandi pm2 list)",
+      "Bash(su - yusantoandi -c \"pm2 list\")"
     ]
   }
 }

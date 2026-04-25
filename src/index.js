@@ -52,15 +52,12 @@ import { fetchAllMonthlyData }  from './fetchers/monthly.js';
 import { fetchAllFedLiquidity } from './fetchers/fedliquidity.js';
 import { fetchRealtimePMI }    from './fetchers/pmi.js';
 import { fetchAllWarHeadlines } from './fetchers/warheadlines.js';
-<<<<<<< HEAD
 import {
   saveFedData,     getLatestFedData,
   saveWeeklyData,  getLatestWeeklyData,
   saveMonthlyData, getLatestMonthlyData,
+  saveOilPrice,    getLatestOilPrice,
 } from './db.js';
-=======
-import { saveFedData, getLatestFedData, saveOilPrice, getLatestOilPrice } from './db.js';
->>>>>>> d587cdf (changes :)
 import { formatDashboardPrompt, formatDataSummary } from './formatter.js';
 import { analyzeWith, saveAnalysis } from './claude-analyst.js';
 
