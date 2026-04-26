@@ -79,7 +79,7 @@ async function fetchOpenRouterWithRetry(prompt, apiKey, options = {}) {
               { role: 'user', content: `${SYSTEM_PROMPT}\n\n---\n\n${prompt}` }
             ],
             temperature: 0.3,
-            max_tokens: 1200,
+            max_tokens: 4000,
             stream: !!onChunk && attempt === 0 // only stream on first attempt for simplicity
           })
         });

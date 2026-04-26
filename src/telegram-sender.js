@@ -259,22 +259,7 @@ export function formatAnalysisHeader(provider, analysisText) {
 export async function sendPromptToTelegram(promptText, options = {}) {
   const { botToken, chatId, label = 'Prompt' } = options;
 
-  const ts  = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
-  const day = new Date().toLocaleDateString('id-ID', {
-    weekday: 'short', day: 'numeric', month: 'short',
-  });
-
-  // Header ringkas untuk prompt
-  const header = [
-    `📋 *PROMPT ANALISIS — ${day}*`,
-    `_${ts} WIB_`,
-    `${'─'.repeat(32)}`,
-    '',
-  ].join('\n');
-
-  const fullText = header + promptText;
-
-  await sendToTelegram(fullText, {
+  await sendToTelegram(promptText, {
     botToken,
     chatId,
     label,
