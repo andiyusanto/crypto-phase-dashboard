@@ -1,7 +1,7 @@
 // ============================================
-// FORMATTER v4
+// FORMATTER v5
 // Template prompt dengan Fed Liquidity Layer + Portfolio Allocation
-// — selalu tampilkan semua section, label sumber data
+// — phase definitions table, threshold reference, structured output sections
 // ============================================
 
 export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrides = {}, war = null) {
@@ -33,7 +33,6 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
                         || war?.rusiaUkraine || '[fetch gagal — isi manual]';
   const warTaiwan       = (manualOverrides.warTaiwan !== 'none' && manualOverrides.warTaiwan)
                         || war?.taiwan || '[fetch gagal — isi manual]';
-  const warSource       = war?.source ? `(sumber: ${war.source})` : '(isi manual)';
 
   // ── Fed Liquidity ─────────────────────────────────────────────────────────
   const fedSrc = srcLabel(fed);
@@ -151,12 +150,9 @@ ${pmiLine}
     `- Fed rate keputusan terakhir: ${fedRateLbl}`,
   ].join('\n');
 
-  // ── Portfolio State ───────────────────────────────────────────────────────
-  const riskProfile   = manualOverrides.riskProfile   ?? '[agresif / moderat / defensif]';
-  const portfolioSize = manualOverrides.portfolioSize  ?? '$________';
-  const hypeRanking   = manualOverrides.hypeRanking    ?? '[12–16]';
-  const hypeCategory  = manualOverrides.hypeCategory   ?? '[DeFi core / High‑risk / Meme]';
-  const hypeReason    = manualOverrides.hypeReason     ?? '[misal: DeFi core dengan high‑risk exposure, narrative strong, tapi masih spekulatif]';
+  // ── Portfolio Context ─────────────────────────────────────────────────────
+  const portfolioSize = manualOverrides.portfolioSize ?? '$1,000';
+  const leverageMax   = manualOverrides.leverageMax   ?? 'N/A';
 
   // ── ASSEMBLE ──────────────────────────────────────────────────────────────
   return `📋 PROMPT ANALISIS — ${today}
@@ -165,7 +161,38 @@ ${today}, ${jam} WIB
 Kamu adalah hedge fund analyst untuk crypto portfolio saya.
 Gunakan framework 5 fase dengan liquidity hierarchy berikut:
 Fed Balance Sheet → RRP → Global M2 → FCI → DXY/10Y → BTC → ETH/Alts
-Analisis semua data di bawah dan output dashboard terstruktur.
+
+ATURAN PRIORITAS SIGNAL:
+- Upstream selalu lebih dipercaya dari downstream
+- Jika data tidak cukup untuk suatu indikator, sebutkan asumsi yang digunakan
+- Jangan overconfident: jika signal konflik tanpa resolusi jelas, nyatakan "inconclusive"
+
+---
+## DEFINISI FASE
+
+| Fase | Label | Karakteristik Utama |
+|------|-------|---------------------|
+| 0 | Liquidity Collapse | Risk-off ekstrem, Fed kontraksi, DXY spike, BTC dump |
+| 1 | Early Recovery | Likuiditas mulai longgar, akumulasi diam-diam, fear tinggi |
+| 2 | Expansion | Risk-on building, FCI loose, BTC leading, alts mulai ikut |
+| 3 | Late Cycle | Euphoria, funding rate tinggi, dominance turun, alts outperform |
+| 4 | Distribution | Topping signal, whale exit, stablecoin naik, volume divergence |
+
+Perubahan fase hanya valid jika ≥3 signal upstream konfirmasi.
+
+---
+## THRESHOLD REFERENSI (untuk konteks historis)
+
+| Indikator | Bearish | Netral | Bullish |
+|-----------|---------|--------|---------|
+| FCI (NFCI) | > 0.3 | -0.3 s/d 0.3 | < -0.3 |
+| DXY | > 104 | 100–104 | < 100 |
+| US 10Y Yield | > 4.5% | 4.0–4.5% | < 4.0% |
+| Fear & Greed | < 25 | 25–60 | > 60 |
+| BTC Funding Rate | < -0.05% | -0.05–0.05% | > 0.05% |
+| BTC Exchange Netflow | Inflow besar | Flat | Outflow besar |
+| TVL DeFi WoW | < -5% | -5–+5% | > +5% |
+| Oil Brent | > $100 | $80–100 | < $80 |
 
 ---
 ## DATA — ${today} | FASE ESTIMASI SAYA: ${faseEstimasi}
@@ -174,126 +201,204 @@ Analisis semua data di bawah dan output dashboard terstruktur.
 ${fedBlock}
 
 ### DAILY DATA ✅ live
-- BTC price: $${btcPrice}  | 24h: ${btcChange}%
-- BTC Dominance: ${btcDom}%  | arah: ${btcDomDir}
-- ETH/BTC: ${ethBtc}  | SOL/BTC: ${solBtc}
-- DXY: ${dxyVal}  | arah: ${dxyDir}
-- Gold (XAUUSD): $${goldPrice}  | 24h: ${goldChange}%
-- Oil Brent: $${oilPrice}  | arah: ${oilDir}
+- BTC price: $${btcPrice} | 24h: ${btcChange}%
+- BTC Dominance: ${btcDom}% | arah: ${btcDomDir}
+- ETH/BTC: ${ethBtc} | SOL/BTC: ${solBtc}
+- DXY: ${dxyVal} | arah: ${dxyDir}
+- Gold (XAUUSD): $${goldPrice} | 24h: ${goldChange}%
+- Oil Brent: $${oilPrice} | arah: ${oilDir}
 - Fear & Greed: ${fgValue} (${fgLabel})
-- Funding rate BTC perp: ${btcFunding}%  | ETH perp: ${ethFunding}%
+- Funding rate BTC perp: ${btcFunding}% | ETH perp: ${ethFunding}%
 - Stablecoin supply: $${totalStable}B
-- TOTAL2: ${total2}  | TOTAL3: ${total3}  | OTHERS.D: ${othersDom}%
-- War headline ${warSource}:
+- TOTAL2: ${total2} | TOTAL3: ${total3} | OTHERS.D: ${othersDom}%
+- War headline (sumber: Google News RSS (Reuters/AP/BBC via GNews)):
   - Timteng: ${warTimteng}
   - Rusia-Ukraine: ${warRusiaUkraine}
   - Taiwan: ${warTaiwan}
 
 ### WEEKLY DATA ${weeklySrc}
-- FCI (Chicago Fed NFCI): ${nfci}  | vs minggu lalu: ${nfciPrev}
-- US 10Y Yield: ${yield10y}%  | arah: ${yieldDir}
-- ETH/BTC ratio: ${ethBtc}  | arah minggu ini: ${v(weekly?.ratioTrend?.ethBtc?.direction)} ${v(weekly?.ratioTrend?.ethBtc?.weekChange, '')}%
-- SOL/BTC ratio: ${solBtc}  | arah: ${solBtcDir}
+- FCI (Chicago Fed NFCI): ${nfci} | vs minggu lalu: ${nfciPrev}
+- US 10Y Yield: ${yield10y}% | arah: ${yieldDir}
+- ETH/BTC ratio: ${ethBtc} | arah minggu ini: ${v(weekly?.ratioTrend?.ethBtc?.direction)} ${v(weekly?.ratioTrend?.ethBtc?.weekChange, '')}%
+- SOL/BTC ratio: ${solBtc} | arah: ${solBtcDir}
 - BTC.D arah minggu ini: ${btcDomDir}
 - BTC exchange netflow: ${exchangeNetflow}
 - Altseason Index: ${altseasonIdx}
-- TVL DeFi (DefiLlama): $${tvl}B  | vs minggu lalu: ${tvlChg}%
-- MSCI EM: ${msciEm}  | arah: ${msciDir}
+- TVL DeFi (DefiLlama): $${tvl}B | vs minggu lalu: ${tvlChg}%
+- MSCI EM: ${msciEm} | arah: ${msciDir}
 
 ### MONTHLY DATA ${monthlySrc}
 ${monthlyBlock}
 
-### PORTFOLIO STATE / RANKING ASET (opsional, update sesuai kebutuhan)
-LAYER 0–1 (CORE / SAFE HAVEN):
-- BTC → ranking 1
-- ETH → ranking 2
-- Gold (XAU) → ranking 3
+---
+## PORTFOLIO CONTEXT
 
-LAYER 2 (L1 / HIGH‑BETA):
-- SOL → ranking 4
-- AVAX → ranking 5
-- ALGO → ranking 6
+PORTFOLIO SIZE (USD): ${portfolioSize}
+LEVERAGE MAKS: ${leverageMax}
+
+### INSTRUKSI ALOKASI
+
+- Seluruh alokasi bersifat DINAMIS — tentukan aset, bobot, dan nominal
+  berdasarkan kondisi market minggu ini
+- Maksimal 4 posisi aktif sekaligus (hindari terlalu terpecah)
+- Minimal per posisi: $50 (jangan rekomendasikan posisi di bawah $50)
+- Jika fase 0–1: boleh alokasikan sebagian ke stablecoin/cash
+- Jika fase 2–3: maksimalkan eksposur sesuai risk profile hasil analisis
+- Jika fase 4: kurangi eksposur agresif, geser ke BTC/cash
+
+### KANDIDAT ASET
+
+LAYER 0–1 (CORE / SAFE HAVEN):
+- BTC, ETH, Gold (XAU)
+
+LAYER 2 (L1 / HIGH-BETA):
+- SOL, AVAX, ALGO
 
 LAYER 3 (DeFi Core):
-- LDO (Lido) → ranking 7
-- AAVE → ranking 8
-- UNI → ranking 9
-- LINK → ranking 10
+- LDO, AAVE, UNI, LINK
 
-LAYER 4 (Alts / High‑risk):
-- Blue‑chip alts (MATIC, ARB, OP, DOT) → ranking 11–14
-- Meme / hype‑coin → ranking 15+
-- $HYPE → ranking ${hypeRanking}
-  - Kategori: ${hypeCategory}
-  - Alasan singkat: ${hypeReason}
+LAYER 4 (Alts / High-risk):
+- Blue-chip alts: MATIC, ARB, OP, DOT
+- Speculative: $HYPE
+  - hypeRanking: [ranking saat ini, diisi AI]
+  - hypeCategory: [DeFi core / High-risk / Meme, diisi AI]
+  - hypeReason: [alasan singkat, diisi AI]
 
-TARGET RISK PROFILE: ${riskProfile}
-PORTFOLIO SIZE (USD): ${portfolioSize}
+### ATURAN RISK PROFILE
+
+riskProfile: [defensif / moderat / agresif — ditentukan AI dari fase]
+- Fase 0–1 → defensif: Core ≥ 60%, High-risk ≤ 10%
+- Fase 2   → moderat:  Core 40–60%, High-risk ≤ 20%
+- Fase 3   → agresif:  Core ≥ 30%, High-risk ≤ 35%
+- Fase 4   → defensif: Core ≥ 70%, sisa cash/stablecoin
 
 ---
 ## OUTPUT YANG DIMINTA
 
-1. FED LIQUIDITY STATUS
-Baca Fed trifecta.
-Apakah likuiditas dari sumber paling upstream mendukung atau menentang fase saat ini?
-Format: EKSPANSI / KONTRAKSI / MIXED — alasan singkat.
+### 1. FED LIQUIDITY STATUS
+Baca Fed trifecta dan seluruh layer likuiditas upstream.
+Apakah likuiditas mendukung atau menentang fase saat ini?
+Format: EKSPANSI / KONTRAKSI / MIXED — alasan ≤3 kalimat.
 
-2. FASE SAAT INI
-Tentukan fase (0–4) berdasarkan seluruh data.
-Confidence: tinggi / sedang / rendah.
-Sebutkan 2–3 signal penentu utama.
-Apakah fase berubah dari kemarin? Ya/Tidak — alasannya.
+---
 
-3. SIGNAL SCORECARD
-Tabel per layer — dari upstream ke downstream:
-Layer 0 — Fed liquidity:
-| Indikator | Value | Status | Arah |
-Layer 1 — Macro:
-| Indikator | Value | Status | Arah |
-Layer 2 — Market structure:
-| Indikator | Value | Status | Arah |
-Layer 3 — On-chain & crypto:
-| Indikator | Value | Status | Arah |
+### 2. FASE SAAT INI
+- Fase: [0–4] — [label]
+- Confidence: tinggi / sedang / rendah
+- Signal penentu utama (2–3 poin)
+- Perubahan dari minggu lalu: Ya / Tidak
+  - Jika Ya: signal apa yang trigger perubahan?
+  - Jika Tidak: kondisi apa yang harus terpenuhi agar fase berubah?
+
+---
+
+### 3. SIGNAL SCORECARD
+
+**Layer 0 — Fed Liquidity**
+| Indikator | Value | vs Threshold | Status | Arah |
+|-----------|-------|--------------|--------|------|
+
+**Layer 1 — Macro**
+| Indikator | Value | vs Threshold | Status | Arah |
+|-----------|-------|--------------|--------|------|
+
+**Layer 2 — Market Structure**
+| Indikator | Value | vs Threshold | Status | Arah |
+|-----------|-------|--------------|--------|------|
+
+**Layer 3 — On-chain & Crypto**
+| Indikator | Value | vs Threshold | Status | Arah |
+|-----------|-------|--------------|--------|------|
+
 Status: ✅ bullish / ⚠️ netral / 🔴 bearish
 
-4. KONFLIK SIGNAL
-Adakah indikator yang bertentangan satu sama lain?
-Jika ada: mana yang lebih dipercaya dan mengapa?
-(Rule: upstream selalu lebih dipercaya dari downstream)
+Divergence alert wajib: flag otomatis jika funding rate dan Fear & Greed
+menunjukkan arah berlawanan, atau jika BTC dominance naik tapi TVL DeFi
+juga naik.
 
-5. WAR PREMIUM STATUS
-- Timteng: level risiko: rendah/sedang/tinggi + dampak ke oil/gold
-- Rusia-Ukraine: update singkat
-- Taiwan: status
-- Oil sebagai real-time proxy: $${oilPrice}  | threshold alert: $100
+---
+
+### 4. KONFLIK SIGNAL
+- Ada konflik?: Ya / Tidak
+- Jika Ya:
+  - Signal A vs Signal B: [deskripsi konflik]
+  - Yang lebih dipercaya: [A/B] — alasan (gunakan rule upstream > downstream)
+  - Resolusi: conclusive / inconclusive
+
+---
+
+### 5. WAR PREMIUM STATUS
+| Konflik | Level Risiko | Update Singkat | Dampak Market |
+|---------|-------------|----------------|---------------|
+| Timteng | rendah/sedang/tinggi | ___ | oil/gold |
+| Rusia-Ukraine | rendah/sedang/tinggi | ___ | energi/risk-off |
+| Taiwan | rendah/sedang/tinggi | ___ | tech/semi |
+
+- warSource: Google News RSS (Reuters/AP/BBC via GNews)
+- Oil sebagai real-time proxy: $${oilPrice} | threshold alert: $100
 - War override aktif?: Ya / Tidak
+  - Jika Ya: aset mana yang paling terdampak dan bagaimana?
 
-6. RANKING ASET PER LAYER (update)
-- Berdasarkan data baru dan kondisi market, **update ranking (1–15+)** untuk BTC/ETH/SOL/DeFi core/protocol tokens/Alts, termasuk **$HYPE**.
-- Jelaskan:
-  - 2–3 faktor utama yang mengubah ranking (misal: FCI, funding rate, TVL, war‑risk, dll).
-  - Kategori ($HYPE): [DeFi core / High‑risk / Meme].
+---
 
-7. ALLOCATION REKOMENDASI
-- Berikan rekomendasi **bobot alokasi (%)** per layer:
-  - Core (BTC/ETH/XAU)
-  - Beta (SOL/AVAX/ALGO)
-  - DeFi (LDO/AAVE/UNI/LINK)
-  - High‑risk (blue‑chip alts & meme, termasuk $HYPE)
-- Jika ada target risk‑profile dan ukuran porto, sesuaikan angka secara numerik.
-- Catatan: gunakan batas leverage maksimal (misal N/A atau 2x max) jika disebutkan.
+### 6. RANKING ASET (update berdasarkan data baru)
 
-8. ACTION HARI INI
-Maksimal 3 action konkret.
+| Ranking | Aset | Layer | Perubahan | Alasan Singkat |
+|---------|------|-------|-----------|----------------|
+
+- $HYPE:
+  - hypeRanking: [isi AI]
+  - hypeCategory: DeFi core / High-risk / Meme [isi AI]
+  - hypeReason: [isi AI — alasan singkat]
+- Sebutkan 2–3 faktor utama yang menggerakkan perubahan ranking
+
+---
+
+### 7. RISK PROFILE MINGGU INI
+- riskProfile: defensif / moderat / agresif [tentukan AI dari fase]
+- Alasan: [2–3 kalimat berdasarkan fase dan signal dominan]
+
+---
+
+### 8. ALLOCATION REKOMENDASI
+
+Berdasarkan riskProfile dan fase minggu ini, tentukan alokasi optimal
+untuk portfolio ${portfolioSize}.
+
+| Aset | Layer | Bobot (%) | Nominal ($) | Alasan Singkat |
+|------|-------|-----------|-------------|----------------|
+| ...  | ...   | ...       | ...         | ...            |
+| CASH/USDT | — | ...  | ...         | buffer / wait  |
+| **TOTAL** | | **100%** | **${portfolioSize}** | |
+
+Catatan:
+- Maksimal 4 posisi aktif
+- Minimal $50 per posisi
+- Sertakan cash/stablecoin jika kondisi tidak mendukung full deployment
+
+---
+
+### 9. ACTION HARI INI (maks 3)
+
 Format:
-HOLD/ADD/TRIM/WAIT/HEDGE — aset — alasan — syarat tambahan jika ada
+[HOLD/ADD/TRIM/WAIT/HEDGE] — [aset] — [alasan singkat] — [syarat/trigger]
 
-9. YANG DIPANTAU BESOK / MINGGU INI
-- 1 data kritis yang akan keluar (FOMC, PMI, CPI, FRED update)
-- 1 level price atau teknikal yang jadi penentu
-- 1 war signal yang perlu dimonitor
+---
 
-Gunakan bahasa ringkas. Prioritaskan kejelasan dan actionability di atas segalanya.`;
+### 10. WATCHLIST MINGGU INI
+
+| Kategori | Item | Detail | Dampak Jika Terjadi |
+|----------|------|--------|---------------------|
+| Data Makro | ___ | tanggal rilis | bullish/bearish jika ___ |
+| Level Teknikal | ___ | harga/zona | konfirmasi fase jika ___ |
+| War Signal | ___ | indikator | override jika ___ |
+| Konfirmasi Fase | ___ | kondisi | fase berubah ke ___ jika ___ |
+
+---
+
+Gunakan bahasa ringkas. Prioritaskan kejelasan dan actionability.
+Jika ada data yang hilang atau ambigu, nyatakan asumsi secara eksplisit
+sebelum melanjutkan analisis.`;
 }
 
 // ── Ringkasan terminal ─────────────────────────────────────────────────────
