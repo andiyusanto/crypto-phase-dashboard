@@ -79,7 +79,7 @@ async function fetchOpenRouterWithRetry(prompt, apiKey, options = {}) {
               { role: 'user', content: `${SYSTEM_PROMPT}\n\n---\n\n${prompt}` }
             ],
             temperature: 0.3,
-            max_tokens: 4000,
+            max_tokens: 5000,
             stream: !!onChunk && attempt === 0 // only stream on first attempt for simplicity
           })
         });
@@ -287,7 +287,7 @@ export async function analyzeWithPerplexity(prompt, options = {}) {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model, stream: true, max_tokens: 4096, temperature: 0.2,
+      model, stream: true, max_tokens: 5000, temperature: 0.2,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user',   content: prompt },
