@@ -562,19 +562,251 @@ export async function fetchCoinMarketCapGlobal(apiKey) {
   }
 }
 
+// ── 7. NUPL + SOPR PROXY — blockchain.info price history + CoinGecko ─────────
+// Both indicators share the same price history fetch (one API call, two signals).
+//
+// NUPL proxy  = (Market Cap − Realized Cap) / Market Cap
+//   Realized Cap proxy = 5yr avg close price × circulating supply
+//
+// SOPR proxy  = Current Price / 30-day avg price
+//   Represents whether coins moving today are in profit vs their recent cost basis.
+//   True SOPR uses per-UTXO realized value; this proxy captures the same signal
+//   for short-term holders (who dominate daily on-chain activity).
+export async function fetchNuplProxy() {
+  try {
+    // Step 1: Fetch 5-year daily BTC price history from blockchain.info
+    const histRes = await axios.get(
+      'https://api.blockchain.info/charts/market-price',
+      { params: { timespan: '5years', format: 'json', cors: true }, timeout: 15000 }
+    );
+    const values = histRes.data?.values ?? [];
+    if (values.length < 100) throw new Error('Insufficient price history from blockchain.info');
+
+    const prices = values.map(v => v.y).filter(p => p > 0);
+
+    // ── NUPL: 5yr avg as realized price proxy ─────────────────────────────
+    const realizedPriceProxy = prices.reduce((s, p) => s + p, 0) / prices.length;
+
+    // ── SOPR: current price / 30-day avg price ────────────────────────────
+    const last30  = prices.slice(-30);
+    const avg30   = last30.reduce((s, p) => s + p, 0) / last30.length;
+
+    // Step 2: Fetch current market cap + circulating supply from CoinGecko
+    const cgRes = await axios.get(
+      'https://api.coingecko.com/api/v3/coins/bitcoin',
+      {
+        params: { localization: false, tickers: false, market_data: true, community_data: false, developer_data: false },
+        timeout: 12000,
+      }
+    );
+    const md = cgRes.data?.market_data;
+    if (!md) throw new Error('No market data from CoinGecko');
+
+    const marketCap    = md.market_cap?.usd;
+    const supply       = md.circulating_supply;
+    const currentPrice = md.current_price?.usd;
+    if (!marketCap || !supply || !currentPrice) throw new Error('Missing market_cap/supply/price');
+
+    // ── Compute NUPL ──────────────────────────────────────────────────────
+    const realizedCap  = realizedPriceProxy * supply;
+    const nupl         = (marketCap - realizedCap) / marketCap;
+    const nuplRounded  = parseFloat(nupl.toFixed(4));
+
+    let nuplZone, nuplSignal;
+    if (nupl < 0)         { nuplZone = 'Capitulation';   nuplSignal = 'BTC di bawah realized price — fase 0, akumulasi ekstrem'; }
+    else if (nupl < 0.25) { nuplZone = 'Hope/Fear';      nuplSignal = 'holder majority break-even — fase 1, akumulasi diam-diam'; }
+    else if (nupl < 0.50) { nuplZone = 'Optimism';       nuplSignal = 'majority holder profit moderat — fase 2, expansion'; }
+    else if (nupl < 0.75) { nuplZone = 'Belief/Denial';  nuplSignal = 'holder profit tinggi, euphoria mulai — fase 3, waspadai distribusi'; }
+    else                  { nuplZone = 'Euphoria';        nuplSignal = 'extreme profit — fase 4, zona distribusi / top signal'; }
+
+    // ── Compute SOPR proxy ────────────────────────────────────────────────
+    const sopr = parseFloat((currentPrice / avg30).toFixed(4));
+
+    let soprSignal;
+    if (sopr > 1.10)       soprSignal = 'profit tinggi — STH mulai distribusi, waspada reversal';
+    else if (sopr > 1.02)  soprSignal = 'profit moderat — bullish, spending sehat';
+    else if (sopr >= 0.98) soprSignal = 'break-even — netral, pasar mencari arah';
+    else if (sopr >= 0.90) soprSignal = 'rugi ringan — STH jual rugi, potensi bounce';
+    else                   soprSignal = 'capitulation — STH jual rugi dalam, potensi bottom';
+
+    return {
+      nupl:              nuplRounded,
+      nuplZone,
+      nuplSignal,
+      sopr,
+      soprAvg30dPrice:   parseFloat(avg30.toFixed(0)),
+      soprSignal,
+      realizedPriceProxy: parseFloat(realizedPriceProxy.toFixed(0)),
+      currentPrice:       parseFloat(currentPrice.toFixed(0)),
+      marketCapBillion:   parseFloat((marketCap   / 1e9).toFixed(2)),
+      realizedCapBillion: parseFloat((realizedCap / 1e9).toFixed(2)),
+      priceHistoryDays:   prices.length,
+      note: '5yr avg price → NUPL proxy | 30d avg price → SOPR proxy (blockchain.info + CoinGecko)',
+      source: 'blockchain.info + CoinGecko',
+    };
+  } catch (err) {
+    console.warn('⚠️  NUPL/SOPR proxy gagal:', err.message);
+    return null;
+  }
+}
+
+// ── 8. DERIVATIVES BUNDLE — satu fetch CoinGecko untuk OI + Basis + Skew proxy ─
+// Sebelumnya ada 3 fungsi terpisah yang masing-masing memanggil /derivatives,
+// menyebabkan 3 request paralel ke endpoint yang sama → trigger CoinGecko 429.
+// Sekarang digabung: satu fetch, tiga hasil.
+export async function fetchBtcDerivativesBundle(btcPriceHint = null) {
+  // ── Fetch CoinGecko /derivatives (sekali saja) ────────────────────────────
+  let tickers = [];
+  try {
+    const res = await axios.get(
+      'https://api.coingecko.com/api/v3/derivatives',
+      { timeout: 18000 }
+    );
+    tickers = res.data ?? [];
+  } catch (err) {
+    console.warn('⚠️  CoinGecko /derivatives gagal:', err.message);
+  }
+
+  const TOP_OI_EXCHANGES = [
+    'Binance (Futures)', 'Bybit (Futures)', 'OKX (Futures)',
+    'Bitget Futures', 'KuCoin Futures', 'Gate (Futures)', 'HTX Futures', 'Hyperliquid (Futures)',
+  ];
+  const TOP_BASIS_EXCHANGES = [
+    'Binance (Futures)', 'Bybit (Futures)', 'OKX (Futures)',
+    'Bitget Futures', 'Gate (Futures)', 'HTX Futures',
+  ];
+
+  const btcAll   = tickers.filter(t => t.index_id === 'BTC');
+  const btcPerps = btcAll.filter(t => t.contract_type === 'perpetual');
+
+  // ── OI ────────────────────────────────────────────────────────────────────
+  let btcOI = null;
+  try {
+    const oiTickers = btcAll.filter(t =>
+      t.open_interest != null && TOP_OI_EXCHANGES.includes(t.market)
+    );
+    if (oiTickers.length) {
+      const totalOiUsd  = oiTickers.reduce((s, t) => s + (t.open_interest ?? 0), 0);
+      const totalBillion = parseFloat((totalOiUsd / 1e9).toFixed(2));
+      const changes      = oiTickers.map(t => t.price_percentage_change_24h ?? 0).filter(c => c !== 0);
+      const avgChange    = changes.length ? changes.reduce((a, b) => a + b, 0) / changes.length : 0;
+      const trend        = avgChange > 1 ? 'ekspansi' : avgChange < -1 ? 'kontraksi' : 'flat';
+      btcOI = { totalBillion, exchangeCount: oiTickers.length, trend, source: 'CoinGecko' };
+    }
+  } catch (_) {}
+
+  // Fallback OI: Hyperliquid (sudah digunakan untuk funding rate)
+  if (!btcOI) {
+    try {
+      const res = await axios.post(
+        'https://api.hyperliquid.xyz/info',
+        { type: 'metaAndAssetCtxs' },
+        { timeout: 8000 }
+      );
+      const [meta, ctxs] = res.data ?? [[], []];
+      const idx = meta.universe?.findIndex(a => a.name === 'BTC') ?? -1;
+      if (idx >= 0) {
+        const ctx       = ctxs[idx];
+        const oiNotional = parseFloat(ctx.openInterest ?? 0);
+        const markPx     = parseFloat(ctx.markPx ?? 0);
+        btcOI = {
+          totalBillion: parseFloat(((oiNotional * markPx) / 1e9).toFixed(2)),
+          exchangeCount: 1, trend: '___',
+          source: 'Hyperliquid (fallback)',
+        };
+      }
+    } catch (_) {
+      console.warn('⚠️  BTC OI semua sumber gagal');
+    }
+  }
+
+  // ── Basis (perp premium proxy) ────────────────────────────────────────────
+  let btcBasis = null;
+  try {
+    const basisTickers = btcPerps.filter(t =>
+      t.basis != null && TOP_BASIS_EXCHANGES.includes(t.market)
+    );
+    if (basisTickers.length) {
+      const avgBasis      = basisTickers.reduce((s, t) => s + t.basis, 0) / basisTickers.length;
+      const basisPct      = parseFloat(avgBasis.toFixed(4));
+      const annualizedPct = parseFloat((basisPct * 365).toFixed(2));
+      let signal;
+      if (annualizedPct > 15)     signal = 'contango tinggi — bullish sentiment, waspadai overleveraged';
+      else if (annualizedPct > 5) signal = 'contango normal — bullish moderat';
+      else if (annualizedPct >= 0)signal = 'flat / netral';
+      else                        signal = 'backwardation — bearish / capitulation signal';
+      btcBasis = { basisPct, annualizedPct, exchangeCount: basisTickers.length, signal, source: 'CoinGecko' };
+    }
+  } catch (_) {}
+  if (!btcBasis) console.warn('⚠️  BTC Basis Rate gagal: data tidak cukup dari CoinGecko');
+
+  // ── Skew proxy (via funding rate + Deribit OI) ────────────────────────────
+  let optionsSkew = null;
+  try {
+    // Funding-rate-based skew proxy (dari tickers yang sudah difetch)
+    const fundingTickers = btcPerps.filter(t => t.funding_rate != null);
+    const avgFunding     = fundingTickers.length
+      ? fundingTickers.reduce((s, t) => s + t.funding_rate, 0) / fundingTickers.length
+      : null;
+
+    let skewProxy = null;
+    let signal    = 'data tidak tersedia';
+    if (avgFunding !== null) {
+      skewProxy = parseFloat((-avgFunding * 1000).toFixed(2));
+      if (skewProxy > 10)       signal = 'fear tinggi — funding negatif kuat, put premium implied (bearish/fase 4)';
+      else if (skewProxy > 3)   signal = 'netral-bearish — sedikit downside concern';
+      else if (skewProxy >= -3) signal = 'netral — pasar seimbang';
+      else                      signal = 'call premium — greed / fase 3 signal';
+    }
+
+    // Deribit OI dari CoinGecko exchange endpoint (panggil terpisah, bukan /derivatives)
+    let deribitOiBtc = null;
+    let deribitOiUsdBillion = null;
+    try {
+      const deribitRes = await axios.get(
+        'https://api.coingecko.com/api/v3/derivatives/exchanges/deribit',
+        { timeout: 10000 }
+      );
+      deribitOiBtc = parseFloat((deribitRes.data?.open_interest_btc ?? 0).toFixed(0));
+      const price  = btcPriceHint ?? 0;
+      deribitOiUsdBillion = price ? parseFloat(((deribitOiBtc * price) / 1e9).toFixed(2)) : null;
+    } catch (_) {}
+
+    optionsSkew = {
+      skewProxy,
+      avgFunding8h: avgFunding !== null ? parseFloat(avgFunding.toFixed(6)) : null,
+      deribitOiBtc,
+      deribitOiUsdBillion,
+      signal,
+      note: 'Proxy via perp funding rate — Deribit direct API tidak accessible dari server ini',
+      source: 'CoinGecko',
+    };
+  } catch (err) {
+    console.warn('⚠️  Options skew proxy gagal:', err.message);
+  }
+
+  return { btcOI, btcBasis, optionsSkew };
+}
+
 // ── AGGREGATE: SEMUA DAILY DATA ───────────────────────────────────────────────
 export async function fetchAllDailyData(config = {}) {
   console.log('📊 Fetching daily data...');
   _hlCache = null; // reset cache tiap fetch
 
-  const [crypto, fearGreed, funding, dxy, gold, cmc] = await Promise.allSettled([
+  const [crypto, fearGreed, funding, dxy, gold, cmc, nuplProxy] = await Promise.allSettled([
     fetchCryptoData(),
     fetchFearGreed(),
     fetchFundingRates(),
     fetchDXY({ twelveData: config.twelveDataKey, alphaVantage: config.alphaVantageApiKey }),
     fetchGold(config.twelveDataKey),
     fetchCoinMarketCapGlobal(config.coinMarketCapApiKey),
+    fetchNuplProxy(),
   ]);
+
+  // Derivatives bundle: satu fetch /derivatives → OI + Basis + Skew (hindari 3x CoinGecko 429)
+  const cryptoVal    = crypto.status === 'fulfilled' ? crypto.value : null;
+  const btcPriceHint = cryptoVal?.btc?.price ?? null;
+  const derivBundle  = await fetchBtcDerivativesBundle(btcPriceHint).catch(() => ({}));
 
   // Brent Oil: OilPriceAPI → Google News RSS → null (SQLite cache handled in index.js)
   let brentOil = null;
@@ -599,7 +831,11 @@ export async function fetchAllDailyData(config = {}) {
     funding: funding.status === 'fulfilled' ? funding.value : null,
     dxy: dxy.status === 'fulfilled' ? dxy.value : null,
     gold: gold.status === 'fulfilled' ? gold.value : null,
-    cmc: cmc.status === 'fulfilled' ? cmc.value : null,
+    cmc:        cmc.status        === 'fulfilled' ? cmc.value        : null,
+    nuplProxy:  nuplProxy.status  === 'fulfilled' ? nuplProxy.value  : null,
     brentOil,
+    btcOI:       derivBundle.btcOI       ?? null,
+    btcBasis:    derivBundle.btcBasis     ?? null,
+    optionsSkew: derivBundle.optionsSkew ?? null,
   };
 }

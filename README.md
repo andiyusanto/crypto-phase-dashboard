@@ -13,7 +13,7 @@ Setiap AI provider, Telegram, dan Discord **sepenuhnya independen** — menjalan
 │                            DATA SOURCES                              │
 │  CoinGecko · Hyperliquid · DefiLlama · FRED · OilPriceAPI            │
 │  alternative.me · Google News RSS · Twelve Data · blockchaincenter   │
-│  CoinMetrics Community API                                            │
+│  CoinMetrics Community API · blockchain.info                         │
 └──────────────────────────────┬───────────────────────────────────────┘
                                │
               ┌────────────────┼───────────────────┐
@@ -267,6 +267,12 @@ nohup node src/scheduler.js > logs/scheduler.log 2>&1 &
 | BTC Exchange Netflow (inflow/outflow/netflow BTC) | CoinMetrics Community API |
 | ISM Manufacturing PMI + Services PMI | Google News RSS (ISM press release) |
 | War headlines — Middle East, Russia-Ukraine, Taiwan | Google News RSS |
+| **NUPL proxy** (Net Unrealized Profit/Loss) | blockchain.info (5yr price history) + CoinGecko market cap |
+| **SOPR proxy** (Spent Output Profit Ratio) | Dihitung dari harga terkini vs 30-day average |
+| **BTC Open Interest** (aggregate, 41+ exchange) | CoinGecko `/derivatives` → Hyperliquid fallback |
+| **BTC Perp Premium** (Basis Rate, annualized) | CoinGecko `/derivatives` perpetual tickers |
+| **Options Skew proxy** (25-delta skew estimasi) | CoinGecko Deribit data + funding rate proxy |
+| **WoW % change** — TOTAL2, TOTAL3, Stablecoin Supply | SQLite `daily_snapshot` (snapshot harian) |
 
 ### FRED API (gratis)
 
@@ -297,16 +303,25 @@ Hanya `faseEstimasi` yang wajib diisi manual — estimasi fase kamu (0–4).
 
 ## SQLite Cache (`data/dashboard.db`)
 
-Data di-cache lokal untuk fallback ketika fetch gagal:
+Data di-cache lokal untuk fallback ketika fetch gagal, dan untuk kalkulasi perubahan week-over-week:
 
 | Tabel | Data | Dedup logic |
 |-------|------|-------------|
 | `fed_liquidity` | WALCL + RRP + WLRRAL snapshot | Berdasarkan tanggal observasi FRED (walcl.date + rrp.date + reserves.date) |
 | `pmi_data` | ISM Manufacturing + Services PMI | Berdasarkan `released_month` (YYYY-MM) — satu record per bulan |
+| `weekly_data` | 10Y yield, NFCI, altseason, netflow, TVL, ratio trend | Satu record per kalender hari (`fetch_date`) |
+| `monthly_data` | CPI, Fed Rate, M2 | Satu record per bulan (`period`, YYYY-MM) |
+| `oil_prices` | Brent Crude price | Satu record per kalender hari (`price_date`) |
+| `daily_snapshot` | TOTAL2, TOTAL3, Stablecoin Supply | Satu record per kalender hari — dipakai untuk WoW delta |
 
 **Fallback hierarchy:**
 - Fed data: Thu/Fri fetch → jika skip/gagal → SQLite cache
 - PMI data: Google News RSS → jika gagal → SQLite cache
+
+**WoW delta (Week-over-Week):**
+- Setiap run menyimpan snapshot harian CMC ke `daily_snapshot`
+- Delta dihitung otomatis dari snapshot ~7 hari lalu
+- Run pertama: delta belum tersedia (muncul setelah 7 hari data terkumpul)
 
 ---
 
@@ -364,6 +379,50 @@ output/
 
 ---
 
+## Sinyal On-Chain & Derivatif (Baru)
+
+Semua sinyal berikut dihitung dari **sumber gratis** — tidak memerlukan API key berbayar seperti Glassnode.
+
+### NUPL Proxy
+- **Formula**: `(Market Cap − Realized Cap Proxy) / Market Cap`
+- **Realized Cap Proxy**: rata-rata harga BTC 5 tahun × total supply
+- **Data**: Harga 5yr dari `blockchain.info/charts/market-price`, market cap dari CoinGecko
+- **Zona**: Capitulation (<0) · Hope (0–0.25) · Optimism (0.25–0.5) · Belief (0.5–0.75) · Euphoria (>0.75)
+
+### SOPR Proxy
+- **Formula**: `harga sekarang / rata-rata harga 30 hari`
+- **Interpretasi**: >1.05 = profit taking · <0.95 = panic · 1.0 = breakeven (reversal zone)
+- **Data**: Dihitung dari data harga 5yr yang sama (cache bersama dengan NUPL)
+
+### BTC Open Interest
+- **Sumber**: CoinGecko `/derivatives` (41+ exchange) → Hyperliquid API (fallback)
+- **Satuan**: USD miliar
+- **Interpretasi**: OI ekspansi + harga naik = bullish · OI ekspansi + harga stagnan = overheated
+
+### BTC Perp Premium (Basis Rate)
+- **Formula**: rata-rata field `basis` dari CoinGecko perpetual tickers × 365 (annualized)
+- **Interpretasi**: >10% = contango bullish · <0% = backwardation / bearish sentiment
+
+### Options Skew Proxy
+- **Formula**: `−(avg funding rate × 1000)`
+- **Interpretasi**: Nilai negatif tinggi = call premium dominan (greed) · Positif = put premium (fear)
+
+### Optimasi Rate Limit CoinGecko
+Tiga sinyal di atas (OI, Basis, Skew) awalnya memanggil `/derivatives` secara paralel — menyebabkan HTTP 429. Sekarang dikonsolidasi dalam satu fungsi `fetchBtcDerivativesBundle()` yang hanya fetch **sekali** lalu parse hasilnya untuk ketiga sinyal.
+
+---
+
+## Bahasa Laporan
+
+Prompt dan laporan menggunakan **Bahasa Indonesia** untuk narasi dan header section, tetapi **label indikator tetap dalam bahasa Inggris** (contoh: `NUPL proxy`, `Fear & Greed Index`, `BTC Dominance`) agar mudah di-cross-reference dengan sumber internasional.
+
+Section headers dalam prompt:
+- `DATA HARIAN` · `DATA MINGGUAN` · `DATA BULANAN`
+- `DERIVATIF & ON-CHAIN` · `STATUS LIKUIDITAS FED`
+- `KONTEKS PORTFOLIO` · `SCORECARD SINYAL`
+
+---
+
 ## Troubleshooting
 
 | Error | Solusi |
@@ -374,6 +433,11 @@ output/
 | `PMI data tidak tersedia` | Google News RSS gagal — data diambil dari SQLite cache otomatis |
 | `Altseason Index [isi manual]` | blockchaincenter.net tidak bisa diakses — set manual di `manualOverrides.altseasonIndex` |
 | `BTC exchange netflow [data tidak tersedia]` | CoinMetrics tidak bisa diakses — set manual di `manualOverrides.exchangeNetflow` |
+| `NUPL proxy: ___` | blockchain.info atau CoinGecko market cap gagal diakses |
+| `OI BTC: ___` | CoinGecko `/derivatives` gagal + Hyperliquid fallback juga gagal |
+| `WoW: N/A` | Snapshot <7 hari — otomatis tersedia setelah 7 hari data terkumpul |
+| CoinGecko 429 (rate limit) | Semua `/derivatives` fetch dikonsolidasi ke 1 call — tidak seharusnya terjadi lagi |
 | Telegram `parse error` | Otomatis fallback ke plain text |
 | Discord `Invalid Form Body` | Otomatis di-split per ≤3800 karakter |
 | `getaddrinfo EAI_AGAIN` | DNS/network issue — cek koneksi server |
+| `ECONNRESET` ke Binance/Kraken/Deribit | ISP Indonesia memblokir exchange langsung — otomatis pakai CoinGecko/Hyperliquid |

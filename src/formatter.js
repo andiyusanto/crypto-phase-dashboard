@@ -78,11 +78,57 @@ ${pmiLine}
   const oilPrice   = v(daily?.brentOil?.price ?? weekly?.oil?.price);
   const oilDir     = v(daily?.brentOil?.direction ?? weekly?.oil?.direction);
 
+  // ── NUPL + SOPR Proxy ─────────────────────────────────────────────────────
+  const nupl = daily?.nuplProxy;
+  const nuplLine = nupl
+    ? `- NUPL proxy: ${nupl.nupl > 0 ? '+' : ''}${nupl.nupl} | zona: ${nupl.nuplZone} | realized price proxy: $${nupl.realizedPriceProxy.toLocaleString('en-US')} | ${nupl.nuplSignal}`
+    : `- NUPL proxy: ___`;
+  const soprLine = nupl?.sopr != null
+    ? `- SOPR proxy (current/$${nupl.soprAvg30dPrice.toLocaleString('en-US')} 30d avg): ${nupl.sopr} | ${nupl.soprSignal}`
+    : `- SOPR proxy: ___`;
+
+  // ── On-chain / Derivatives ────────────────────────────────────────────────
+  const oi     = daily?.btcOI;
+  const basis  = daily?.btcBasis;
+  const skew   = daily?.optionsSkew;
+
+  const oiLine = oi
+    ? `- OI BTC (${oi.exchangeCount} exchanges): $${oi.totalBillion}B | trend: ${oi.trend} [${oi.source}]`
+    : `- OI BTC: ___`;
+
+  const basisLine = basis
+    ? `- BTC perp premium (basis proxy, annualized): ${basis.annualizedPct}% | raw: ${basis.basisPct}% | signal: ${basis.signal} [${basis.source}, ${basis.exchangeCount} exchanges]`
+    : `- BTC perp premium / basis: ___`;
+
+  const skewLine = skew
+    ? `- Options skew proxy (via perp funding): ${skew.skewProxy != null ? (skew.skewProxy > 0 ? '+' : '') + skew.skewProxy : '___'} | avg funding 8h: ${skew.avgFunding8h != null ? skew.avgFunding8h + '%' : '___'} | Deribit OI: ${skew.deribitOiBtc}BTC ($${skew.deribitOiUsdBillion}B) | signal: ${skew.signal}`
+    : `- Options 25-delta skew: ___`;
+
+  const total2Raw = daily?.cmc?.total2 ?? null;
+  const total3Raw = daily?.cmc?.total3 ?? null;
+  const stableRaw = daily?.crypto?.stablecoinSupply?.total ?? null;
+  const prevWeek  = daily?._prevWeek ?? null;
+
+  // WoW % change helper
+  const wowPct = (curr, prev) => {
+    if (curr == null || prev == null || prev === 0) return null;
+    return parseFloat(((curr - prev) / Math.abs(prev) * 100).toFixed(2));
+  };
+  const fmtWow = (pct) => {
+    if (pct == null) return '';
+    const sign = pct > 0 ? '+' : '';
+    return ` | WoW: ${sign}${pct}%`;
+  };
+
+  const total2WoW = wowPct(total2Raw, prevWeek?.total2_trillion);
+  const total3WoW = wowPct(total3Raw, prevWeek?.total3_billion);
+  const stableWoW = wowPct(stableRaw, prevWeek?.stablecoin_billion);
+
   const total2 = manualOverrides.total2
-    ?? (daily?.cmc?.total2 ? `$${daily.cmc.total2}T` : null)
+    ?? (total2Raw != null ? `$${total2Raw}T${fmtWow(total2WoW)}` : null)
     ?? '___';
   const total3 = manualOverrides.total3
-    ?? (daily?.cmc?.total3 ? `$${daily.cmc.total3}B` : null)
+    ?? (total3Raw != null ? `$${total3Raw}B${fmtWow(total3WoW)}` : null)
     ?? '___';
   const othersDom = manualOverrides.othersDManual
     ?? v(daily?.cmc?.othersDominance)
@@ -193,6 +239,11 @@ Perubahan fase hanya valid jika ≥3 signal upstream konfirmasi.
 | BTC Exchange Netflow | Inflow besar | Flat | Outflow besar |
 | TVL DeFi WoW | < -5% | -5–+5% | > +5% |
 | Oil Brent | > $100 | $80–100 | < $80 |
+| NUPL proxy | < 0 (capitulation) | 0–0.25 (hope) | > 0.5 (belief/euphoria) |
+| SOPR proxy | < 0.90 (capitulation) | 0.98–1.02 (netral) | > 1.10 (distribusi) |
+| OI BTC (all exchanges) | Kontraksi tajam | $15–30B | Ekspansi >$30B |
+| Basis Rate 3M (ann.) | < 0% (backwardation) | 0–15% | 5–15% (carry positif) |
+| Options 25-delta Skew | > 10 (fear) | -3 s/d +10 | < -3 (greed/call premium) |
 
 ---
 ## DATA — ${today} | FASE ESTIMASI SAYA: ${faseEstimasi}
@@ -200,7 +251,7 @@ Perubahan fase hanya valid jika ≥3 signal upstream konfirmasi.
 ### FED LIQUIDITY LAYER ${fedSrc}
 ${fedBlock}
 
-### DAILY DATA ✅ live
+### DATA HARIAN ✅ live
 - BTC price: $${btcPrice} | 24h: ${btcChange}%
 - BTC Dominance: ${btcDom}% | arah: ${btcDomDir}
 - ETH/BTC: ${ethBtc} | SOL/BTC: ${solBtc}
@@ -209,14 +260,22 @@ ${fedBlock}
 - Oil Brent: $${oilPrice} | arah: ${oilDir}
 - Fear & Greed: ${fgValue} (${fgLabel})
 - Funding rate BTC perp: ${btcFunding}% | ETH perp: ${ethFunding}%
-- Stablecoin supply: $${totalStable}B
+- Stablecoin supply: $${totalStable}B${fmtWow(stableWoW)}
 - TOTAL2: ${total2} | TOTAL3: ${total3} | OTHERS.D: ${othersDom}%
+
+### DERIVATIF & ON-CHAIN ✅ live
+${nuplLine}
+${soprLine}
+${oiLine}
+${basisLine}
+${skewLine}
+
 - War headline (sumber: Google News RSS (Reuters/AP/BBC via GNews)):
   - Timteng: ${warTimteng}
   - Rusia-Ukraine: ${warRusiaUkraine}
   - Taiwan: ${warTaiwan}
 
-### WEEKLY DATA ${weeklySrc}
+### DATA MINGGUAN ${weeklySrc}
 - FCI (Chicago Fed NFCI): ${nfci} | vs minggu lalu: ${nfciPrev}
 - US 10Y Yield: ${yield10y}% | arah: ${yieldDir}
 - ETH/BTC ratio: ${ethBtc} | arah minggu ini: ${v(weekly?.ratioTrend?.ethBtc?.direction)} ${v(weekly?.ratioTrend?.ethBtc?.weekChange, '')}%
@@ -227,13 +286,13 @@ ${fedBlock}
 - TVL DeFi (DefiLlama): $${tvl}B | vs minggu lalu: ${tvlChg}%
 - MSCI EM: ${msciEm} | arah: ${msciDir}
 
-### MONTHLY DATA ${monthlySrc}
+### DATA BULANAN ${monthlySrc}
 ${monthlyBlock}
 
 ---
-## PORTFOLIO CONTEXT
+## KONTEKS PORTFOLIO
 
-PORTFOLIO SIZE (USD): ${portfolioSize}
+UKURAN PORTFOLIO (USD): ${portfolioSize}
 LEVERAGE MAKS: ${leverageMax}
 
 ### INSTRUKSI ALOKASI
@@ -275,7 +334,7 @@ riskProfile: [defensif / moderat / agresif — ditentukan AI dari fase]
 ---
 ## OUTPUT YANG DIMINTA
 
-### 1. FED LIQUIDITY STATUS
+### 1. STATUS LIKUIDITAS FED
 Baca Fed trifecta dan seluruh layer likuiditas upstream.
 Apakah likuiditas mendukung atau menentang fase saat ini?
 Format: EKSPANSI / KONTRAKSI / MIXED — alasan ≤3 kalimat.
@@ -292,29 +351,36 @@ Format: EKSPANSI / KONTRAKSI / MIXED — alasan ≤3 kalimat.
 
 ---
 
-### 3. SIGNAL SCORECARD
+### 3. SCORECARD SINYAL
 
 **Layer 0 — Fed Liquidity**
-| Indikator | Value | vs Threshold | Status | Arah |
+| Indikator | Nilai | vs Threshold | Status | Arah |
 |-----------|-------|--------------|--------|------|
 
 **Layer 1 — Macro**
-| Indikator | Value | vs Threshold | Status | Arah |
+| Indikator | Nilai | vs Threshold | Status | Arah |
 |-----------|-------|--------------|--------|------|
 
 **Layer 2 — Market Structure**
-| Indikator | Value | vs Threshold | Status | Arah |
+| Indikator | Nilai | vs Threshold | Status | Arah |
 |-----------|-------|--------------|--------|------|
 
-**Layer 3 — On-chain & Crypto**
-| Indikator | Value | vs Threshold | Status | Arah |
+**Layer 3 — Derivatives & On-chain**
+| Indikator | Nilai | vs Threshold | Status | Arah |
 |-----------|-------|--------------|--------|------|
+| NUPL proxy | ${nupl?.nupl != null ? (nupl.nupl > 0 ? '+' : '') + nupl.nupl : '___'} | <0 capitulation, >0.75 euphoria | | zona: ${nupl?.nuplZone ?? '___'} |
+| SOPR proxy | ${nupl?.sopr ?? '___'} | <0.90 capitulation, >1.10 distribusi | | |
+| OI BTC | $${oi?.totalBillion ?? '___'}B | ekspansi >$30B, kontraksi <$15B | | ${oi?.trend ?? '___'} |
+| Perp Premium (ann.) | ${basis?.annualizedPct ?? '___'}% | >15% overleveraged, <0% backwardation | | |
+| Skew Proxy (funding) | ${skew?.skewProxy != null ? (skew.skewProxy > 0 ? '+' : '') + skew.skewProxy : '___'} | >10 fear, <-3 greed | | |
 
 Status: ✅ bullish / ⚠️ netral / 🔴 bearish
 
-Divergence alert wajib: flag otomatis jika funding rate dan Fear & Greed
-menunjukkan arah berlawanan, atau jika BTC dominance naik tapi TVL DeFi
-juga naik.
+Divergence alert wajib — flag otomatis jika salah satu kondisi berikut terjadi:
+- Funding rate dan Fear & Greed menunjukkan arah berlawanan
+- BTC Dominance naik tapi TVL DeFi juga naik (alts accumulation senyap)
+- NUPL proxy > 0.5 tapi SOPR proxy < 1.0 (holder kaya, tapi spending rugi → distribusi tersembunyi)
+- OI naik tapi Basis Rate negatif (leverage naik di tengah backwardation → sinyal divergen berbahaya)
 
 ---
 

@@ -53,10 +53,11 @@ import { fetchAllFedLiquidity } from './fetchers/fedliquidity.js';
 import { fetchRealtimePMI }    from './fetchers/pmi.js';
 import { fetchAllWarHeadlines } from './fetchers/warheadlines.js';
 import {
-  saveFedData,     getLatestFedData,
-  saveWeeklyData,  getLatestWeeklyData,
-  saveMonthlyData, getLatestMonthlyData,
-  saveOilPrice,    getLatestOilPrice,
+  saveFedData,       getLatestFedData,
+  saveWeeklyData,    getLatestWeeklyData,
+  saveMonthlyData,   getLatestMonthlyData,
+  saveOilPrice,      getLatestOilPrice,
+  saveDailySnapshot, getPrevWeekSnapshot,
 } from './db.js';
 import { formatDashboardPrompt, formatDataSummary } from './formatter.js';
 import { analyzeWith, saveAnalysis } from './claude-analyst.js';
@@ -216,6 +217,11 @@ async function main() {
           daily = { ...(daily ?? {}), brentOil: cachedOil };
         }
       }
+
+      // Save CMC snapshot for WoW delta; attach prev-week data to daily object
+      saveDailySnapshot(daily);
+      const prevWeek = getPrevWeekSnapshot();
+      if (prevWeek) daily = { ...daily, _prevWeek: prevWeek };
 
       console.log(chalk.green('✓ Daily data'));
     }

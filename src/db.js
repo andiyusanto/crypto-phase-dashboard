@@ -65,6 +65,17 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS daily_snapshot (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    snapshot_date TEXT NOT NULL UNIQUE,
+    total2_trillion REAL,
+    total3_billion  REAL,
+    stablecoin_billion REAL,
+    fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 // ── MIGRATIONS (add columns to existing installs) ─────────────────────────────
 const migrate = (sql) => { try { db.exec(sql); } catch (_) { /* column/index exists */ } };
 
@@ -229,6 +240,33 @@ export const getLatestOilPrice = () => {
     _fromCache: true,
     _cachedAt: latest.fetched_at,
   };
+};
+
+// ── DAILY SNAPSHOT (CMC metrics for WoW delta) ───────────────────────────────
+
+export const saveDailySnapshot = (daily) => {
+  const cmc   = daily?.cmc;
+  const total2 = cmc?.total2 ?? null;
+  const total3 = cmc?.total3 ?? null;
+  const stable = daily?.crypto?.stablecoinSupply?.total ?? null;
+  if (total2 == null && total3 == null && stable == null) return;
+
+  const date = new Date().toISOString().slice(0, 10);
+  db.prepare(`
+    INSERT OR REPLACE INTO daily_snapshot (snapshot_date, total2_trillion, total3_billion, stablecoin_billion)
+    VALUES (?, ?, ?, ?)
+  `).run(date, total2, total3, stable);
+};
+
+// Returns snapshot from ~7 days ago (closest row between 6–8 days back)
+export const getPrevWeekSnapshot = () => {
+  const row = db.prepare(`
+    SELECT * FROM daily_snapshot
+    WHERE snapshot_date <= date('now', '-6 days')
+    ORDER BY snapshot_date DESC
+    LIMIT 1
+  `).get();
+  return row ?? null;
 };
 
 export default db;
