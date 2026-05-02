@@ -88,6 +88,7 @@ const config = {
   oilPriceApiKey:    process.env.OIL_PRICE_API_KEY,
   coinMarketCapApiKey: process.env.COINMARKETCAP_API_KEY,
   tradingEconomicsApiKey: process.env.TRADING_ECONOMICS_API_KEY,
+  serpApiKey:          process.env.SERPAPI_API_KEY,
 
   anthropicApiKey:   process.env.ANTHROPIC_API_KEY,
   openaiApiKey:      process.env.OPENAI_API_KEY,

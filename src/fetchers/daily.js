@@ -61,7 +61,7 @@ export async function fetchCryptoData() {
     const find    = (sym) => tickers.find(t => t.symbol === sym);
     const bn      = { btc: find('BTCUSDT'), eth: find('ETHUSDT'), sol: find('SOLUSDT') };
 
-    btc = { price: Math.round(parseFloat(bn.btc.lastPrice)), change24h: parseFloat(parseFloat(bn.btc.priceChangePercent).toFixed(2)) };
+    btc = { price: Math.round(parseFloat(bn.btc.lastPrice)), change24h: parseFloat(parseFloat(bn.btc.priceChangePercent).toFixed(2)), volume24hBillion: parseFloat((parseFloat(bn.btc.quoteVolume) / 1e9).toFixed(2)) };
     eth = { price: Math.round(parseFloat(bn.eth.lastPrice)), change24h: parseFloat(parseFloat(bn.eth.priceChangePercent).toFixed(2)) };
     sol = { price: parseFloat(parseFloat(bn.sol.lastPrice).toFixed(2)), change24h: parseFloat(parseFloat(bn.sol.priceChangePercent).toFixed(2)) };
     console.log('  ✓ Harga via Binance');
@@ -69,11 +69,11 @@ export async function fetchCryptoData() {
     console.warn('⚠️  Binance ticker gagal, fallback ke CoinGecko:', bnTickerRes.reason?.message);
     try {
       const fb = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
-        params: { ids: 'bitcoin,ethereum,solana', vs_currencies: 'usd', include_24hr_change: true },
+        params: { ids: 'bitcoin,ethereum,solana', vs_currencies: 'usd', include_24hr_change: true, include_24hr_vol: true },
         timeout: 12000,
       });
       const p = fb.data;
-      btc = { price: Math.round(p.bitcoin.usd), change24h: parseFloat(p.bitcoin.usd_24h_change.toFixed(2)) };
+      btc = { price: Math.round(p.bitcoin.usd), change24h: parseFloat(p.bitcoin.usd_24h_change.toFixed(2)), volume24hBillion: parseFloat((p.bitcoin.usd_24h_vol / 1e9).toFixed(2)) };
       eth = { price: Math.round(p.ethereum.usd), change24h: parseFloat(p.ethereum.usd_24h_change.toFixed(2)) };
       sol = { price: parseFloat(p.solana.usd.toFixed(2)), change24h: parseFloat(p.solana.usd_24h_change.toFixed(2)) };
       console.log('  ✓ Harga via CoinGecko (fallback)');
@@ -600,8 +600,15 @@ export async function fetchNuplProxy() {
 
     const prices = values.map(v => v.y).filter(p => p > 0);
 
-    // ── NUPL: 5yr avg as realized price proxy ─────────────────────────────
-    const realizedPriceProxy = prices.reduce((s, p) => s + p, 0) / prices.length;
+    // ── NUPL: 5yr median as realized price proxy ──────────────────────────
+    // Median is more resistant to bull-run price spikes than mean.
+    // A 5yr mean is inflated by 2021 ($69k) and 2024 ($104k) peaks,
+    // causing realized price to read too high → NUPL systematically low.
+    const sorted5yr = [...prices].sort((a, b) => a - b);
+    const mid = Math.floor(sorted5yr.length / 2);
+    const realizedPriceProxy = sorted5yr.length % 2
+      ? sorted5yr[mid]
+      : (sorted5yr[mid - 1] + sorted5yr[mid]) / 2;
 
     // ── SOPR: current price / 30-day avg price ────────────────────────────
     const last30  = prices.slice(-30);
@@ -623,6 +630,10 @@ export async function fetchNuplProxy() {
     const currentPrice = md.current_price?.usd;
     if (!marketCap || !supply || !currentPrice) throw new Error('Missing market_cap/supply/price');
 
+    // ── ATH context ───────────────────────────────────────────────────────
+    const ath           = md.ath?.usd ?? null;
+    const athChangePct  = ath ? parseFloat(((currentPrice - ath) / ath * 100).toFixed(2)) : null;
+
     // ── Compute NUPL ──────────────────────────────────────────────────────
     const realizedCap  = realizedPriceProxy * supply;
     const nupl         = (marketCap - realizedCap) / marketCap;
@@ -638,12 +649,59 @@ export async function fetchNuplProxy() {
     // ── Compute SOPR proxy ────────────────────────────────────────────────
     const sopr = parseFloat((currentPrice / avg30).toFixed(4));
 
+    // SOPR proxy = currentPrice / 30d_avg. This is a price-ratio, not true per-UTXO SOPR.
+    // Thresholds calibrated for this ratio's actual behavior:
+    //   Bull trend normal range: 1.03–1.20 (price consistently above 30d avg)
+    //   Neutral/ranging: 0.95–1.05
+    //   Correction: 0.85–0.95 (price pulled back but still near 30d avg)
+    //   Sharp selloff: < 0.85 (price well below 30d avg — potential bottom zone)
+    //   Overextended: > 1.20 (price far above 30d avg — pullback likely)
     let soprSignal;
-    if (sopr > 1.10)       soprSignal = 'profit tinggi — STH mulai distribusi, waspada reversal';
-    else if (sopr > 1.02)  soprSignal = 'profit moderat — bullish, spending sehat';
-    else if (sopr >= 0.98) soprSignal = 'break-even — netral, pasar mencari arah';
-    else if (sopr >= 0.90) soprSignal = 'rugi ringan — STH jual rugi, potensi bounce';
-    else                   soprSignal = 'capitulation — STH jual rugi dalam, potensi bottom';
+    if (sopr > 1.20)       soprSignal = 'overextended — harga jauh di atas 30d avg, risiko pullback tinggi';
+    else if (sopr > 1.05)  soprSignal = 'bullish — harga di atas 30d avg, trend sehat';
+    else if (sopr >= 0.95) soprSignal = 'netral — harga dekat 30d avg, pasar konsolidasi';
+    else if (sopr >= 0.85) soprSignal = 'koreksi — harga di bawah 30d avg, monitor support';
+    else                   soprSignal = 'selloff tajam — harga jauh di bawah 30d avg, potensi zona akumulasi';
+
+    // ── Pi Cycle Top indicator ────────────────────────────────────────────────
+    // 111d MA crossing ABOVE 2×350d MA = historically precise BTC cycle top signal.
+    // prices[] is chronological (oldest→newest), so slice(-N) = last N days.
+    let piCycle = null;
+    if (prices.length >= 350) {
+      const ma111   = prices.slice(-111).reduce((s, p) => s + p, 0) / 111;
+      const ma350   = prices.slice(-350).reduce((s, p) => s + p, 0) / 350;
+      const ma350x2 = ma350 * 2;
+      const gapPct  = parseFloat(((ma111 - ma350x2) / ma350x2 * 100).toFixed(2));
+
+      let piSignal;
+      if (gapPct > 0)        piSignal = '🚨 CROSSING — historical top signal! MA111 melewati 2×MA350';
+      else if (gapPct > -10) piSignal = '⚠️ mendekati top — gap < 10%, waspadai';
+      else if (gapPct > -30) piSignal = 'moderat — mid-cycle, belum bahaya';
+      else                   piSignal = 'aman — jauh dari top, fase early/accumulation';
+
+      piCycle = {
+        ma111:    parseFloat(ma111.toFixed(0)),
+        ma350x2:  parseFloat(ma350x2.toFixed(0)),
+        gapPct,
+        signal:   piSignal,
+        note:     'Crossing (gapPct > 0) = historical BTC cycle top. Saat ini: ' + gapPct + '%',
+      };
+    }
+
+    // ── 200d MA ───────────────────────────────────────────────────────────────
+    let ma200 = null;
+    let ma200GapPct = null;
+    let ma200Signal = null;
+    if (prices.length >= 200) {
+      const ma200raw  = prices.slice(-200).reduce((s, p) => s + p, 0) / 200;
+      ma200           = parseFloat(ma200raw.toFixed(0));
+      ma200GapPct     = parseFloat(((currentPrice - ma200raw) / ma200raw * 100).toFixed(2));
+      if (ma200GapPct > 50)       ma200Signal = 'sangat overextended di atas 200d MA — fase 3/4, waspadai';
+      else if (ma200GapPct > 20)  ma200Signal = 'bullish kuat — harga jauh di atas 200d MA';
+      else if (ma200GapPct > 0)   ma200Signal = 'bullish — harga di atas 200d MA';
+      else if (ma200GapPct > -10) ma200Signal = 'danger zone — harga mendekati/di bawah 200d MA';
+      else                        ma200Signal = 'bearish — harga jauh di bawah 200d MA, fase 0/1';
+    }
 
     return {
       nupl:              nuplRounded,
@@ -657,7 +715,13 @@ export async function fetchNuplProxy() {
       marketCapBillion:   parseFloat((marketCap   / 1e9).toFixed(2)),
       realizedCapBillion: parseFloat((realizedCap / 1e9).toFixed(2)),
       priceHistoryDays:   prices.length,
-      note: '5yr avg price → NUPL proxy | 30d avg price → SOPR proxy (blockchain.info + CoinGecko)',
+      piCycle,
+      ath,
+      athChangePct,
+      ma200,
+      ma200GapPct,
+      ma200Signal,
+      note: '5yr median price → NUPL proxy | 30d avg price → SOPR proxy | Pi Cycle + 200d MA (blockchain.info + CoinGecko)',
       source: 'blockchain.info + CoinGecko',
     };
   } catch (err) {
@@ -666,7 +730,74 @@ export async function fetchNuplProxy() {
   }
 }
 
-// ── 8. LONG/SHORT RATIO ───────────────────────────────────────────────────────
+// ── 8. BLOCKCHAIN.INFO BUNDLE — active addresses + miner revenue ──────────────
+// Sequential calls (400ms apart) to avoid rate-limiting the same server.
+// Unit: active addresses = raw count | miner revenue = USD per day.
+export async function fetchBlockchainInfoBundle() {
+  const headers = { 'User-Agent': 'Mozilla/5.0' };
+  const getValues = async (chart, timespan = '14days') => {
+    const res = await axios.get(`https://api.blockchain.info/charts/${chart}`, {
+      params: { timespan, format: 'json', cors: 'true' }, headers, timeout: 20000,
+    });
+    return (res.data?.values ?? []).sort((a, b) => b.x - a.x);
+  };
+
+  const summarise = (sorted) => {
+    const latest7 = sorted.slice(0, 7).map(v => v.y);
+    const prev7   = sorted.slice(7, 14).map(v => v.y);
+    if (!latest7.length) return null;
+    const avg7d   = latest7.reduce((s, v) => s + v, 0) / latest7.length;
+    const avgPrev = prev7.length >= 4 ? prev7.reduce((s, v) => s + v, 0) / prev7.length : null;
+    let weekChange = null, trend = '___';
+    if (avgPrev) {
+      weekChange = parseFloat(((avg7d - avgPrev) / avgPrev * 100).toFixed(2));
+      trend = weekChange > 2 ? 'naik' : weekChange < -2 ? 'turun' : 'flat';
+    }
+    return { avg7d, weekChange, trend };
+  };
+
+  // ── Active Addresses ──────────────────────────────────────────────────────
+  let activeAddresses = null;
+  try {
+    const vals = await getValues('n-unique-addresses');
+    const s = summarise(vals);
+    if (s) {
+      let signal;
+      if (s.trend === 'naik' && s.avg7d > 800000) signal = 'adoption meningkat — bullish long-term';
+      else if (s.trend === 'naik')                signal = 'activity naik — network health membaik';
+      else if (s.trend === 'turun' && s.weekChange < -10) signal = 'activity drop tajam — potensi capitulation';
+      else if (s.trend === 'turun')               signal = 'activity sedikit turun — monitor';
+      else                                        signal = 'activity stabil';
+      activeAddresses = { avg7d: Math.round(s.avg7d), weekChange: s.weekChange, trend: s.trend, signal, source: 'blockchain.info' };
+    }
+  } catch (err) {
+    console.warn('⚠️  Active Addresses gagal:', err.message);
+  }
+
+  await sleep(400);
+
+  // ── Miner Revenue ─────────────────────────────────────────────────────────
+  let minerRevenue = null;
+  try {
+    const vals = await getValues('miners-revenue');
+    const s = summarise(vals);
+    if (s) {
+      const revMillion = parseFloat((s.avg7d / 1e6).toFixed(2));
+      let signal;
+      if (s.trend === 'turun' && s.weekChange < -20) signal = 'revenue drop tajam — miner capitulation risk tinggi';
+      else if (s.trend === 'turun')                  signal = 'revenue turun — monitor miner stress';
+      else if (s.trend === 'naik')                   signal = 'revenue naik — miner confidence tinggi';
+      else                                           signal = 'revenue stabil';
+      minerRevenue = { revMillion, weekChange: s.weekChange, trend: s.trend, signal, source: 'blockchain.info' };
+    }
+  } catch (err) {
+    console.warn('⚠️  Miner Revenue gagal:', err.message);
+  }
+
+  return { activeAddresses, minerRevenue };
+}
+
+// ── 10. LONG/SHORT RATIO ─────────────────────────────────────────────────────
 // Primary: Binance globalLongShortAccountRatio — most representative (~40-50% of BTC futures OI).
 //   longAccount + shortAccount = 1 (percentages); ratio = longAccount / shortAccount.
 // Fallback: Gate.io contract_stats — smaller exchange but same directional signal.
@@ -722,7 +853,7 @@ export async function fetchLongShortRatio() {
   }
 }
 
-// ── 9. HASH RATE (blockchain.info) ────────────────────────────────────────────
+// ── 11. HASH RATE (blockchain.info) ──────────────────────────────────────────
 // Hash rate trend = miner confidence proxy. Unit from blockchain.info: TH/s.
 // Convert to EH/s (÷1e6) for readability at current scale (~900+ EH/s).
 // Requires User-Agent header — without it the API returns empty values.
@@ -767,7 +898,7 @@ export async function fetchHashRate() {
   }
 }
 
-// ── 10. DERIVATIVES BUNDLE — satu fetch CoinGecko untuk OI + Basis + Skew proxy ─
+// ── 12. DERIVATIVES BUNDLE — satu fetch CoinGecko untuk OI + Basis + Skew proxy ─
 // Sebelumnya ada 3 fungsi terpisah yang masing-masing memanggil /derivatives,
 // menyebabkan 3 request paralel ke endpoint yang sama → trigger CoinGecko 429.
 // Sekarang digabung: satu fetch, tiga hasil.
@@ -905,12 +1036,77 @@ export async function fetchBtcDerivativesBundle(btcPriceHint = null) {
   return { btcOI, btcBasis, optionsSkew };
 }
 
+// ── 13. GOOGLE TRENDS "bitcoin" — via SerpAPI ────────────────────────────────
+// Retail FOMO signal: score 0–100. Free tier = 100 searches/month.
+// 12h in-memory cache → 2 effective calls/day × 30 = 60/month (well under limit).
+let _trendsCache     = null;
+let _trendsCacheTime = 0;
+
+export async function fetchGoogleTrends(apiKey) {
+  if (!apiKey) return { skipped: true, reason: 'SERPAPI_API_KEY tidak diset' };
+
+  const TTL = 12 * 60 * 60 * 1000; // 12 jam
+  if (_trendsCache && (Date.now() - _trendsCacheTime) < TTL) {
+    return { ..._trendsCache, _fromCache: true };
+  }
+
+  try {
+    const res = await axios.get('https://serpapi.com/search.json', {
+      params: {
+        engine:    'google_trends',
+        q:         'bitcoin',
+        data_type: 'TIMESERIES',
+        date:      'today 3-m',
+        api_key:   apiKey,
+      },
+      timeout: 15000,
+    });
+
+    const timeline = res.data?.interest_over_time?.timeline_data ?? [];
+    if (!timeline.length) throw new Error('No timeline data from SerpAPI');
+
+    const values = timeline
+      .map(pt => {
+        const v = pt.values?.[0]?.extracted_value;
+        return v != null ? parseInt(v) : null;
+      })
+      .filter(v => v !== null);
+
+    if (!values.length) throw new Error('No valid values in SerpAPI timeline');
+
+    const currentValue = values[values.length - 1];
+    const last4        = values.slice(-4);
+    const avg4w        = Math.round(last4.reduce((s, v) => s + v, 0) / last4.length);
+    const prev         = values.length >= 2 ? values[values.length - 2] : null;
+    const weekChange   = prev != null ? currentValue - prev : null;
+    const trend        = weekChange == null ? 'flat'
+      : weekChange > 5 ? 'naik' : weekChange < -5 ? 'turun' : 'flat';
+
+    let signal;
+    if (currentValue >= 80)      signal = 'FOMO ekstrem — retail masuk besar, waspadai top';
+    else if (currentValue >= 60) signal = 'interest tinggi — fase expansion/late';
+    else if (currentValue >= 40) signal = 'interest moderat — mid-cycle';
+    else if (currentValue >= 20) signal = 'interest rendah — fase akumulasi/early';
+    else                         signal = 'interest sangat rendah — bear/capitulation';
+
+    const result = { currentValue, avg4w, weekChange, trend, signal, source: 'SerpAPI (Google Trends)', _fromCache: false };
+    _trendsCache     = { ...result };
+    _trendsCacheTime = Date.now();
+
+    console.log(`  ✓ Google Trends "bitcoin" | score: ${currentValue}/100 | avg4w: ${avg4w} | ${trend}`);
+    return result;
+  } catch (err) {
+    console.warn(`⚠️  Google Trends gagal: ${err.message}`);
+    return null;
+  }
+}
+
 // ── AGGREGATE: SEMUA DAILY DATA ───────────────────────────────────────────────
 export async function fetchAllDailyData(config = {}) {
   console.log('📊 Fetching daily data...');
   _hlCache = null; // reset cache tiap fetch
 
-  const [crypto, fearGreed, funding, dxy, gold, cmc, nuplProxy, longShortRatio, hashRate] = await Promise.allSettled([
+  const [crypto, fearGreed, funding, dxy, gold, cmc, nuplProxy, longShortRatio, hashRate, googleTrends] = await Promise.allSettled([
     fetchCryptoData(),
     fetchFearGreed(),
     fetchFundingRates(),
@@ -920,12 +1116,16 @@ export async function fetchAllDailyData(config = {}) {
     fetchNuplProxy(),
     fetchLongShortRatio(),
     fetchHashRate(),
+    fetchGoogleTrends(config.serpApiKey),
   ]);
 
   // Derivatives bundle: satu fetch /derivatives → OI + Basis + Skew (hindari 3x CoinGecko 429)
   const cryptoVal    = crypto.status === 'fulfilled' ? crypto.value : null;
   const btcPriceHint = cryptoVal?.btc?.price ?? null;
   const derivBundle  = await fetchBtcDerivativesBundle(btcPriceHint).catch(() => ({}));
+
+  // Blockchain.info bundle: sequential (active addresses + miner revenue)
+  const bcBundle = await fetchBlockchainInfoBundle().catch(() => ({}));
 
   // Brent Oil: OilPriceAPI → Google News RSS → null (SQLite cache handled in index.js)
   let brentOil = null;
@@ -954,6 +1154,9 @@ export async function fetchAllDailyData(config = {}) {
     nuplProxy:       nuplProxy.status       === 'fulfilled' ? nuplProxy.value       : null,
     longShortRatio:  longShortRatio.status  === 'fulfilled' ? longShortRatio.value  : null,
     hashRate:        hashRate.status        === 'fulfilled' ? hashRate.value        : null,
+    googleTrends:    googleTrends.status    === 'fulfilled' ? googleTrends.value    : null,
+    activeAddresses: bcBundle.activeAddresses ?? null,
+    minerRevenue:    bcBundle.minerRevenue    ?? null,
     brentOil,
     btcOI:       derivBundle.btcOI       ?? null,
     btcBasis:    derivBundle.btcBasis     ?? null,

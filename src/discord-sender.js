@@ -229,15 +229,25 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
   const basis = daily?.btcBasis;
   const ls    = daily?.longShortRatio;
   const hr    = daily?.hashRate;
-  const hasOnchain = nupl || oi || basis || ls || hr;
+  const aa    = daily?.activeAddresses;
+  const mr    = daily?.minerRevenue;
+  const pc    = daily?.nuplProxy?.piCycle ?? null;
+  const gt    = (!daily?.googleTrends?.skipped) ? daily?.googleTrends : null;
+  const hasOnchain = nupl || oi || basis || ls || hr || aa || mr || pc || gt;
   if (hasOnchain) {
     const lines = [];
     if (nupl) {
       const mult = nupl.currentPrice && nupl.realizedPriceProxy
         ? (nupl.currentPrice / nupl.realizedPriceProxy).toFixed(2) : null;
-      lines.push(`**NUPL**: ${nupl.nupl > 0 ? '+' : ''}${nupl.nupl} · ${nupl.nuplZone}`);
-      lines.push(`**SOPR**: ${nupl.sopr}${mult ? ` · MVRV: ${mult}x` : ''}`);
+      lines.push(`**NUPL**: ${nupl.nupl > 0 ? '+' : ''}${nupl.nupl} · ${nupl.nuplZone}${mult ? ` · MVRV: ${mult}x` : ''}`);
+      lines.push(`**SOPR**: ${nupl.sopr}`);
     }
+    if (pc)
+      lines.push(`**Pi Cycle**: gap ${pc.gapPct > 0 ? '+' : ''}${pc.gapPct}% · MA111 $${pc.ma111.toLocaleString('en-US')} vs 2×MA350 $${pc.ma350x2.toLocaleString('en-US')}`);
+    if (aa)
+      lines.push(`**Active Addr**: ${aa.avg7d.toLocaleString('en-US')} · WoW: ${aa.weekChange != null ? (aa.weekChange > 0 ? '+' : '') + aa.weekChange + '%' : '___'}`);
+    if (mr)
+      lines.push(`**Miner Rev**: $${mr.revMillion}M/day · WoW: ${mr.weekChange != null ? (mr.weekChange > 0 ? '+' : '') + mr.weekChange + '%' : '___'}`);
     if (ls) {
       const lsDetail = ls.longPct != null
         ? `${ls.longPct}%L / ${ls.shortPct}%S`
@@ -246,6 +256,8 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
     }
     if (hr)
       lines.push(`**Hash Rate**: ${hr.latestEH} EH/s · WoW: ${hr.weekChange != null ? (hr.weekChange > 0 ? '+' : '') + hr.weekChange + '%' : '___'}`);
+    if (gt)
+      lines.push(`**Trends**: ${gt.currentValue}/100${gt._fromCache ? ' 💾' : ''} · avg4w: ${gt.avg4w} · WoW: ${gt.weekChange != null ? (gt.weekChange > 0 ? '+' : '') + gt.weekChange + ' pts' : '___'} — ${gt.signal}`);
     if (oi)
       lines.push(`**OI BTC**: $${oi.totalBillion}B (${oi.trend})`);
     if (basis)

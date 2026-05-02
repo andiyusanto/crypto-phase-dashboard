@@ -201,29 +201,40 @@ export function formatFetchSummaryForTelegram(daily, weekly, monthly, fed) {
   }
 
   // On-chain & Derivatives
-  const nupl = daily?.nuplProxy;
-  const oi   = daily?.btcOI;
+  const nupl  = daily?.nuplProxy;
+  const oi    = daily?.btcOI;
   const basis = daily?.btcBasis;
-  const ls   = daily?.longShortRatio;
-  const hr   = daily?.hashRate;
-  const hasOnchain = nupl || oi || basis || ls || hr;
+  const ls    = daily?.longShortRatio;
+  const hr    = daily?.hashRate;
+  const aa    = daily?.activeAddresses;
+  const mr    = daily?.minerRevenue;
+  const pc    = daily?.nuplProxy?.piCycle ?? null;
+  const gt    = (!daily?.googleTrends?.skipped) ? daily?.googleTrends : null;
+  const hasOnchain = nupl || oi || basis || ls || hr || aa || mr || pc || gt;
   if (hasOnchain) {
     lines.push('', `⛓ *ON-CHAIN & DERIVATIF*`);
     if (nupl) {
-      lines.push(`NUPL: ${nupl.nupl > 0 ? '+' : ''}${nupl.nupl} (${nupl.nuplZone})`);
-      lines.push(`SOPR: ${nupl.sopr}`);
       const mult = nupl.currentPrice && nupl.realizedPriceProxy
         ? (nupl.currentPrice / nupl.realizedPriceProxy).toFixed(2) : null;
-      if (mult) lines.push(`MVRV proxy: ${mult}x`);
+      lines.push(`NUPL: ${nupl.nupl > 0 ? '+' : ''}${nupl.nupl} (${nupl.nuplZone})${mult ? ` | MVRV: ${mult}x` : ''}`);
+      lines.push(`SOPR: ${nupl.sopr}`);
     }
+    if (pc)
+      lines.push(`Pi Cycle: gap ${pc.gapPct > 0 ? '+' : ''}${pc.gapPct}% | ${pc.signal.replace(/^[🚨⚠️]+\s*/u, '')}`);
+    if (aa)
+      lines.push(`Active Addr: ${aa.avg7d.toLocaleString('en-US')} | WoW: ${aa.weekChange != null ? (aa.weekChange > 0 ? '+' : '') + aa.weekChange + '%' : '___'} (${aa.trend})`);
+    if (mr)
+      lines.push(`Miner Rev: $${mr.revMillion}M/day | WoW: ${mr.weekChange != null ? (mr.weekChange > 0 ? '+' : '') + mr.weekChange + '%' : '___'} (${mr.trend})`);
     if (ls) {
       const lsDetail = ls.longPct != null
         ? `${ls.longPct}%L / ${ls.shortPct}%S`
         : `${ls.longUsers}L / ${ls.shortUsers}S`;
-      lines.push(`L/S Ratio: ${ls.ratio} (${lsDetail}) — ${ls.signal}`);
+      lines.push(`L/S: ${ls.ratio} (${lsDetail}) — ${ls.signal}`);
     }
     if (hr)
       lines.push(`Hash Rate: ${hr.latestEH} EH/s | WoW: ${hr.weekChange != null ? (hr.weekChange > 0 ? '+' : '') + hr.weekChange + '%' : '___'} (${hr.trend})`);
+    if (gt)
+      lines.push(`Trends: ${gt.currentValue}/100${gt._fromCache ? ' 💾' : ''} | avg4w: ${gt.avg4w} | WoW: ${gt.weekChange != null ? (gt.weekChange > 0 ? '+' : '') + gt.weekChange + ' pts' : '___'} — ${gt.signal}`);
     if (oi)
       lines.push(`OI BTC: $${oi.totalBillion}B (${oi.trend})`);
     if (basis)

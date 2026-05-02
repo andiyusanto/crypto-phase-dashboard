@@ -66,6 +66,7 @@ ${pmiLine}
   // ── Daily ─────────────────────────────────────────────────────────────────
   const btcPrice   = v(daily?.crypto?.btc?.price);
   const btcChange  = v(daily?.crypto?.btc?.change24h);
+  const btcVol     = daily?.crypto?.btc?.volume24hBillion ?? null;
   const btcDom     = v(daily?.crypto?.btcDominance);
   const dxyVal     = v(daily?.dxy?.value);
   const dxyDir     = v(daily?.dxy?.direction);
@@ -84,8 +85,22 @@ ${pmiLine}
     ? `- NUPL proxy: ${nupl.nupl > 0 ? '+' : ''}${nupl.nupl} | zona: ${nupl.nuplZone} | realized price proxy: $${nupl.realizedPriceProxy.toLocaleString('en-US')} | ${nupl.nuplSignal}`
     : `- NUPL proxy: ___`;
   const soprLine = nupl?.sopr != null
-    ? `- SOPR proxy (current/$${nupl.soprAvg30dPrice.toLocaleString('en-US')} 30d avg): ${nupl.sopr} | ${nupl.soprSignal}`
+    ? `- SOPR proxy (price ratio: $${nupl.currentPrice.toLocaleString('en-US')} / $${nupl.soprAvg30dPrice.toLocaleString('en-US')} 30d avg): ${nupl.sopr} | ${nupl.soprSignal}`
     : `- SOPR proxy: ___`;
+
+  // ── BTC price context ─────────────────────────────────────────────────────
+  const ath        = nupl?.ath ?? null;
+  const athChg     = nupl?.athChangePct ?? null;
+  const ma200      = nupl?.ma200 ?? null;
+  const ma200Gap   = nupl?.ma200GapPct ?? null;
+  const ma200Sig   = nupl?.ma200Signal ?? null;
+
+  const athLine = ath != null
+    ? `- BTC vs ATH: $${ath.toLocaleString('en-US')} | saat ini ${athChg > 0 ? '+' : ''}${athChg}% dari ATH`
+    : `- BTC vs ATH: ___`;
+  const ma200Line = ma200 != null
+    ? `- BTC vs 200d MA: $${ma200.toLocaleString('en-US')} | harga ${ma200Gap > 0 ? '+' : ''}${ma200Gap}% di ${ma200Gap >= 0 ? 'atas' : 'bawah'} MA | ${ma200Sig}`
+    : `- BTC vs 200d MA: ___`;
 
   // ── On-chain / Derivatives ────────────────────────────────────────────────
   const oi     = daily?.btcOI;
@@ -101,8 +116,8 @@ ${pmiLine}
     : `- BTC perp premium / basis: ___`;
 
   const skewLine = skew
-    ? `- Options skew proxy (via perp funding): ${skew.skewProxy != null ? (skew.skewProxy > 0 ? '+' : '') + skew.skewProxy : '___'} | avg funding 8h: ${skew.avgFunding8h != null ? skew.avgFunding8h + '%' : '___'} | Deribit OI: ${skew.deribitOiBtc}BTC ($${skew.deribitOiUsdBillion}B) | signal: ${skew.signal}`
-    : `- Options 25-delta skew: ___`;
+    ? `- Perp sentiment proxy (funding-based, NOT options skew): ${skew.skewProxy != null ? (skew.skewProxy > 0 ? '+' : '') + skew.skewProxy : '___'} | avg funding 8h: ${skew.avgFunding8h != null ? skew.avgFunding8h + '%' : '___'} | Deribit OI: ${skew.deribitOiBtc}BTC ($${skew.deribitOiUsdBillion}B) | signal: ${skew.signal}`
+    : `- Perp sentiment proxy (funding-based): ___`;
 
   const total2Raw = daily?.cmc?.total2 ?? null;
   const total3Raw = daily?.cmc?.total3 ?? null;
@@ -139,6 +154,26 @@ ${pmiLine}
     ? parseFloat((nupl.currentPrice / nupl.realizedPriceProxy).toFixed(2))
     : null;
 
+  // ── Tier-2 additions ─────────────────────────────────────────────────────
+  const activeAddr = daily?.activeAddresses;
+  const minerRev   = daily?.minerRevenue;
+  const piCycle    = daily?.nuplProxy?.piCycle ?? null;
+
+  // ── Tier-3: Google Trends ─────────────────────────────────────────────────
+  const gt = (!daily?.googleTrends?.skipped) ? daily?.googleTrends : null;
+
+  const addrLine = activeAddr
+    ? `- Active Addresses (7d avg): ${activeAddr.avg7d.toLocaleString('en-US')} | WoW: ${activeAddr.weekChange != null ? (activeAddr.weekChange > 0 ? '+' : '') + activeAddr.weekChange + '%' : '___'} | ${activeAddr.signal}`
+    : `- Active Addresses: ___`;
+
+  const minerLine = minerRev
+    ? `- Miner Revenue (7d avg): $${minerRev.revMillion}M/day | WoW: ${minerRev.weekChange != null ? (minerRev.weekChange > 0 ? '+' : '') + minerRev.weekChange + '%' : '___'} | ${minerRev.signal}`
+    : `- Miner Revenue: ___`;
+
+  const piLine = piCycle
+    ? `- Pi Cycle Top: MA111 $${piCycle.ma111.toLocaleString('en-US')} | 2×MA350 $${piCycle.ma350x2.toLocaleString('en-US')} | gap: ${piCycle.gapPct > 0 ? '+' : ''}${piCycle.gapPct}% | ${piCycle.signal}`
+    : `- Pi Cycle Top: ___`;
+
   const lsDetail = ls
     ? (ls.longPct != null
         ? `longs: ${ls.longPct}% / shorts: ${ls.shortPct}%`           // Binance format
@@ -151,6 +186,10 @@ ${pmiLine}
   const hrLine = hr
     ? `- Hash Rate (7d avg): ${hr.latestEH} EH/s | WoW: ${hr.weekChange != null ? (hr.weekChange > 0 ? '+' : '') + hr.weekChange + '%' : '___'} | ${hr.signal} [${hr.source}]`
     : `- Hash Rate: ___`;
+
+  const trendsLine = gt
+    ? `- Google Trends "bitcoin": ${gt.currentValue}/100${gt._fromCache ? ' 💾' : ''} | avg4w: ${gt.avg4w} | WoW: ${gt.weekChange != null ? (gt.weekChange > 0 ? '+' : '') + gt.weekChange : '___'} pts | trend: ${gt.trend} | ${gt.signal}`
+    : `- Google Trends "bitcoin": ___ (SERPAPI_API_KEY tidak diset)`;
 
   const stableDomLine = stableDomPct != null
     ? `- Stablecoin Dominance: ${stableDomPct}% | $${stableRaw}B / $${totalMcapB}B total${fmtWow(stableWoW)}`
@@ -267,6 +306,8 @@ Perubahan fase hanya valid jika ≥3 signal upstream konfirmasi.
 
 | Indikator | Bearish | Netral | Bullish |
 |-----------|---------|--------|---------|
+| BTC vs 200d MA | < -10% (bearish, fase 0/1) | -10% s/d +20% | > +20% (bullish kuat) |
+| BTC vs ATH | < -50% (bear market) | -20% s/d -50% | < -20% (bull market recovery) |
 | FCI (NFCI) | > 0.3 | -0.3 s/d 0.3 | < -0.3 |
 | DXY | > 104 | 100–104 | < 100 |
 | US 10Y Yield | > 4.5% | 4.0–4.5% | < 4.0% |
@@ -276,14 +317,18 @@ Perubahan fase hanya valid jika ≥3 signal upstream konfirmasi.
 | TVL DeFi WoW | < -5% | -5–+5% | > +5% |
 | Oil Brent | > $100 | $80–100 | < $80 |
 | NUPL proxy | < 0 (capitulation) | 0–0.25 (hope) | > 0.5 (belief/euphoria) |
-| SOPR proxy | < 0.90 (capitulation) | 0.98–1.02 (netral) | > 1.10 (distribusi) |
+| SOPR proxy (price ratio) | < 0.85 (selloff tajam) | 0.95–1.05 (netral) | > 1.20 (overextended) |
 | Realized Price Multiple (MVRV proxy) | < 1.0x (capitulation) | 1.0–2.0x (akumulasi) | > 3.5x (distribusi) |
 | Long/Short Ratio | < 0.6 (shorts dominan) | 0.9–1.2 (netral) | > 1.8 (longs dominan, waspadai squeeze) |
 | Hash Rate WoW | < -5% (miner capitulation) | -1% s/d +1% | > +1% (miner confidence naik) |
-| Stablecoin Dominance | > 8% (risk-off tinggi) | 4–8% | < 4% (risk-on) |
+| Stablecoin Dominance (USDT+USDC only) | > 6% (risk-off tinggi) | 3–6% | < 3% (risk-on) |
+| Active Addresses WoW | < -10% (capitulation signal) | -2% s/d +2% | > +2% (adoption naik) |
+| Miner Revenue WoW | < -20% (capitulation risk) | -2% s/d +2% | > +2% (miner confidence) |
+| Pi Cycle Top gap | > 0% (crossing = top signal) | -10% s/d 0% (bahaya) | < -30% (aman) |
 | OI BTC (all exchanges) | Kontraksi tajam | $15–30B | Ekspansi >$30B |
 | Basis Rate 3M (ann.) | < 0% (backwardation) | 0–15% | 5–15% (carry positif) |
-| Options 25-delta Skew | > 10 (fear) | -3 s/d +10 | < -3 (greed/call premium) |
+| Perp Sentiment Proxy (funding-based) | > 10 (fear/shorts dominan) | -3 s/d +10 | < -3 (greed/longs dominan) |
+| Google Trends "bitcoin" | > 80 (FOMO ekstrem) | 40–80 | < 20 (bear/capitulation) |
 
 ---
 ## DATA — ${today} | FASE ESTIMASI SAYA: ${faseEstimasi}
@@ -292,7 +337,9 @@ Perubahan fase hanya valid jika ≥3 signal upstream konfirmasi.
 ${fedBlock}
 
 ### DATA HARIAN ✅ live
-- BTC price: $${btcPrice} | 24h: ${btcChange}%
+- BTC price: $${btcPrice} | 24h: ${btcChange}%${btcVol != null ? ` | vol 24h: $${btcVol}B` : ''}
+${athLine}
+${ma200Line}
 - BTC Dominance: ${btcDom}% | arah: ${btcDomDir}
 - ETH/BTC: ${ethBtc} | SOL/BTC: ${solBtc}
 - DXY: ${dxyVal} | arah: ${dxyDir}
@@ -303,17 +350,20 @@ ${fedBlock}
 - Stablecoin supply: $${totalStable}B${fmtWow(stableWoW)}
 ${stableDomLine}
 - TOTAL2: ${total2} | TOTAL3: ${total3} | OTHERS.D: ${othersDom}%
-${realizedMultLine}
 
 ### DERIVATIF & ON-CHAIN ✅ live
 ${nuplLine}
 ${soprLine}
 ${realizedMultLine}
+${piLine}
+${addrLine}
+${minerLine}
 ${oiLine}
 ${basisLine}
 ${skewLine}
 ${lsLine}
 ${hrLine}
+${trendsLine}
 
 - War headline (sumber: Google News RSS (Reuters/AP/BBC via GNews)):
   - Timteng: ${warTimteng}
@@ -409,31 +459,46 @@ Format: EKSPANSI / KONTRAKSI / MIXED — alasan ≤3 kalimat.
 **Layer 2 — Market Structure**
 | Indikator | Nilai | vs Threshold | Status | Arah |
 |-----------|-------|--------------|--------|------|
+| BTC vs 200d MA | ${ma200Gap != null ? (ma200Gap > 0 ? '+' : '') + ma200Gap + '%' : '___'} | <-10% bearish, >+20% bullish kuat | | ${ma200Sig ?? '___'} |
+| BTC vs ATH | ${athChg != null ? athChg + '%' : '___'} | <-50% bear market, >-20% bull recovery | | |
+| BTC vol 24h | ${btcVol != null ? '$' + btcVol + 'B' : '___'} | konteks konfirmasi trend | | |
 
 **Layer 3 — Derivatives & On-chain**
 | Indikator | Nilai | vs Threshold | Status | Arah |
 |-----------|-------|--------------|--------|------|
 | NUPL proxy | ${nupl?.nupl != null ? (nupl.nupl > 0 ? '+' : '') + nupl.nupl : '___'} | <0 capitulation, >0.75 euphoria | | zona: ${nupl?.nuplZone ?? '___'} |
-| SOPR proxy | ${nupl?.sopr ?? '___'} | <0.90 capitulation, >1.10 distribusi | | |
+| SOPR proxy (price ratio) | ${nupl?.sopr ?? '___'} | <0.85 selloff tajam, >1.20 overextended | | |
 | Realized Price Multiple | ${realizedMult != null ? realizedMult + 'x' : '___'} | <1.0x capitulation, >3.5x distribusi | | |
+| Pi Cycle Top gap | ${piCycle ? (piCycle.gapPct > 0 ? '+' : '') + piCycle.gapPct + '%' : '___'} | >0% crossing=top, <-30% aman | | |
+| Active Addresses WoW | ${activeAddr?.weekChange != null ? (activeAddr.weekChange > 0 ? '+' : '') + activeAddr.weekChange + '%' : '___'} | <-10% capitulation, >+2% adoption | | ${activeAddr?.trend ?? '___'} |
+| Miner Revenue WoW | ${minerRev?.weekChange != null ? (minerRev.weekChange > 0 ? '+' : '') + minerRev.weekChange + '%' : '___'} | <-20% capitulation risk, >+2% bullish | | ${minerRev?.trend ?? '___'} |
 | Long/Short Ratio | ${ls?.ratio ?? '___'} | <0.6 shorts dominan, >1.8 longs dominan | | ${ls?.signal ?? '___'} |
 | Hash Rate WoW | ${hr?.weekChange != null ? (hr.weekChange > 0 ? '+' : '') + hr.weekChange + '%' : '___'} | <-5% capitulation, >+1% bullish | | ${hr?.trend ?? '___'} |
-| Stablecoin Dom. | ${stableDomPct != null ? stableDomPct + '%' : '___'} | >8% risk-off, <4% risk-on | | ${stableWoW != null ? (stableWoW > 0 ? '+' : '') + stableWoW + '% WoW' : '___'} |
+| Stablecoin Dom. (USDT+USDC) | ${stableDomPct != null ? stableDomPct + '%' : '___'} | >6% risk-off, <3% risk-on | | ${stableWoW != null ? (stableWoW > 0 ? '+' : '') + stableWoW + '% WoW' : '___'} |
 | OI BTC | $${oi?.totalBillion ?? '___'}B | ekspansi >$30B, kontraksi <$15B | | ${oi?.trend ?? '___'} |
 | Perp Premium (ann.) | ${basis?.annualizedPct ?? '___'}% | >15% overleveraged, <0% backwardation | | |
-| Skew Proxy (funding) | ${skew?.skewProxy != null ? (skew.skewProxy > 0 ? '+' : '') + skew.skewProxy : '___'} | >10 fear, <-3 greed | | |
+| Perp Sentiment Proxy | ${skew?.skewProxy != null ? (skew.skewProxy > 0 ? '+' : '') + skew.skewProxy : '___'} | >10 fear/shorts, <-3 greed/longs | | |
+| Google Trends "bitcoin" | ${gt ? gt.currentValue + '/100' + (gt._fromCache ? ' 💾' : '') : '___'} | >80 FOMO ekstrem, <20 bear | | ${gt?.trend ?? '___'} |
 
 Status: ✅ bullish / ⚠️ netral / 🔴 bearish
 
 Divergence alert wajib — flag otomatis jika salah satu kondisi berikut terjadi:
 - Funding rate dan Fear & Greed menunjukkan arah berlawanan
 - BTC Dominance naik tapi TVL DeFi juga naik (alts accumulation senyap)
-- NUPL proxy > 0.5 tapi SOPR proxy < 1.0 (holder kaya, tapi spending rugi → distribusi tersembunyi)
+- NUPL proxy > 0.5 tapi SOPR proxy < 0.95 (holder kaya secara historis, tapi harga di bawah 30d avg → distribusi atau koreksi dalam)
 - OI naik tapi Basis Rate negatif (leverage naik di tengah backwardation → sinyal divergen berbahaya)
 - Long/Short Ratio > 1.8 tapi Fear & Greed < 40 (positioning bullish tapi sentiment takut → long squeeze probable)
+- Perp Sentiment Proxy > 10 tapi Basis Rate positif (perp sentiment bearish tapi basis masih contango → divergen, pasar tidak konsisten)
 - Hash Rate turun tajam (WoW < -5%) tapi harga stabil/naik (miner capitulation tersembunyi — sering precede dump)
-- Stablecoin Dominance naik WoW tapi TOTAL2 juga naik (money masuk tapi ke stablecoin, bukan risk-on)
+- Stablecoin Dominance (USDT+USDC) naik WoW tapi TOTAL2 juga naik (money masuk tapi ke stablecoin, bukan risk-on)
 - Realized Price Multiple > 3.0x tapi Long/Short Ratio < 1.0 (valuasi stretched, positioning tidak konfirmasi → topping signal)
+- Miner Revenue turun tajam (WoW < -20%) tapi Hash Rate stabil (revenue crash bukan karena network, tapi harga jatuh → miner stress)
+- Active Addresses turun WoW tapi TOTAL2 naik (harga naik tanpa on-chain adoption → rally tidak sustainable)
+- Pi Cycle gap < -10% (mendekati crossing) tapi NUPL < 0.5 (cycle belum mature untuk top — monitor closely)
+- BTC harga naik tapi volume 24h turun signifikan vs rata-rata (price discovery tanpa volume konfirmasi → rally lemah, waspadai reversal)
+- BTC > +50% di atas 200d MA tapi NUPL < 0.5 (overextended secara price structure tapi holder belum euphoria → mid-cycle stretch, bukan top)
+- Google Trends > 80 tapi Fear & Greed < 50 (retail FOMO tapi sentiment crypto belum konfirmasi → bisa false spike)
+- Google Trends < 20 tapi BTC price naik (harga naik tanpa retail interest → whale/institutional driven, belum sustainable untuk alt season)
 
 ---
 
@@ -569,7 +634,12 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
   lines.push('');
   lines.push('DAILY [✅ live]:');
   if (daily?.crypto) {
-    lines.push(`  BTC    : $${daily.crypto.btc?.price?.toLocaleString() ?? '___'} (${daily.crypto.btc?.change24h >= 0 ? '+' : ''}${daily.crypto.btc?.change24h ?? '___'}%)`);
+    const bvol = daily.crypto.btc?.volume24hBillion;
+    lines.push(`  BTC    : $${daily.crypto.btc?.price?.toLocaleString() ?? '___'} (${daily.crypto.btc?.change24h >= 0 ? '+' : ''}${daily.crypto.btc?.change24h ?? '___'}%)${bvol != null ? ` | vol: $${bvol}B` : ''}`);
+    if (daily.nuplProxy?.ath != null)
+      lines.push(`  ATH    : $${daily.nuplProxy.ath.toLocaleString('en-US')} | dari ATH: ${daily.nuplProxy.athChangePct}%`);
+    if (daily.nuplProxy?.ma200 != null)
+      lines.push(`  200MA  : $${daily.nuplProxy.ma200.toLocaleString('en-US')} | gap: ${daily.nuplProxy.ma200GapPct > 0 ? '+' : ''}${daily.nuplProxy.ma200GapPct}%`);
     lines.push(`  ETH    : $${daily.crypto.eth?.price?.toLocaleString() ?? '___'} (${daily.crypto.eth?.change24h >= 0 ? '+' : ''}${daily.crypto.eth?.change24h ?? '___'}%)`);
     lines.push(`  BTC.D  : ${daily.crypto.btcDominance ?? '___'}%`);
     lines.push(`  ETH/BTC: ${daily.crypto.ethBtcRatio ?? '___'}  | SOL/BTC: ${daily.crypto.solBtcRatio ?? '___'}`);
@@ -622,6 +692,24 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
   } else {
     lines.push(`  HashR  : ___`);
   }
+  if (daily?.activeAddresses) {
+    const aa = daily.activeAddresses;
+    lines.push(`  Addr   : ${aa.avg7d.toLocaleString('en-US')} (7d avg) | WoW: ${aa.weekChange != null ? (aa.weekChange > 0 ? '+' : '') + aa.weekChange + '%' : '___'} — ${aa.trend}`);
+  } else {
+    lines.push(`  Addr   : ___`);
+  }
+  if (daily?.minerRevenue) {
+    const mr = daily.minerRevenue;
+    lines.push(`  Miners : $${mr.revMillion}M/day | WoW: ${mr.weekChange != null ? (mr.weekChange > 0 ? '+' : '') + mr.weekChange + '%' : '___'} — ${mr.trend}`);
+  } else {
+    lines.push(`  Miners : ___`);
+  }
+  if (daily?.nuplProxy?.piCycle) {
+    const pc = daily.nuplProxy.piCycle;
+    lines.push(`  PiCycle: gap ${pc.gapPct > 0 ? '+' : ''}${pc.gapPct}% | MA111 $${pc.ma111.toLocaleString('en-US')} vs 2×MA350 $${pc.ma350x2.toLocaleString('en-US')}`);
+  } else {
+    lines.push(`  PiCycle: ___`);
+  }
   if (daily?.btcOI)
     lines.push(`  OI     : $${daily.btcOI.totalBillion}B | ${daily.btcOI.trend} (${daily.btcOI.exchangeCount} exchanges)`);
   else
@@ -634,6 +722,12 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
     lines.push(`  Skew   : ${daily.optionsSkew.skewProxy != null ? (daily.optionsSkew.skewProxy > 0 ? '+' : '') + daily.optionsSkew.skewProxy : '___'} | funding: ${daily.optionsSkew.avgFunding8h ?? '___'}%`);
   else
     lines.push(`  Skew   : ___`);
+  if (daily?.googleTrends && !daily.googleTrends.skipped) {
+    const gt = daily.googleTrends;
+    lines.push(`  Trends : ${gt.currentValue}/100${gt._fromCache ? ' 💾' : ''} | avg4w: ${gt.avg4w} | WoW: ${gt.weekChange != null ? (gt.weekChange > 0 ? '+' : '') + gt.weekChange + ' pts' : '___'} — ${gt.trend}`);
+  } else {
+    lines.push(`  Trends : ___ (SERPAPI_API_KEY tidak diset)`);
+  }
 
   // ── Weekly ────────────────────────────────────────────────────────────────
   lines.push('');
