@@ -73,7 +73,9 @@
       "Bash(node -e \"import\\('/home/tengkorakhitam/Crypto-Project-Dashboard/crypto-phase-dashboard/src/fetchers/daily.js'\\).then\\(\\(\\) => console.log\\('daily.js OK'\\)\\).catch\\(e => console.error\\(e.message\\)\\)\")",
       "Bash(node -e \"import\\('/home/tengkorakhitam/Crypto-Project-Dashboard/crypto-phase-dashboard/src/formatter.js'\\).then\\(\\(\\) => console.log\\('formatter.js OK'\\)\\).catch\\(e => console.error\\(e.message\\)\\)\")",
       "Bash(node -e \"import\\('/home/tengkorakhitam/Crypto-Project-Dashboard/crypto-phase-dashboard/src/fetchers/daily.js'\\).then\\(\\(\\) => console.log\\('OK'\\)\\).catch\\(e => console.error\\(e.message\\)\\)\")",
-      "Bash(node /tmp/test_binance_primary.mjs)"
+      "Bash(node /tmp/test_binance_primary.mjs)",
+      "Bash(node -e \"import\\('/home/tengkorakhitam/Crypto-Project-Dashboard/crypto-phase-dashboard/src/telegram-sender.js'\\).then\\(\\(\\) => console.log\\('telegram OK'\\)\\).catch\\(e => console.error\\('telegram:', e.message\\)\\)\")",
+      "Bash(node -e \"import\\('/home/tengkorakhitam/Crypto-Project-Dashboard/crypto-phase-dashboard/src/discord-sender.js'\\).then\\(\\(\\) => console.log\\('discord OK'\\)\\).catch\\(e => console.error\\('discord:', e.message\\)\\)\")"
     ],
     "additionalDirectories": [
       "/tmp"

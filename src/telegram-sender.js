@@ -158,6 +158,14 @@ export function formatFetchSummaryForTelegram(daily, weekly, monthly, fed) {
     lines.push(`Score: *${fed.trifectaScore}* → ${fed.overallStatus}`);
   }
 
+  // WoW helper
+  const wowStr = (curr, prev) => {
+    if (curr == null || prev == null || prev === 0) return '';
+    const pct = ((curr - prev) / Math.abs(prev) * 100).toFixed(2);
+    return ` | WoW: ${pct > 0 ? '+' : ''}${pct}%`;
+  };
+  const prevWeek = daily?._prevWeek ?? null;
+
   // Daily
   if (daily?.crypto) {
     const c = daily.crypto;
@@ -179,10 +187,47 @@ export function formatFetchSummaryForTelegram(daily, weekly, monthly, fed) {
     if (daily.brentOil?.price)
       lines.push(`Oil Brent: $${daily.brentOil.price} (${daily.brentOil.direction})`);
     if (daily.cmc && !daily.cmc.skipped) {
-      lines.push(`TOTAL2: $${daily.cmc.total2}T`);
-      lines.push(`TOTAL3: $${daily.cmc.total3}B`);
+      lines.push(`TOTAL2: $${daily.cmc.total2}T${wowStr(daily.cmc.total2, prevWeek?.total2_trillion)}`);
+      lines.push(`TOTAL3: $${daily.cmc.total3}B${wowStr(daily.cmc.total3, prevWeek?.total3_billion)}`);
       lines.push(`Others.D: ${daily.cmc.othersDominance}%`);
     }
+    if (c.stablecoinSupply?.total != null) {
+      const stableWow = wowStr(c.stablecoinSupply.total, prevWeek?.stablecoin_billion);
+      const dom = (c.totalMarketCapBillion && c.totalMarketCapBillion > 0)
+        ? ` | Dom: ${(c.stablecoinSupply.total / c.totalMarketCapBillion * 100).toFixed(2)}%`
+        : '';
+      lines.push(`Stable: $${c.stablecoinSupply.total}B${dom}${stableWow}`);
+    }
+  }
+
+  // On-chain & Derivatives
+  const nupl = daily?.nuplProxy;
+  const oi   = daily?.btcOI;
+  const basis = daily?.btcBasis;
+  const ls   = daily?.longShortRatio;
+  const hr   = daily?.hashRate;
+  const hasOnchain = nupl || oi || basis || ls || hr;
+  if (hasOnchain) {
+    lines.push('', `⛓ *ON-CHAIN & DERIVATIF*`);
+    if (nupl) {
+      lines.push(`NUPL: ${nupl.nupl > 0 ? '+' : ''}${nupl.nupl} (${nupl.nuplZone})`);
+      lines.push(`SOPR: ${nupl.sopr}`);
+      const mult = nupl.currentPrice && nupl.realizedPriceProxy
+        ? (nupl.currentPrice / nupl.realizedPriceProxy).toFixed(2) : null;
+      if (mult) lines.push(`MVRV proxy: ${mult}x`);
+    }
+    if (ls) {
+      const lsDetail = ls.longPct != null
+        ? `${ls.longPct}%L / ${ls.shortPct}%S`
+        : `${ls.longUsers}L / ${ls.shortUsers}S`;
+      lines.push(`L/S Ratio: ${ls.ratio} (${lsDetail}) — ${ls.signal}`);
+    }
+    if (hr)
+      lines.push(`Hash Rate: ${hr.latestEH} EH/s | WoW: ${hr.weekChange != null ? (hr.weekChange > 0 ? '+' : '') + hr.weekChange + '%' : '___'} (${hr.trend})`);
+    if (oi)
+      lines.push(`OI BTC: $${oi.totalBillion}B (${oi.trend})`);
+    if (basis)
+      lines.push(`Basis: ${basis.annualizedPct}% ann. — ${basis.signal}`);
   }
 
   // Weekly
@@ -204,6 +249,8 @@ export function formatFetchSummaryForTelegram(daily, weekly, monthly, fed) {
         lines.push(`OTHERS.D: ${weekly.othersDom.othersDominance}%`);
       if (weekly.ratioTrend?.ethBtc)
         lines.push(`ETH/BTC: ${weekly.ratioTrend.ethBtc.ratio} (${weekly.ratioTrend.ethBtc.direction})`);
+      if (weekly.altseason?.value != null)
+        lines.push(`Altszn: ${weekly.altseason.value} — ${weekly.altseason.signal}`);
     }
   }
 

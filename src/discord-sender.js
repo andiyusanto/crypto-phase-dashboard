@@ -183,6 +183,14 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
     if (lines.length) fields.push({ name: '🏦 Fed Liquidity', value: lines.join('\n'), inline: false });
   }
 
+  // WoW helper
+  const wowStr = (curr, prev) => {
+    if (curr == null || prev == null || prev === 0) return '';
+    const pct = ((curr - prev) / Math.abs(prev) * 100).toFixed(2);
+    return ` (WoW: ${pct > 0 ? '+' : ''}${pct}%)`;
+  };
+  const prevWeek = daily?._prevWeek ?? null;
+
   // Daily crypto
   if (daily?.crypto) {
     const c = daily.crypto;
@@ -197,16 +205,52 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
 
   // Daily macro
   if (daily) {
+    const c = daily.crypto;
     const lines = [];
     if (daily.dxy?.value)       lines.push(`**DXY**: ${daily.dxy.value} (${daily.dxy.direction})`);
     if (daily.gold?.price)      lines.push(`**Gold**: $${daily.gold.price} (${daily.gold.change24h >= 0 ? '+' : ''}${daily.gold.change24h}%)`);
     if (daily.brentOil?.price)  lines.push(`**Brent**: $${daily.brentOil.price} (${daily.brentOil.direction})`);
     if (daily.cmc && !daily.cmc.skipped) {
-      lines.push(`**TOTAL2**: $${daily.cmc.total2}T`);
-      lines.push(`**TOTAL3**: $${daily.cmc.total3}B`);
+      lines.push(`**TOTAL2**: $${daily.cmc.total2}T${wowStr(daily.cmc.total2, prevWeek?.total2_trillion)}`);
+      lines.push(`**TOTAL3**: $${daily.cmc.total3}B${wowStr(daily.cmc.total3, prevWeek?.total3_billion)}`);
       lines.push(`**Others.D**: ${daily.cmc.othersDominance}%`);
     }
+    if (c?.stablecoinSupply?.total != null) {
+      const dom = (c.totalMarketCapBillion && c.totalMarketCapBillion > 0)
+        ? ` · Dom: ${(c.stablecoinSupply.total / c.totalMarketCapBillion * 100).toFixed(2)}%` : '';
+      lines.push(`**Stable**: $${c.stablecoinSupply.total}B${dom}${wowStr(c.stablecoinSupply.total, prevWeek?.stablecoin_billion)}`);
+    }
     if (lines.length) fields.push({ name: '🌍 Macro', value: lines.join('\n'), inline: true });
+  }
+
+  // On-chain & Derivatives
+  const nupl  = daily?.nuplProxy;
+  const oi    = daily?.btcOI;
+  const basis = daily?.btcBasis;
+  const ls    = daily?.longShortRatio;
+  const hr    = daily?.hashRate;
+  const hasOnchain = nupl || oi || basis || ls || hr;
+  if (hasOnchain) {
+    const lines = [];
+    if (nupl) {
+      const mult = nupl.currentPrice && nupl.realizedPriceProxy
+        ? (nupl.currentPrice / nupl.realizedPriceProxy).toFixed(2) : null;
+      lines.push(`**NUPL**: ${nupl.nupl > 0 ? '+' : ''}${nupl.nupl} · ${nupl.nuplZone}`);
+      lines.push(`**SOPR**: ${nupl.sopr}${mult ? ` · MVRV: ${mult}x` : ''}`);
+    }
+    if (ls) {
+      const lsDetail = ls.longPct != null
+        ? `${ls.longPct}%L / ${ls.shortPct}%S`
+        : `${ls.longUsers}L / ${ls.shortUsers}S`;
+      lines.push(`**L/S**: ${ls.ratio} (${lsDetail})`);
+    }
+    if (hr)
+      lines.push(`**Hash Rate**: ${hr.latestEH} EH/s · WoW: ${hr.weekChange != null ? (hr.weekChange > 0 ? '+' : '') + hr.weekChange + '%' : '___'}`);
+    if (oi)
+      lines.push(`**OI BTC**: $${oi.totalBillion}B (${oi.trend})`);
+    if (basis)
+      lines.push(`**Basis**: ${basis.annualizedPct}% ann.`);
+    if (lines.length) fields.push({ name: '⛓ On-Chain & Derivatif', value: lines.join('\n'), inline: false });
   }
 
   // Weekly
@@ -219,6 +263,7 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
     if (weekly.msciEm?.value)   lines.push(`**MSCI EM**: ${weekly.msciEm.value} (${weekly.msciEm.direction})`);
     if (weekly.ratioTrend?.ethBtc) lines.push(`**ETH/BTC**: ${weekly.ratioTrend.ethBtc.ratio} (${weekly.ratioTrend.ethBtc.direction})`);
     if (weekly.othersDom?.othersDominance) lines.push(`**OTHERS.D**: ${weekly.othersDom.othersDominance}%`);
+    if (weekly.altseason?.value != null) lines.push(`**Altszn**: ${weekly.altseason.value} — ${weekly.altseason.signal}`);
     if (lines.length) fields.push({ name: '📅 Weekly', value: lines.join('\n'), inline: false });
   }
 
