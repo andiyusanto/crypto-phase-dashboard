@@ -124,6 +124,42 @@ ${pmiLine}
   const total3WoW = wowPct(total3Raw, prevWeek?.total3_billion);
   const stableWoW = wowPct(stableRaw, prevWeek?.stablecoin_billion);
 
+  // ── Tier-1 additions ─────────────────────────────────────────────────────
+  const ls  = daily?.longShortRatio;
+  const hr  = daily?.hashRate;
+
+  // Stablecoin dominance: stablecoin supply / total market cap
+  const totalMcapB   = daily?.crypto?.totalMarketCapBillion ?? null;
+  const stableDomPct = (stableRaw != null && totalMcapB != null && totalMcapB > 0)
+    ? parseFloat((stableRaw / totalMcapB * 100).toFixed(2))
+    : null;
+
+  // Realized price multiple (simplified MVRV): current price / 5yr avg realized price proxy
+  const realizedMult = (nupl?.currentPrice && nupl?.realizedPriceProxy)
+    ? parseFloat((nupl.currentPrice / nupl.realizedPriceProxy).toFixed(2))
+    : null;
+
+  const lsDetail = ls
+    ? (ls.longPct != null
+        ? `longs: ${ls.longPct}% / shorts: ${ls.shortPct}%`           // Binance format
+        : `users: ${ls.longUsers}L / ${ls.shortUsers}S | taker: ${ls.takerRatio}`) // Gate.io fallback
+    : null;
+  const lsLine = ls
+    ? `- Long/Short Ratio (accounts): ${ls.ratio} | ${lsDetail} | ${ls.signal} [${ls.source}]`
+    : `- Long/Short Ratio: ___`;
+
+  const hrLine = hr
+    ? `- Hash Rate (7d avg): ${hr.latestEH} EH/s | WoW: ${hr.weekChange != null ? (hr.weekChange > 0 ? '+' : '') + hr.weekChange + '%' : '___'} | ${hr.signal} [${hr.source}]`
+    : `- Hash Rate: ___`;
+
+  const stableDomLine = stableDomPct != null
+    ? `- Stablecoin Dominance: ${stableDomPct}% | $${stableRaw}B / $${totalMcapB}B total${fmtWow(stableWoW)}`
+    : `- Stablecoin Dominance: ___`;
+
+  const realizedMultLine = realizedMult != null
+    ? `- Realized Price Multiple (MVRV proxy): ${realizedMult}x | realized proxy: $${nupl.realizedPriceProxy.toLocaleString('en-US')} | ${realizedMult > 3.5 ? 'overvalued — zona distribusi' : realizedMult > 2.0 ? 'moderat — fase expansion/late' : realizedMult > 1.0 ? 'undervalued ringan — fase akumulasi' : 'sangat undervalued — capitulation'}`
+    : `- Realized Price Multiple (MVRV proxy): ___`;
+
   const total2 = manualOverrides.total2
     ?? (total2Raw != null ? `$${total2Raw}T${fmtWow(total2WoW)}` : null)
     ?? '___';
@@ -241,6 +277,10 @@ Perubahan fase hanya valid jika ≥3 signal upstream konfirmasi.
 | Oil Brent | > $100 | $80–100 | < $80 |
 | NUPL proxy | < 0 (capitulation) | 0–0.25 (hope) | > 0.5 (belief/euphoria) |
 | SOPR proxy | < 0.90 (capitulation) | 0.98–1.02 (netral) | > 1.10 (distribusi) |
+| Realized Price Multiple (MVRV proxy) | < 1.0x (capitulation) | 1.0–2.0x (akumulasi) | > 3.5x (distribusi) |
+| Long/Short Ratio | < 0.6 (shorts dominan) | 0.9–1.2 (netral) | > 1.8 (longs dominan, waspadai squeeze) |
+| Hash Rate WoW | < -5% (miner capitulation) | -1% s/d +1% | > +1% (miner confidence naik) |
+| Stablecoin Dominance | > 8% (risk-off tinggi) | 4–8% | < 4% (risk-on) |
 | OI BTC (all exchanges) | Kontraksi tajam | $15–30B | Ekspansi >$30B |
 | Basis Rate 3M (ann.) | < 0% (backwardation) | 0–15% | 5–15% (carry positif) |
 | Options 25-delta Skew | > 10 (fear) | -3 s/d +10 | < -3 (greed/call premium) |
@@ -261,14 +301,19 @@ ${fedBlock}
 - Fear & Greed: ${fgValue} (${fgLabel})
 - Funding rate BTC perp: ${btcFunding}% | ETH perp: ${ethFunding}%
 - Stablecoin supply: $${totalStable}B${fmtWow(stableWoW)}
+${stableDomLine}
 - TOTAL2: ${total2} | TOTAL3: ${total3} | OTHERS.D: ${othersDom}%
+${realizedMultLine}
 
 ### DERIVATIF & ON-CHAIN ✅ live
 ${nuplLine}
 ${soprLine}
+${realizedMultLine}
 ${oiLine}
 ${basisLine}
 ${skewLine}
+${lsLine}
+${hrLine}
 
 - War headline (sumber: Google News RSS (Reuters/AP/BBC via GNews)):
   - Timteng: ${warTimteng}
@@ -370,6 +415,10 @@ Format: EKSPANSI / KONTRAKSI / MIXED — alasan ≤3 kalimat.
 |-----------|-------|--------------|--------|------|
 | NUPL proxy | ${nupl?.nupl != null ? (nupl.nupl > 0 ? '+' : '') + nupl.nupl : '___'} | <0 capitulation, >0.75 euphoria | | zona: ${nupl?.nuplZone ?? '___'} |
 | SOPR proxy | ${nupl?.sopr ?? '___'} | <0.90 capitulation, >1.10 distribusi | | |
+| Realized Price Multiple | ${realizedMult != null ? realizedMult + 'x' : '___'} | <1.0x capitulation, >3.5x distribusi | | |
+| Long/Short Ratio | ${ls?.ratio ?? '___'} | <0.6 shorts dominan, >1.8 longs dominan | | ${ls?.signal ?? '___'} |
+| Hash Rate WoW | ${hr?.weekChange != null ? (hr.weekChange > 0 ? '+' : '') + hr.weekChange + '%' : '___'} | <-5% capitulation, >+1% bullish | | ${hr?.trend ?? '___'} |
+| Stablecoin Dom. | ${stableDomPct != null ? stableDomPct + '%' : '___'} | >8% risk-off, <4% risk-on | | ${stableWoW != null ? (stableWoW > 0 ? '+' : '') + stableWoW + '% WoW' : '___'} |
 | OI BTC | $${oi?.totalBillion ?? '___'}B | ekspansi >$30B, kontraksi <$15B | | ${oi?.trend ?? '___'} |
 | Perp Premium (ann.) | ${basis?.annualizedPct ?? '___'}% | >15% overleveraged, <0% backwardation | | |
 | Skew Proxy (funding) | ${skew?.skewProxy != null ? (skew.skewProxy > 0 ? '+' : '') + skew.skewProxy : '___'} | >10 fear, <-3 greed | | |
@@ -381,6 +430,10 @@ Divergence alert wajib — flag otomatis jika salah satu kondisi berikut terjadi
 - BTC Dominance naik tapi TVL DeFi juga naik (alts accumulation senyap)
 - NUPL proxy > 0.5 tapi SOPR proxy < 1.0 (holder kaya, tapi spending rugi → distribusi tersembunyi)
 - OI naik tapi Basis Rate negatif (leverage naik di tengah backwardation → sinyal divergen berbahaya)
+- Long/Short Ratio > 1.8 tapi Fear & Greed < 40 (positioning bullish tapi sentiment takut → long squeeze probable)
+- Hash Rate turun tajam (WoW < -5%) tapi harga stabil/naik (miner capitulation tersembunyi — sering precede dump)
+- Stablecoin Dominance naik WoW tapi TOTAL2 juga naik (money masuk tapi ke stablecoin, bukan risk-on)
+- Realized Price Multiple > 3.0x tapi Long/Short Ratio < 1.0 (valuasi stretched, positioning tidak konfirmasi → topping signal)
 
 ---
 
@@ -533,8 +586,54 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
   } else {
     lines.push(`  CMC    : ___`);
   }
-  if (daily?.crypto?.stablecoinSupply?.total)
-    lines.push(`  Stable : $${daily.crypto.stablecoinSupply.total}B`);
+  if (daily?.crypto?.stablecoinSupply?.total) {
+    const stableB    = daily.crypto.stablecoinSupply.total;
+    const totalMcapB = daily.crypto.totalMarketCapBillion;
+    const dom        = (totalMcapB && totalMcapB > 0) ? ` | Dom: ${parseFloat((stableB / totalMcapB * 100).toFixed(2))}%` : '';
+    lines.push(`  Stable : $${stableB}B${dom}`);
+  }
+
+  // ── On-chain & Derivatives ──────────────────────────────────────────────
+  lines.push('');
+  lines.push('ON-CHAIN & DERIVATIF [✅ live]:');
+  if (daily?.nuplProxy) {
+    const n = daily.nuplProxy;
+    const mult = n.currentPrice && n.realizedPriceProxy
+      ? parseFloat((n.currentPrice / n.realizedPriceProxy).toFixed(2))
+      : null;
+    lines.push(`  NUPL   : ${n.nupl > 0 ? '+' : ''}${n.nupl} | zona: ${n.nuplZone}`);
+    lines.push(`  SOPR   : ${n.sopr} | realized proxy: $${n.realizedPriceProxy.toLocaleString('en-US')}`);
+    if (mult != null) lines.push(`  MVRV*  : ${mult}x | (current $${n.currentPrice.toLocaleString()} / realized $${n.realizedPriceProxy.toLocaleString()})`);
+  } else {
+    lines.push(`  NUPL/SOPR/MVRV: ___`);
+  }
+  if (daily?.longShortRatio) {
+    const ls = daily.longShortRatio;
+    const lsd = ls.longPct != null
+      ? `longs: ${ls.longPct}% / shorts: ${ls.shortPct}%`
+      : `${ls.longUsers}L / ${ls.shortUsers}S | taker: ${ls.takerRatio}`;
+    lines.push(`  L/S    : ${ls.ratio} | ${lsd} — ${ls.signal} (${ls.source})`);
+  } else {
+    lines.push(`  L/S    : ___`);
+  }
+  if (daily?.hashRate) {
+    const hr = daily.hashRate;
+    lines.push(`  HashR  : ${hr.latestEH} EH/s | WoW: ${hr.weekChange != null ? (hr.weekChange > 0 ? '+' : '') + hr.weekChange + '%' : '___'} — ${hr.trend}`);
+  } else {
+    lines.push(`  HashR  : ___`);
+  }
+  if (daily?.btcOI)
+    lines.push(`  OI     : $${daily.btcOI.totalBillion}B | ${daily.btcOI.trend} (${daily.btcOI.exchangeCount} exchanges)`);
+  else
+    lines.push(`  OI     : ___`);
+  if (daily?.btcBasis)
+    lines.push(`  Basis  : ${daily.btcBasis.annualizedPct}% ann. — ${daily.btcBasis.signal}`);
+  else
+    lines.push(`  Basis  : ___`);
+  if (daily?.optionsSkew)
+    lines.push(`  Skew   : ${daily.optionsSkew.skewProxy != null ? (daily.optionsSkew.skewProxy > 0 ? '+' : '') + daily.optionsSkew.skewProxy : '___'} | funding: ${daily.optionsSkew.avgFunding8h ?? '___'}%`);
+  else
+    lines.push(`  Skew   : ___`);
 
   // ── Weekly ────────────────────────────────────────────────────────────────
   lines.push('');

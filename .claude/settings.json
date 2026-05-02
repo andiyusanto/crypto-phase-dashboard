@@ -64,7 +64,19 @@
       "Bash(curl -s --max-time 10 \"https://api.blockchain.info/charts/estimated-transaction-volume-usd?timespan=30days&format=json&cors=true\")",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); v=d.get\\('values',[]\\); print\\(len\\(v\\),'pts | last:',v[-1] if v else 'none'\\)\")",
       "Bash(curl -s --max-time 8 \"https://mempool.space/api/v1/blocks/tip/height\")",
-      "Bash(curl -s --max-time 8 \"https://mempool.space/api/v1/fees/recommended\")"
+      "Bash(curl -s --max-time 8 \"https://mempool.space/api/v1/fees/recommended\")",
+      "Bash(node -e \"import\\('./src/formatter.js'\\).then\\(\\(\\) => console.log\\('OK'\\)\\).catch\\(e => console.error\\(e.message\\)\\)\")",
+      "Bash(node -e \"import\\('./src/fetchers/daily.js'\\).then\\(\\(\\) => console.log\\('OK'\\)\\).catch\\(e => console.error\\(e.message\\)\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(cat)",
+      "Bash(node /tmp/test_tier1.mjs)",
+      "Bash(node -e \"import\\('/home/tengkorakhitam/Crypto-Project-Dashboard/crypto-phase-dashboard/src/fetchers/daily.js'\\).then\\(\\(\\) => console.log\\('daily.js OK'\\)\\).catch\\(e => console.error\\(e.message\\)\\)\")",
+      "Bash(node -e \"import\\('/home/tengkorakhitam/Crypto-Project-Dashboard/crypto-phase-dashboard/src/formatter.js'\\).then\\(\\(\\) => console.log\\('formatter.js OK'\\)\\).catch\\(e => console.error\\(e.message\\)\\)\")",
+      "Bash(node -e \"import\\('/home/tengkorakhitam/Crypto-Project-Dashboard/crypto-phase-dashboard/src/fetchers/daily.js'\\).then\\(\\(\\) => console.log\\('OK'\\)\\).catch\\(e => console.error\\(e.message\\)\\)\")",
+      "Bash(node /tmp/test_binance_primary.mjs)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
     ]
   }
 }

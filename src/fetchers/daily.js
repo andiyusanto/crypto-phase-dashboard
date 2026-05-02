@@ -17,57 +17,82 @@ const getDirection = (change) => {
 };
 
 // ── 1. BTC PRICE + DOMINANCE ──────────────────────────────────────────────────
+// Prices: Binance primary (real-time, no rate limit) → CoinGecko fallback
+// Dominance / total market cap / stablecoin supply: CoinGecko /global only
+//   (Binance is an exchange; it doesn't compute market-wide aggregates)
 export async function fetchCryptoData() {
-  try {
-    const res = await axios.get('https://api.coingecko.com/api/v3/global');
-    const global = res.data.data;
+  // Run CoinGecko global + stablecoin mcap in parallel with Binance prices
+  const [cgGlobalRes, cgStableRes, bnTickerRes] = await Promise.allSettled([
+    axios.get('https://api.coingecko.com/api/v3/global', { timeout: 12000 }),
+    axios.get('https://api.coingecko.com/api/v3/simple/price', {
+      params: { ids: 'tether,usd-coin', vs_currencies: 'usd', include_market_cap: true },
+      timeout: 12000,
+    }),
+    axios.get('https://api.binance.com/api/v3/ticker/24hr', {
+      params: { symbols: JSON.stringify(['BTCUSDT', 'ETHUSDT', 'SOLUSDT']) },
+      timeout: 8000,
+    }),
+  ]);
 
-    // Ambil harga BTC + ETH + SOL sekaligus
-    const priceRes = await axios.get(
-      'https://api.coingecko.com/api/v3/simple/price',
-      {
-        params: {
-          ids: 'bitcoin,ethereum,solana,tether,usd-coin',
-          vs_currencies: 'usd',
-          include_24hr_change: true,
-          include_market_cap: true,
-        },
-      }
-    );
-
-    const prices = priceRes.data;
-    const btcDominance = global.market_cap_percentage.btc;
-
-    return {
-      btc: {
-        price: Math.round(prices.bitcoin.usd),
-        change24h: parseFloat(prices.bitcoin.usd_24h_change.toFixed(2)),
-      },
-      eth: {
-        price: Math.round(prices.ethereum.usd),
-        change24h: parseFloat(prices.ethereum.usd_24h_change.toFixed(2)),
-      },
-      sol: {
-        price: parseFloat(prices.solana.usd.toFixed(2)),
-        change24h: parseFloat(prices.solana.usd_24h_change.toFixed(2)),
-      },
-      btcDominance: parseFloat(btcDominance.toFixed(2)),
-      // Hitung rasio langsung dari harga
-      ethBtcRatio: parseFloat((prices.ethereum.usd / prices.bitcoin.usd).toFixed(6)),
-      solBtcRatio: parseFloat((prices.solana.usd / prices.bitcoin.usd).toFixed(6)),
-      // Stablecoin supply (market cap dalam Miliar USD)
-      stablecoinSupply: {
-        usdt: parseFloat((prices.tether.usd_market_cap / 1e9).toFixed(2)),
-        usdc: parseFloat((prices['usd-coin'].usd_market_cap / 1e9).toFixed(2)),
-        total: parseFloat(
-          ((prices.tether.usd_market_cap + prices['usd-coin'].usd_market_cap) / 1e9).toFixed(2)
-        ),
-      },
-    };
-  } catch (err) {
-    console.error('❌ CoinGecko error:', err.message);
+  // ── CoinGecko global (dominance, total mcap) ──────────────────────────────
+  if (cgGlobalRes.status !== 'fulfilled') {
+    console.error('❌ CoinGecko /global gagal:', cgGlobalRes.reason?.message);
     return null;
   }
+  const global       = cgGlobalRes.value.data.data;
+  const btcDominance = global.market_cap_percentage.btc;
+
+  // ── Stablecoin market caps ────────────────────────────────────────────────
+  let stablecoinSupply = { usdt: null, usdc: null, total: null };
+  if (cgStableRes.status === 'fulfilled') {
+    const sp = cgStableRes.value.data;
+    const usdt = parseFloat((sp.tether?.['usd_market_cap']    / 1e9).toFixed(2));
+    const usdc = parseFloat((sp['usd-coin']?.['usd_market_cap'] / 1e9).toFixed(2));
+    stablecoinSupply = { usdt, usdc, total: parseFloat((usdt + usdc).toFixed(2)) };
+  } else {
+    console.warn('⚠️  Stablecoin mcap gagal:', cgStableRes.reason?.message);
+  }
+
+  // ── Prices: Binance primary, CoinGecko fallback ───────────────────────────
+  let btc, eth, sol;
+
+  if (bnTickerRes.status === 'fulfilled') {
+    const tickers = bnTickerRes.value.data;
+    const find    = (sym) => tickers.find(t => t.symbol === sym);
+    const bn      = { btc: find('BTCUSDT'), eth: find('ETHUSDT'), sol: find('SOLUSDT') };
+
+    btc = { price: Math.round(parseFloat(bn.btc.lastPrice)), change24h: parseFloat(parseFloat(bn.btc.priceChangePercent).toFixed(2)) };
+    eth = { price: Math.round(parseFloat(bn.eth.lastPrice)), change24h: parseFloat(parseFloat(bn.eth.priceChangePercent).toFixed(2)) };
+    sol = { price: parseFloat(parseFloat(bn.sol.lastPrice).toFixed(2)), change24h: parseFloat(parseFloat(bn.sol.priceChangePercent).toFixed(2)) };
+    console.log('  ✓ Harga via Binance');
+  } else {
+    console.warn('⚠️  Binance ticker gagal, fallback ke CoinGecko:', bnTickerRes.reason?.message);
+    try {
+      const fb = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
+        params: { ids: 'bitcoin,ethereum,solana', vs_currencies: 'usd', include_24hr_change: true },
+        timeout: 12000,
+      });
+      const p = fb.data;
+      btc = { price: Math.round(p.bitcoin.usd), change24h: parseFloat(p.bitcoin.usd_24h_change.toFixed(2)) };
+      eth = { price: Math.round(p.ethereum.usd), change24h: parseFloat(p.ethereum.usd_24h_change.toFixed(2)) };
+      sol = { price: parseFloat(p.solana.usd.toFixed(2)), change24h: parseFloat(p.solana.usd_24h_change.toFixed(2)) };
+      console.log('  ✓ Harga via CoinGecko (fallback)');
+    } catch (err) {
+      console.error('❌ CoinGecko price fallback juga gagal:', err.message);
+      return null;
+    }
+  }
+
+  return {
+    btc,
+    eth,
+    sol,
+    btcDominance:          parseFloat(btcDominance.toFixed(2)),
+    totalMarketCapBillion: parseFloat((global.total_market_cap?.usd / 1e9).toFixed(2)),
+    ethBtcRatio:           parseFloat((eth.price / btc.price).toFixed(6)),
+    solBtcRatio:           parseFloat((sol.price / btc.price).toFixed(6)),
+    stablecoinSupply,
+  };
 }
 
 // ── 2. FEAR & GREED INDEX ─────────────────────────────────────────────────────
@@ -108,35 +133,49 @@ async function getHyperliquidMeta() {
 
 // ── 3. FUNDING RATES ──────────────────────────────────────────────────────────
 // Binance/OKX/Bybit diblokir SSL oleh IOH/Indosat. Pakai Hyperliquid DEX.
-// Field yang benar: ctx.funding (bukan fundingRate) — ini adalah 1-hour rate
+// Funding rate standard industri: % per 8 jam.
+// Primary: Binance /fapi/v1/premiumIndex — lastFundingRate adalah 8h rate sebagai desimal.
+// Fallback 1: Hyperliquid — per-1h rate × 8 × 100.
+// Fallback 2: CoinGecko /derivatives — median dari semua exchange.
 export async function fetchFundingRates() {
-  // ── Primary: Hyperliquid DEX ───────────────────────────────────────────────
+  // ── Primary: Binance ──────────────────────────────────────────────────────
+  try {
+    const [btcRes, ethRes] = await Promise.all([
+      axios.get('https://fapi.binance.com/fapi/v1/premiumIndex', { params: { symbol: 'BTCUSDT' }, timeout: 8000 }),
+      axios.get('https://fapi.binance.com/fapi/v1/premiumIndex', { params: { symbol: 'ETHUSDT' }, timeout: 8000 }),
+    ]);
+    const btcRate8h = parseFloat(btcRes.data.lastFundingRate) * 100;
+    const ethRate8h = parseFloat(ethRes.data.lastFundingRate) * 100;
+    console.log(`  ✓ Funding rate via Binance | BTC: ${btcRate8h.toFixed(4)}% | ETH: ${ethRate8h.toFixed(4)}%`);
+    return {
+      btc: parseFloat(btcRate8h.toFixed(4)),
+      eth: parseFloat(ethRate8h.toFixed(4)),
+      source: 'Binance Futures',
+      note: '8h funding rate dari Binance perp (lastFundingRate)',
+      btcSentiment: btcRate8h > 0.05 ? 'overheated_long' : btcRate8h < -0.01 ? 'short_pressure' : 'neutral',
+      ethSentiment: ethRate8h > 0.05 ? 'overheated_long' : ethRate8h < -0.01 ? 'short_pressure' : 'neutral',
+    };
+  } catch (err) {
+    console.warn(`⚠️  Funding rate Binance gagal: ${err.message}`);
+  }
+
+  // ── Fallback 1: Hyperliquid DEX ───────────────────────────────────────────
   try {
     const { universe, ctxs } = await getHyperliquidMeta();
-
     const find = (name) => {
       const idx = universe.findIndex(a => a.name === name);
       if (idx === -1) throw new Error(`${name} tidak ditemukan di Hyperliquid universe`);
       return ctxs[idx];
     };
-
-    const btcCtx = find('BTC');
-    const ethCtx = find('ETH');
-
-    // Hyperliquid funding = per-1-hour rate sebagai desimal (misal 0.0000125)
-    // Konversi ke % dan ke ekuivalen 8-jam (standar industri)
-    const btcRate1h = parseFloat(btcCtx.funding);
-    const ethRate1h = parseFloat(ethCtx.funding);
-    const btcRate8h = btcRate1h * 8 * 100;  // dalam %
+    const btcRate1h = parseFloat(find('BTC').funding);
+    const ethRate1h = parseFloat(find('ETH').funding);
+    const btcRate8h = btcRate1h * 8 * 100;
     const ethRate8h = ethRate1h * 8 * 100;
-
-    console.log(`  ✓ Funding rate via Hyperliquid | BTC raw: ${btcRate1h} | ETH raw: ${ethRate1h}`);
+    console.log(`  ✓ Funding rate via Hyperliquid (fallback) | BTC: ${btcRate8h.toFixed(4)}% | ETH: ${ethRate8h.toFixed(4)}%`);
     return {
       btc: parseFloat(btcRate8h.toFixed(4)),
       eth: parseFloat(ethRate8h.toFixed(4)),
-      btcRaw1h: btcRate1h,
-      ethRaw1h: ethRate1h,
-      source: 'Hyperliquid',
+      source: 'Hyperliquid (fallback)',
       note: '8h equivalent dari 1h rate Hyperliquid',
       btcSentiment: btcRate8h > 0.05 ? 'overheated_long' : btcRate8h < -0.01 ? 'short_pressure' : 'neutral',
       ethSentiment: ethRate8h > 0.05 ? 'overheated_long' : ethRate8h < -0.01 ? 'short_pressure' : 'neutral',
@@ -145,52 +184,29 @@ export async function fetchFundingRates() {
     console.warn(`⚠️  Funding rate Hyperliquid gagal: ${err.message}`);
   }
 
-  // ── Fallback: CoinGecko /derivatives ──────────────────────────────────────
-  // CoinGecko tidak diblokir ISP dan ada funding_rate per ticker
+  // ── Fallback 2: CoinGecko /derivatives ────────────────────────────────────
   try {
-    const res = await axios.get('https://api.coingecko.com/api/v3/derivatives', {
-      timeout: 12000,
-    });
-
+    const res = await axios.get('https://api.coingecko.com/api/v3/derivatives', { timeout: 12000 });
     const tickers = res.data;
-
-    // Debug: print semua market name unik untuk BTC perp agar bisa filter tepat
-    const btcMarkets = [...new Set(
-      tickers.filter(t => t.base === 'BTC' && t.contract_type === 'perpetual')
-             .map(t => t.market)
-    )];
-    console.log('  ℹ️  BTC perp markets di CoinGecko:', btcMarkets.slice(0, 8).join(', '));
-
-    // Ambil semua perpetual BTC/ETH dengan funding_rate valid (tidak null/NaN)
     const validPerp = (base) => tickers.filter(t =>
-      t.base === base &&
-      t.contract_type === 'perpetual' &&
-      t.funding_rate !== null &&
-      !isNaN(parseFloat(t.funding_rate))
+      t.base === base && t.contract_type === 'perpetual' &&
+      t.funding_rate !== null && !isNaN(parseFloat(t.funding_rate))
     );
-
     const btcPerps = validPerp('BTC');
     const ethPerps = validPerp('ETH');
-
-    if (!btcPerps.length || !ethPerps.length) {
-      throw new Error(`Tidak ada data: BTC=${btcPerps.length} ETH=${ethPerps.length}`);
-    }
-
-    // Median lebih robust dari rata-rata terhadap outlier
+    if (!btcPerps.length || !ethPerps.length) throw new Error('Data tidak cukup dari CoinGecko');
     const median = (perps) => {
-      const rates = perps.map(t => parseFloat(t.funding_rate) * 100).sort((a,b) => a - b);
+      const rates = perps.map(t => parseFloat(t.funding_rate) * 100).sort((a, b) => a - b);
       const mid = Math.floor(rates.length / 2);
-      return rates.length % 2 ? rates[mid] : (rates[mid-1] + rates[mid]) / 2;
+      return rates.length % 2 ? rates[mid] : (rates[mid - 1] + rates[mid]) / 2;
     };
-
     const btcRate = median(btcPerps);
     const ethRate = median(ethPerps);
-
-    console.log(`  ✓ Funding rate via CoinGecko | BTC median dari ${btcPerps.length} exchange | ETH dari ${ethPerps.length}`);
+    console.log(`  ✓ Funding rate via CoinGecko (fallback) | BTC median dari ${btcPerps.length} exchanges`);
     return {
       btc: parseFloat(btcRate.toFixed(4)),
       eth: parseFloat(ethRate.toFixed(4)),
-      source: `CoinGecko median (${btcPerps.length} exchanges)`,
+      source: `CoinGecko median (${btcPerps.length} exchanges, fallback)`,
       btcSentiment: btcRate > 0.05 ? 'overheated_long' : btcRate < -0.01 ? 'short_pressure' : 'neutral',
       ethSentiment: ethRate > 0.05 ? 'overheated_long' : ethRate < -0.01 ? 'short_pressure' : 'neutral',
     };
@@ -650,7 +666,108 @@ export async function fetchNuplProxy() {
   }
 }
 
-// ── 8. DERIVATIVES BUNDLE — satu fetch CoinGecko untuk OI + Basis + Skew proxy ─
+// ── 8. LONG/SHORT RATIO ───────────────────────────────────────────────────────
+// Primary: Binance globalLongShortAccountRatio — most representative (~40-50% of BTC futures OI).
+//   longAccount + shortAccount = 1 (percentages); ratio = longAccount / shortAccount.
+// Fallback: Gate.io contract_stats — smaller exchange but same directional signal.
+export async function fetchLongShortRatio() {
+  // ── Primary: Binance ──────────────────────────────────────────────────────
+  try {
+    const res = await axios.get(
+      'https://fapi.binance.com/futures/data/globalLongShortAccountRatio',
+      { params: { symbol: 'BTCUSDT', period: '1h', limit: 1 }, timeout: 8000 }
+    );
+    const latest = res.data?.[0];
+    if (latest) {
+      const ratio    = parseFloat(parseFloat(latest.longShortRatio).toFixed(3));
+      const longPct  = parseFloat((parseFloat(latest.longAccount)  * 100).toFixed(2));
+      const shortPct = parseFloat((parseFloat(latest.shortAccount) * 100).toFixed(2));
+
+      let signal;
+      if (ratio > 1.8)      signal = 'sangat bullish — waspadai long squeeze';
+      else if (ratio > 1.2) signal = 'bullish — longs dominan';
+      else if (ratio > 0.9) signal = 'netral — seimbang';
+      else if (ratio > 0.6) signal = 'bearish — shorts dominan';
+      else                  signal = 'sangat bearish — waspadai short squeeze';
+
+      return { ratio, longPct, shortPct, takerRatio: null, longUsers: null, shortUsers: null, signal, source: 'Binance Futures' };
+    }
+  } catch (err) {
+    console.warn('⚠️  L/S Binance gagal, mencoba Gate.io:', err.message);
+  }
+
+  // ── Fallback: Gate.io ─────────────────────────────────────────────────────
+  try {
+    const res = await axios.get(
+      'https://api.gateio.ws/api/v4/futures/usdt/contract_stats',
+      { params: { contract: 'BTC_USDT', interval: '1h', limit: 1 }, timeout: 8000 }
+    );
+    const latest = res.data?.[0];
+    if (!latest) return null;
+
+    const ratio      = parseFloat(parseFloat(latest.lsr_account).toFixed(3));
+    const takerRatio = parseFloat(parseFloat(latest.lsr_taker).toFixed(3));
+
+    let signal;
+    if (ratio > 1.4)      signal = 'sangat bullish — waspadai long squeeze';
+    else if (ratio > 0.9) signal = 'bullish — longs dominan';
+    else if (ratio > 0.7) signal = 'netral — seimbang';
+    else if (ratio > 0.5) signal = 'bearish — shorts dominan';
+    else                  signal = 'sangat bearish — waspadai short squeeze';
+
+    return { ratio, longPct: null, shortPct: null, takerRatio, longUsers: latest.long_users ?? null, shortUsers: latest.short_users ?? null, signal, source: 'Gate.io Futures (fallback)' };
+  } catch (err) {
+    console.warn('⚠️  Long/Short Ratio semua sumber gagal:', err.message);
+    return null;
+  }
+}
+
+// ── 9. HASH RATE (blockchain.info) ────────────────────────────────────────────
+// Hash rate trend = miner confidence proxy. Unit from blockchain.info: TH/s.
+// Convert to EH/s (÷1e6) for readability at current scale (~900+ EH/s).
+// Requires User-Agent header — without it the API returns empty values.
+export async function fetchHashRate() {
+  try {
+    const res = await axios.get(
+      'https://api.blockchain.info/charts/hash-rate',
+      {
+        params: { timespan: '1years', format: 'json', cors: 'true' },
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        timeout: 20000,
+      }
+    );
+    const values = res.data?.values ?? [];
+    if (values.length < 7) throw new Error('Insufficient hash rate data');
+
+    const sorted     = [...values].sort((a, b) => b.x - a.x);
+    const latest7    = sorted.slice(0, 7).map(v => v.y);
+    const prev7      = sorted.slice(7, 14).map(v => v.y);
+
+    const avgLatest  = latest7.reduce((s, v) => s + v, 0) / latest7.length;
+    const avgPrev    = prev7.length >= 4 ? prev7.reduce((s, v) => s + v, 0) / prev7.length : null;
+    const latestEH   = parseFloat((avgLatest / 1e6).toFixed(0)); // TH/s ÷ 1e6 = EH/s
+
+    let trend = '___';
+    let weekChange = null;
+    if (avgPrev) {
+      weekChange = parseFloat(((avgLatest - avgPrev) / avgPrev * 100).toFixed(2));
+      trend = weekChange > 1 ? 'naik' : weekChange < -1 ? 'turun' : 'flat';
+    }
+
+    let signal;
+    if (trend === 'naik')                          signal = 'miner confidence tinggi — network expanding';
+    else if (trend === 'turun' && weekChange < -5) signal = 'hash rate drop tajam — potensi miner capitulation';
+    else if (trend === 'turun')                    signal = 'hash rate sedikit turun — monitor';
+    else                                           signal = 'hash rate stabil';
+
+    return { latestEH, trend, weekChange, signal, source: 'blockchain.info' };
+  } catch (err) {
+    console.warn('⚠️  Hash Rate gagal:', err.message);
+    return null;
+  }
+}
+
+// ── 10. DERIVATIVES BUNDLE — satu fetch CoinGecko untuk OI + Basis + Skew proxy ─
 // Sebelumnya ada 3 fungsi terpisah yang masing-masing memanggil /derivatives,
 // menyebabkan 3 request paralel ke endpoint yang sama → trigger CoinGecko 429.
 // Sekarang digabung: satu fetch, tiga hasil.
@@ -793,7 +910,7 @@ export async function fetchAllDailyData(config = {}) {
   console.log('📊 Fetching daily data...');
   _hlCache = null; // reset cache tiap fetch
 
-  const [crypto, fearGreed, funding, dxy, gold, cmc, nuplProxy] = await Promise.allSettled([
+  const [crypto, fearGreed, funding, dxy, gold, cmc, nuplProxy, longShortRatio, hashRate] = await Promise.allSettled([
     fetchCryptoData(),
     fetchFearGreed(),
     fetchFundingRates(),
@@ -801,6 +918,8 @@ export async function fetchAllDailyData(config = {}) {
     fetchGold(config.twelveDataKey),
     fetchCoinMarketCapGlobal(config.coinMarketCapApiKey),
     fetchNuplProxy(),
+    fetchLongShortRatio(),
+    fetchHashRate(),
   ]);
 
   // Derivatives bundle: satu fetch /derivatives → OI + Basis + Skew (hindari 3x CoinGecko 429)
@@ -832,7 +951,9 @@ export async function fetchAllDailyData(config = {}) {
     dxy: dxy.status === 'fulfilled' ? dxy.value : null,
     gold: gold.status === 'fulfilled' ? gold.value : null,
     cmc:        cmc.status        === 'fulfilled' ? cmc.value        : null,
-    nuplProxy:  nuplProxy.status  === 'fulfilled' ? nuplProxy.value  : null,
+    nuplProxy:       nuplProxy.status       === 'fulfilled' ? nuplProxy.value       : null,
+    longShortRatio:  longShortRatio.status  === 'fulfilled' ? longShortRatio.value  : null,
+    hashRate:        hashRate.status        === 'fulfilled' ? hashRate.value        : null,
     brentOil,
     btcOI:       derivBundle.btcOI       ?? null,
     btcBasis:    derivBundle.btcBasis     ?? null,
