@@ -384,9 +384,13 @@ async function main() {
         });
 
         if (saveFile && analysisText) {
-          const fp = saveAnalysis(analysisText, outputDir, ts, p);
-          writeFileSync(join(outputDir, 'latest_analysis.txt'), analysisText, 'utf-8');
-          console.log(chalk.green(`\n  💾 Tersimpan: ${fp}`));
+          try {
+            const fp = saveAnalysis(analysisText, outputDir, ts, p);
+            writeFileSync(join(outputDir, 'latest_analysis.txt'), analysisText, 'utf-8');
+            console.log(chalk.green(`\n  💾 Tersimpan: ${fp}`));
+          } catch (err) {
+            console.error(chalk.red(`  ✗ File save gagal: ${err.message}`));
+          }
         }
 
         if (analysisText) {
@@ -415,21 +419,29 @@ async function main() {
 async function _sendDataToChannels({ daily, weekly, monthly, fed }) {
   if (doTelegram) {
     if (hasTelegram()) {
-      const text = formatFetchSummaryForTelegram(daily, weekly, monthly, fed);
-      await sendToTelegram(text, {
-        botToken: config.telegramBotToken,
-        chatId:   config.telegramChatId,
-        label:    'Data Summary',
-      });
-      console.log(chalk.green('  ✓ Data summary → Telegram'));
+      try {
+        const text = formatFetchSummaryForTelegram(daily, weekly, monthly, fed);
+        await sendToTelegram(text, {
+          botToken: config.telegramBotToken,
+          chatId:   config.telegramChatId,
+          label:    'Data Summary',
+        });
+        console.log(chalk.green('  ✓ Data summary → Telegram'));
+      } catch (err) {
+        console.error(chalk.red(`  ✗ Data summary Telegram gagal: ${err.message}`));
+      }
     } else {
       console.log(chalk.red('  ✗ Telegram: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID belum diset'));
     }
   }
   if (doDiscord) {
     if (hasDiscord()) {
-      await sendDataSummaryToDiscord(config.discordWebhookUrl, daily, weekly, monthly, fed);
-      console.log(chalk.green('  ✓ Data summary → Discord'));
+      try {
+        await sendDataSummaryToDiscord(config.discordWebhookUrl, daily, weekly, monthly, fed);
+        console.log(chalk.green('  ✓ Data summary → Discord'));
+      } catch (err) {
+        console.error(chalk.red(`  ✗ Data summary Discord gagal: ${err.message}`));
+      }
     } else {
       console.log(chalk.red('  ✗ Discord: DISCORD_WEBHOOK_URL belum diset'));
     }
@@ -442,21 +454,29 @@ async function _sendDataToChannels({ daily, weekly, monthly, fed }) {
 async function _sendAnalysisToChannels(provider, analysisText) {
   if (doTelegram) {
     if (hasTelegram()) {
-      const formatted = formatAnalysisHeaderTelegram(provider, analysisText);
-      await sendToTelegram(formatted, {
-        botToken: config.telegramBotToken,
-        chatId:   config.telegramChatId,
-        label:    `${PROVIDERS[provider].label} analysis`,
-      });
-      console.log(chalk.green(`  📱 ${PROVIDERS[provider].label} → Telegram ✓`));
+      try {
+        const formatted = formatAnalysisHeaderTelegram(provider, analysisText);
+        await sendToTelegram(formatted, {
+          botToken: config.telegramBotToken,
+          chatId:   config.telegramChatId,
+          label:    `${PROVIDERS[provider].label} analysis`,
+        });
+        console.log(chalk.green(`  📱 ${PROVIDERS[provider].label} → Telegram ✓`));
+      } catch (err) {
+        console.error(chalk.red(`  ✗ ${PROVIDERS[provider].label} Telegram gagal: ${err.message}`));
+      }
     } else {
       console.log(chalk.red(`  ✗ Telegram tidak terkonfigurasi`));
     }
   }
   if (doDiscord) {
     if (hasDiscord()) {
-      await sendAnalysisToDiscord(config.discordWebhookUrl, provider, analysisText);
-      console.log(chalk.green(`  🎮 ${PROVIDERS[provider].label} → Discord ✓`));
+      try {
+        await sendAnalysisToDiscord(config.discordWebhookUrl, provider, analysisText);
+        console.log(chalk.green(`  🎮 ${PROVIDERS[provider].label} → Discord ✓`));
+      } catch (err) {
+        console.error(chalk.red(`  ✗ ${PROVIDERS[provider].label} Discord gagal: ${err.message}`));
+      }
     } else {
       console.log(chalk.red(`  ✗ Discord tidak terkonfigurasi`));
     }
