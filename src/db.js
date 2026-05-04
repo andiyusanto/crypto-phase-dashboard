@@ -79,10 +79,11 @@ db.exec(`
 // ── MIGRATIONS (add columns to existing installs) ─────────────────────────────
 const migrate = (sql) => { try { db.exec(sql); } catch (_) { /* column/index exists */ } };
 
-migrate('ALTER TABLE pmi_data      ADD COLUMN released_month TEXT');
-migrate('ALTER TABLE fed_liquidity ADD COLUMN snapshot_date TEXT');
-migrate('ALTER TABLE weekly_data   ADD COLUMN fetch_date TEXT');
-migrate('ALTER TABLE monthly_data  ADD COLUMN period TEXT');
+migrate('ALTER TABLE pmi_data        ADD COLUMN released_month TEXT');
+migrate('ALTER TABLE fed_liquidity  ADD COLUMN snapshot_date TEXT');
+migrate('ALTER TABLE weekly_data    ADD COLUMN fetch_date TEXT');
+migrate('ALTER TABLE monthly_data   ADD COLUMN period TEXT');
+migrate('ALTER TABLE daily_snapshot ADD COLUMN btc_dominance REAL');
 
 // ── UNIQUE INDEXES ────────────────────────────────────────────────────────────
 migrate('CREATE UNIQUE INDEX IF NOT EXISTS idx_pmi_released_month   ON pmi_data(released_month)   WHERE released_month IS NOT NULL');
@@ -245,17 +246,18 @@ export const getLatestOilPrice = () => {
 // ── DAILY SNAPSHOT (CMC metrics for WoW delta) ───────────────────────────────
 
 export const saveDailySnapshot = (daily) => {
-  const cmc   = daily?.cmc;
+  const cmc    = daily?.cmc;
   const total2 = cmc?.total2 ?? null;
   const total3 = cmc?.total3 ?? null;
   const stable = daily?.crypto?.stablecoinSupply?.total ?? null;
-  if (total2 == null && total3 == null && stable == null) return;
+  const btcDom = daily?.crypto?.btcDominance ?? null;
+  if (total2 == null && total3 == null && stable == null && btcDom == null) return;
 
   const date = new Date().toISOString().slice(0, 10);
   db.prepare(`
-    INSERT OR REPLACE INTO daily_snapshot (snapshot_date, total2_trillion, total3_billion, stablecoin_billion)
-    VALUES (?, ?, ?, ?)
-  `).run(date, total2, total3, stable);
+    INSERT OR REPLACE INTO daily_snapshot (snapshot_date, total2_trillion, total3_billion, stablecoin_billion, btc_dominance)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(date, total2, total3, stable, btcDom);
 };
 
 // Returns snapshot from ~7 days ago (closest row between 6–8 days back)

@@ -1101,12 +1101,221 @@ export async function fetchGoogleTrends(apiKey) {
   }
 }
 
+// ── BTC ON-CHAIN: COINMETRICS COMMUNITY API (no key required) ─────────────────
+// Metrics fetched in one call:
+//   SplyExNtv  — BTC held on exchanges (exchange reserve)
+//   FlowInExNtv / FlowOutExNtv — daily exchange inflow / outflow
+//   CapMVRVCur — true MVRV ratio (Market Cap / Realized Cap)
+export async function fetchBtcOnChainCoinMetrics() {
+  try {
+    const res = await axios.get('https://community-api.coinmetrics.io/v4/timeseries/asset-metrics', {
+      params: {
+        assets:          'btc',
+        metrics:         'SplyExNtv,FlowInExNtv,FlowOutExNtv,CapMVRVCur',
+        frequency:       '1d',
+        limit_per_asset: 8,   // 8 days → 7d delta for trend
+      },
+      timeout: 12000,
+    });
+
+    const rows = res.data?.data;
+    if (!rows || rows.length < 2) throw new Error('Data tidak cukup');
+
+    const latest = rows[rows.length - 1];
+    const prev7d = rows[0];
+
+    // ── Exchange Reserve ─────────────────────────────────────────────────────
+    const reserveNow  = parseFloat(latest.SplyExNtv);
+    const reservePrev = parseFloat(prev7d.SplyExNtv);
+    const reserveDelta   = Math.round(reserveNow - reservePrev);
+    const reserveDeltaPct = parseFloat(((reserveDelta / reservePrev) * 100).toFixed(2));
+
+    // Arah: BTC masuk exchange = whale siap jual = bearish
+    //       BTC keluar exchange = whale withdraw/hodl = bullish
+    const reserveSignal = reserveDeltaPct >  2   ? '🔴'
+      : reserveDeltaPct >  0.5 ? '⚠️'
+      : reserveDeltaPct < -2   ? '✅'
+      : reserveDeltaPct < -0.5 ? '✅'
+      :                          '⚠️';
+
+    const reserveTrend = reserveDeltaPct >  2   ? 'naik tajam — whale deposit, waspadai tekanan jual'
+      : reserveDeltaPct >  0.5 ? 'naik moderat — monitor inflow'
+      : reserveDeltaPct < -2   ? 'turun tajam — whale withdrawal, akumulasi kuat'
+      : reserveDeltaPct < -0.5 ? 'turun moderat — outflow berlanjut, positif'
+      :                          'flat — konsolidasi';
+
+    // ── Exchange Flow (latest day) ───────────────────────────────────────────
+    const inflow  = Math.round(parseFloat(latest.FlowInExNtv));
+    const outflow = Math.round(parseFloat(latest.FlowOutExNtv));
+    const netflow = inflow - outflow;
+    const flowDir = netflow > 0 ? 'inflow' : 'outflow';
+    const flowLabel = `${flowDir} (${netflow > 0 ? '+' : ''}${netflow.toLocaleString()} BTC)`;
+
+    // ── MVRV (True Ratio) ────────────────────────────────────────────────────
+    const mvrvRaw = latest.CapMVRVCur != null ? parseFloat(parseFloat(latest.CapMVRVCur).toFixed(3)) : null;
+    const mvrvZone = mvrvRaw == null   ? '—'
+      : mvrvRaw > 3.5 ? 'Distribusi'
+      : mvrvRaw > 2.0 ? 'Late Cycle'
+      : mvrvRaw > 1.0 ? 'Fair Value'
+      :                 'Capitulation';
+    const mvrvSignal = mvrvRaw == null   ? '—'
+      : mvrvRaw > 3.5 ? '🔴 distribusi zone'
+      : mvrvRaw > 2.0 ? '⚠️ late cycle / stretched'
+      : mvrvRaw > 1.0 ? '✅ fair value'
+      :                 '✅ undervalued — capitulation';
+
+    console.log(`  ✓ CoinMetrics | Reserve: ${Math.round(reserveNow / 1000)}k BTC (${reserveDelta > 0 ? '+' : ''}${reserveDelta.toLocaleString()} 7d) | Flow: ${flowLabel} | MVRV: ${mvrvRaw ?? '—'} (${mvrvZone})`);
+
+    return {
+      date: latest.time.split('T')[0],
+      exchangeReserve: {
+        current:      Math.round(reserveNow),
+        change7d:     reserveDelta,
+        changePct7d:  reserveDeltaPct,
+        trend:        reserveTrend,
+        signal:       reserveSignal,
+      },
+      exchangeFlow: {
+        inflow,
+        outflow,
+        netflow,
+        direction: flowDir,
+        label:     flowLabel,
+      },
+      mvrv: {
+        value:  mvrvRaw,
+        zone:   mvrvZone,
+        signal: mvrvSignal,
+      },
+      source: 'CoinMetrics Community API',
+    };
+
+  } catch (err) {
+    console.error('❌ CoinMetrics on-chain error:', err.message);
+    return null;
+  }
+}
+
+// ── BTC ETF FLOW PROXY (Yahoo Finance v8 OHLCV) ──────────────────────────────
+// True flow requires sharesOutstanding data (blocked by auth on all free APIs).
+// Proxy: price_change × relative_volume for each ETF → aggregate sentiment score.
+// Returns directional signal, clearly labeled as proxy/estimate.
+export async function fetchBtcEtfFlow() {
+  const TICKERS = ['IBIT', 'FBTC', 'ARKB', 'GBTC', 'BITB'];
+  // Approx AUM weights (IBIT largest, others smaller)
+  const WEIGHTS = { IBIT: 0.45, FBTC: 0.20, ARKB: 0.10, GBTC: 0.15, BITB: 0.10 };
+
+  try {
+    const results = await Promise.allSettled(
+      TICKERS.map(ticker =>
+        axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`, {
+          params: { interval: '1d', range: '10d' },
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+          timeout: 10000,
+        })
+      )
+    );
+
+    let weightedScore = 0;
+    let totalWeight   = 0;
+    const breakdown   = [];
+    let latestDate    = null;
+
+    for (let i = 0; i < TICKERS.length; i++) {
+      const ticker = TICKERS[i];
+      const r = results[i];
+      if (r.status !== 'fulfilled') continue;
+
+      const chartData = r.value.data?.chart?.result?.[0];
+      if (!chartData) continue;
+
+      const closes  = chartData.indicators?.quote?.[0]?.close ?? [];
+      const volumes = chartData.indicators?.quote?.[0]?.volume ?? [];
+      const timestamps = chartData.timestamp ?? [];
+
+      // Filter out nulls
+      const valid = closes.map((c, idx) => ({ c, v: volumes[idx], t: timestamps[idx] }))
+        .filter(x => x.c != null && x.v != null && x.v > 0);
+
+      if (valid.length < 3) continue;
+
+      // Latest day
+      const last   = valid[valid.length - 1];
+      const prev   = valid[valid.length - 2];
+      if (!latestDate && last.t) {
+        latestDate = new Date(last.t * 1000).toISOString().split('T')[0];
+      }
+
+      // Price change %
+      const pricePct = ((last.c - prev.c) / prev.c) * 100;
+
+      // Volume ratio vs 5-day average (excl today)
+      const volWindow = valid.slice(-6, -1).map(x => x.v);
+      const avgVol    = volWindow.reduce((a, b) => a + b, 0) / volWindow.length;
+      const volRatio  = avgVol > 0 ? last.v / avgVol : 1;
+
+      // Score: price direction amplified by volume (volRatio capped at 2.5)
+      const cappedVolRatio = Math.min(volRatio, 2.5);
+      const score = pricePct * cappedVolRatio;
+
+      const w = WEIGHTS[ticker] ?? 0.1;
+      weightedScore += score * w;
+      totalWeight   += w;
+
+      breakdown.push({
+        ticker,
+        pricePct: parseFloat(pricePct.toFixed(2)),
+        volRatio:  parseFloat(cappedVolRatio.toFixed(2)),
+        score:     parseFloat(score.toFixed(2)),
+        price:     parseFloat(last.c.toFixed(2)),
+      });
+    }
+
+    if (breakdown.length === 0) throw new Error('Semua ETF gagal diambil');
+
+    const normalizedScore = totalWeight > 0 ? weightedScore / totalWeight : 0;
+
+    // Map score to label
+    const label   = normalizedScore >  2   ? 'Strong Inflow'
+      : normalizedScore >  0.5 ? 'Inflow'
+      : normalizedScore < -2   ? 'Strong Outflow'
+      : normalizedScore < -0.5 ? 'Outflow'
+      :                          'Neutral';
+    const signal  = normalizedScore >  0.5 ? '✅'
+      : normalizedScore < -0.5 ? '🔴'
+      :                          '⚠️';
+    const trend   = normalizedScore >  2   ? 'beli agresif, demand ETF tinggi'
+      : normalizedScore >  0.5 ? 'aliran masuk — sentimen positif'
+      : normalizedScore < -2   ? 'tekanan jual kuat pada ETF'
+      : normalizedScore < -0.5 ? 'aliran keluar — risk-off'
+      :                          'konsolidasi — arah belum jelas';
+
+    console.log(`  ✓ ETF Flow proxy | Score: ${normalizedScore.toFixed(2)} → ${label} (${breakdown.length} ETFs, date: ${latestDate})`);
+
+    return {
+      date:            latestDate,
+      label,
+      signal,
+      trend,
+      score:           parseFloat(normalizedScore.toFixed(2)),
+      etfsUsed:        breakdown.length,
+      breakdown,
+      isProxy:         true,
+      source:          'Yahoo Finance v8 (volume-price proxy)',
+    };
+
+  } catch (err) {
+    console.error('❌ ETF Flow proxy error:', err.message);
+    return null;
+  }
+}
+
 // ── AGGREGATE: SEMUA DAILY DATA ───────────────────────────────────────────────
 export async function fetchAllDailyData(config = {}) {
   console.log('📊 Fetching daily data...');
   _hlCache = null; // reset cache tiap fetch
 
-  const [crypto, fearGreed, funding, dxy, gold, cmc, nuplProxy, longShortRatio, hashRate, googleTrends] = await Promise.allSettled([
+  const [crypto, fearGreed, funding, dxy, gold, cmc, nuplProxy, longShortRatio, hashRate, googleTrends, coinMetrics, etfFlow] = await Promise.allSettled([
     fetchCryptoData(),
     fetchFearGreed(),
     fetchFundingRates(),
@@ -1117,6 +1326,8 @@ export async function fetchAllDailyData(config = {}) {
     fetchLongShortRatio(),
     fetchHashRate(),
     fetchGoogleTrends(config.serpApiKey),
+    fetchBtcOnChainCoinMetrics(),
+    fetchBtcEtfFlow(),
   ]);
 
   // Derivatives bundle: satu fetch /derivatives → OI + Basis + Skew (hindari 3x CoinGecko 429)
@@ -1155,6 +1366,8 @@ export async function fetchAllDailyData(config = {}) {
     longShortRatio:  longShortRatio.status  === 'fulfilled' ? longShortRatio.value  : null,
     hashRate:        hashRate.status        === 'fulfilled' ? hashRate.value        : null,
     googleTrends:    googleTrends.status    === 'fulfilled' ? googleTrends.value    : null,
+    coinMetrics:     coinMetrics.status     === 'fulfilled' ? coinMetrics.value     : null,
+    etfFlow:         etfFlow.status         === 'fulfilled' ? etfFlow.value         : null,
     activeAddresses: bcBundle.activeAddresses ?? null,
     minerRevenue:    bcBundle.minerRevenue    ?? null,
     brentOil,

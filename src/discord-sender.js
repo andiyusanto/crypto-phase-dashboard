@@ -233,13 +233,23 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
   const mr    = daily?.minerRevenue;
   const pc    = daily?.nuplProxy?.piCycle ?? null;
   const gt    = (!daily?.googleTrends?.skipped) ? daily?.googleTrends : null;
-  const hasOnchain = nupl || oi || basis || ls || hr || aa || mr || pc || gt;
+  const cm    = daily?.coinMetrics ?? null;
+  const etf   = daily?.etfFlow ?? null;
+  const hasOnchain = nupl || oi || basis || ls || hr || aa || mr || pc || gt || cm || etf;
   if (hasOnchain) {
     const lines = [];
+    if (cm?.exchangeReserve) {
+      const er = cm.exchangeReserve;
+      const mv = cm.mvrv;
+      lines.push(`**Exchange Reserve**: ${(er.current / 1000).toFixed(1)}k BTC · 7d: ${er.change7d > 0 ? '+' : ''}${er.change7d.toLocaleString()} BTC (${er.changePct7d > 0 ? '+' : ''}${er.changePct7d}%) ${er.signal}`);
+      if (mv?.value != null) lines.push(`**MVRV (true)**: ${mv.value} · ${mv.zone} ${mv.value > 3.5 ? '🔴' : mv.value > 2.0 ? '⚠️' : '✅'}`);
+    }
+    if (etf)
+      lines.push(`**ETF Flow ⚠️**: ${etf.label} · skor: ${etf.score > 0 ? '+' : ''}${etf.score} ${etf.signal} (${etf.etfsUsed} ETFs, estimasi)`);
     if (nupl) {
       const mult = nupl.currentPrice && nupl.realizedPriceProxy
         ? (nupl.currentPrice / nupl.realizedPriceProxy).toFixed(2) : null;
-      lines.push(`**NUPL**: ${nupl.nupl > 0 ? '+' : ''}${nupl.nupl} · ${nupl.nuplZone}${mult ? ` · MVRV: ${mult}x` : ''}`);
+      lines.push(`**NUPL**: ${nupl.nupl > 0 ? '+' : ''}${nupl.nupl} · ${nupl.nuplZone}${mult ? ` · MVRV proxy: ${mult}x` : ''}`);
       lines.push(`**SOPR**: ${nupl.sopr}`);
     }
     if (pc)

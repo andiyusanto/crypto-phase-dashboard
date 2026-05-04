@@ -268,9 +268,13 @@ async function main() {
 
       // PMI fetched independently — not gated by Thu/Fri so new monthly releases
       // (ISM releases on first business day of each month) are always picked up.
-      const freshPmi = await fetchRealtimePMI();
-      if (freshPmi) {
-        fed = { ...(fed ?? {}), pmi: freshPmi };
+      try {
+        const freshPmi = await fetchRealtimePMI();
+        if (freshPmi) {
+          fed = { ...(fed ?? {}), pmi: freshPmi };
+        }
+      } catch (pmiErr) {
+        console.warn(chalk.yellow(`⚠️  PMI fetch error: ${pmiErr.message} — PMI skipped`));
       }
 
       console.log(chalk.green('✓ Fed Liquidity (+ PMI)'));
@@ -305,10 +309,14 @@ async function main() {
     mkdirSync(outputDir, { recursive: true });
 
     if (saveFile) {
-      writeFileSync(join(outputDir, 'latest_prompt.txt'), prompt, 'utf-8');
-      writeFileSync(join(outputDir, `prompt_${ts}.txt`),  prompt, 'utf-8');
-      writeFileSync(join(outputDir, 'latest_data.json'),
-        JSON.stringify({ daily, weekly, monthly, fed, war }, null, 2), 'utf-8');
+      try {
+        writeFileSync(join(outputDir, 'latest_prompt.txt'), prompt, 'utf-8');
+        writeFileSync(join(outputDir, `prompt_${ts}.txt`),  prompt, 'utf-8');
+        writeFileSync(join(outputDir, 'latest_data.json'),
+          JSON.stringify({ daily, weekly, monthly, fed, war }, null, 2), 'utf-8');
+      } catch (writeErr) {
+        console.error(chalk.red(`  ✗ File write gagal: ${writeErr.message} — melanjutkan ke channel send`));
+      }
     }
 
     if (printPrompt) {

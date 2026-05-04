@@ -189,22 +189,13 @@ export async function fetchReserveBalances(fredApiKey) {
 
 // ── AGGREGATE + TRIFECTA SCORE ────────────────────────────────────────────────
 export async function fetchAllFedLiquidity(fredApiKey) {
-  const isThursday = new Date().getDay() === 4;
-  const isFriday   = new Date().getDay() === 5;
-  const shouldFetch = isThursday || isFriday;
-
-  if (!shouldFetch) {
-    return {
-      skipped: true,
-      reason: 'Bukan Kamis/Jumat — Fed data update mingguan',
-    };
-  }
-
   if (!fredApiKey || fredApiKey === 'your_fred_api_key_here') {
     return { skipped: true, reason: 'FRED_API_KEY tidak diset' };
   }
 
-  console.log('🏦 Fetching Fed Liquidity data (Kamis/Jumat)...');
+  // FRED always returns latest available data (updated every Thursday).
+  // No day-gate: fetching on any day just returns last Thursday's data.
+  console.log('🏦 Fetching Fed Liquidity data...');
 
   const [walcl, rrp, reserves] = await Promise.allSettled([
     fetchFedBalanceSheet(fredApiKey),

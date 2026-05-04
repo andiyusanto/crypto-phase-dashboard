@@ -375,12 +375,19 @@ export async function fetchAllWeeklyData(config = {}) {
   const [yield10y, nfci, tvl, altseason, ratioTrend, oil, msciEm, othersDom, exchangeNetflow] =
     results.map(r => r.status === 'fulfilled' ? r.value : null);
 
+  const altseasonProxy = computeAltseasonProxy(ratioTrend, othersDom);
+
+  if (!altseason) {
+    console.log(`  ↩ Altseason Index fetch gagal — proxy: ${altseasonProxy.value} (${altseasonProxy.signal})`);
+  }
+
   return {
     timestamp: new Date().toISOString(),
     yield10y,
     nfci,
     tvl,
     altseason,
+    altseasonProxy,
     ratioTrend,
     oil,
     msciEm,
@@ -390,6 +397,45 @@ export async function fetchAllWeeklyData(config = {}) {
     total2: null,
     total3: null,
   };
+}
+
+// ── ALTSEASON PROXY ───────────────────────────────────────────────────────────
+// Kalkulasi altseason score (0–100) dari data yang sudah kita punya:
+// ETH/BTC weekChange (40 pts) + SOL/BTC weekChange (30 pts) + OTHERS.D (30 pts)
+// Skala dan threshold dikalibrasi agar konsisten dengan blockchaincenter.net
+export function computeAltseasonProxy(ratioTrend, othersDom) {
+  const ethChg  = ratioTrend?.ethBtc?.weekChange ?? null;
+  const solChg  = ratioTrend?.solBtc?.weekChange ?? null;
+  const othersD = othersDom?.othersDominance     ?? null;
+
+  // ETH/BTC momentum — 40 pts, primary signal (ETH leads alt rotation)
+  const ethScore = ethChg == null ? 20
+    : ethChg > 15  ? 40 : ethChg > 8  ? 32 : ethChg > 3  ? 24
+    : ethChg > 0   ? 16 : ethChg > -3 ? 10 : ethChg > -8 ? 5 : 0;
+
+  // SOL/BTC momentum — 30 pts, high-beta confirmation
+  const solScore = solChg == null ? 15
+    : solChg > 15  ? 30 : solChg > 8  ? 24 : solChg > 3  ? 18
+    : solChg > 0   ? 12 : solChg > -3 ? 7  : solChg > -8 ? 3  : 0;
+
+  // OTHERS.D level — 30 pts, structural small-cap rotation
+  const domScore = othersD == null ? 15
+    : othersD > 25 ? 30 : othersD > 20 ? 24 : othersD > 15 ? 18
+    : othersD > 12 ? 12 : othersD > 9  ? 7  : othersD > 6  ? 3  : 0;
+
+  const score  = Math.min(100, Math.round(ethScore + solScore + domScore));
+  const signal = score >= 75 ? 'Altseason 🚀'
+    : score >= 55             ? 'Altseason territory ⚡'
+    : score <= 25             ? 'Bitcoin Season 🟠'
+    :                           'Neutral / Bitcoin favored ⚠️';
+
+  const components = [
+    ethChg  != null ? `ETH/BTC WoW: ${ethChg > 0 ? '+' : ''}${ethChg}%` : null,
+    solChg  != null ? `SOL/BTC WoW: ${solChg > 0 ? '+' : ''}${solChg}%` : null,
+    othersD != null ? `OTHERS.D: ${othersD}%` : null,
+  ].filter(Boolean).join(' | ');
+
+  return { value: score, signal, source: `proxy (${components})`, isProxy: true };
 }
 
 // ── HELPER ────────────────────────────────────────────────────────────────────

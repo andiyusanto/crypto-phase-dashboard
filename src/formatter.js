@@ -13,7 +13,7 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
   });
 
   // ── Helper ────────────────────────────────────────────────────────────────
-  const v = (x, fb = '___') => (x === null || x === undefined || x?.skipped) ? fb : x;
+  const v = (x, fb = '—') => (x === null || x === undefined || x?.skipped) ? fb : x;
 
   // Source label for section headers
   const srcLabel = (data) => {
@@ -54,12 +54,12 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
     : `- ISM PMI: ___`;
 
   const fedBlock = `- Fed Balance Sheet (WALCL): $${v(w?.totalTrillions)}T
-  vs minggu lalu: ${w ? (w.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(w.weekChangeBillions) + 'B' : '___'}
+  vs minggu lalu: ${w ? (w.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(w.weekChangeBillions) + 'B' : '—'}
 - RRP balance (RRPONTSYD): $${v(r?.balanceBillions)}B
-  vs minggu lalu: ${r ? (r.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(r.weekChangeBillions) + 'B' : '___'}
+  vs minggu lalu: ${r ? (r.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(r.weekChangeBillions) + 'B' : '—'}
   trend: ${v(r?.trend)}
 - Reserve balances (WLRRAL): $${v(rv?.totalTrillions)}T
-  vs minggu lalu: ${rv ? (rv.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(rv.weekChangeBillions) + 'B' : '___'}
+  vs minggu lalu: ${rv ? (rv.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(rv.weekChangeBillions) + 'B' : '—'}
 ${pmiLine}
 - Fed trifecta: ${v(fed?.trifectaScore)} hijau (${v(fed?.overallStatus)})`;
 
@@ -116,7 +116,7 @@ ${pmiLine}
     : `- BTC perp premium / basis: ___`;
 
   const skewLine = skew
-    ? `- Perp sentiment proxy (funding-based, NOT options skew): ${skew.skewProxy != null ? (skew.skewProxy > 0 ? '+' : '') + skew.skewProxy : '___'} | avg funding 8h: ${skew.avgFunding8h != null ? skew.avgFunding8h + '%' : '___'} | Deribit OI: ${skew.deribitOiBtc}BTC ($${skew.deribitOiUsdBillion}B) | signal: ${skew.signal}`
+    ? `- Perp sentiment proxy (funding-based, NOT options skew): ${skew.skewProxy != null ? (skew.skewProxy > 0 ? '+' : '') + skew.skewProxy : '—'} | avg funding 8h: ${skew.avgFunding8h != null ? skew.avgFunding8h + '%' : '—'} | Deribit OI: ${skew.deribitOiBtc}BTC ($${skew.deribitOiUsdBillion}B) | signal: ${skew.signal}`
     : `- Perp sentiment proxy (funding-based): ___`;
 
   const total2Raw = daily?.cmc?.total2 ?? null;
@@ -163,11 +163,11 @@ ${pmiLine}
   const gt = (!daily?.googleTrends?.skipped) ? daily?.googleTrends : null;
 
   const addrLine = activeAddr
-    ? `- Active Addresses (7d avg): ${activeAddr.avg7d.toLocaleString('en-US')} | WoW: ${activeAddr.weekChange != null ? (activeAddr.weekChange > 0 ? '+' : '') + activeAddr.weekChange + '%' : '___'} | ${activeAddr.signal}`
+    ? `- Active Addresses (7d avg): ${activeAddr.avg7d.toLocaleString('en-US')} | WoW: ${activeAddr.weekChange != null ? (activeAddr.weekChange > 0 ? '+' : '') + activeAddr.weekChange + '%' : '—'} | ${activeAddr.signal}`
     : `- Active Addresses: ___`;
 
   const minerLine = minerRev
-    ? `- Miner Revenue (7d avg): $${minerRev.revMillion}M/day | WoW: ${minerRev.weekChange != null ? (minerRev.weekChange > 0 ? '+' : '') + minerRev.weekChange + '%' : '___'} | ${minerRev.signal}`
+    ? `- Miner Revenue (7d avg): $${minerRev.revMillion}M/day | WoW: ${minerRev.weekChange != null ? (minerRev.weekChange > 0 ? '+' : '') + minerRev.weekChange + '%' : '—'} | ${minerRev.signal}`
     : `- Miner Revenue: ___`;
 
   const piLine = piCycle
@@ -184,11 +184,11 @@ ${pmiLine}
     : `- Long/Short Ratio: ___`;
 
   const hrLine = hr
-    ? `- Hash Rate (7d avg): ${hr.latestEH} EH/s | WoW: ${hr.weekChange != null ? (hr.weekChange > 0 ? '+' : '') + hr.weekChange + '%' : '___'} | ${hr.signal} [${hr.source}]`
+    ? `- Hash Rate (7d avg): ${hr.latestEH} EH/s | WoW: ${hr.weekChange != null ? (hr.weekChange > 0 ? '+' : '') + hr.weekChange + '%' : '—'} | ${hr.signal} [${hr.source}]`
     : `- Hash Rate: ___`;
 
   const trendsLine = gt
-    ? `- Google Trends "bitcoin": ${gt.currentValue}/100${gt._fromCache ? ' 💾' : ''} | avg4w: ${gt.avg4w} | WoW: ${gt.weekChange != null ? (gt.weekChange > 0 ? '+' : '') + gt.weekChange : '___'} pts | trend: ${gt.trend} | ${gt.signal}`
+    ? `- Google Trends "bitcoin": ${gt.currentValue}/100${gt._fromCache ? ' 💾' : ''} | avg4w: ${gt.avg4w} | WoW: ${gt.weekChange != null ? (gt.weekChange > 0 ? '+' : '') + gt.weekChange : '—'} pts | trend: ${gt.trend} | ${gt.signal}`
     : `- Google Trends "bitcoin": ___ (SERPAPI_API_KEY tidak diset)`;
 
   const stableDomLine = stableDomPct != null
@@ -199,12 +199,40 @@ ${pmiLine}
     ? `- Realized Price Multiple (MVRV proxy): ${realizedMult}x | realized proxy: $${nupl.realizedPriceProxy.toLocaleString('en-US')} | ${realizedMult > 3.5 ? 'overvalued — zona distribusi' : realizedMult > 2.0 ? 'moderat — fase expansion/late' : realizedMult > 1.0 ? 'undervalued ringan — fase akumulasi' : 'sangat undervalued — capitulation'}`
     : `- Realized Price Multiple (MVRV proxy): ___`;
 
+  // ── ETF Flow proxy (Yahoo Finance v8 volume-price sentiment) ──────────────────
+  const etf = daily?.etfFlow ?? null;
+  const etfLine = etf
+    ? `- BTC ETF Flow proxy (${etf.etfsUsed} ETFs): ${etf.label} | score: ${etf.score > 0 ? '+' : ''}${etf.score} | ${etf.signal} ${etf.trend} ⚠️ estimasi`
+    : null;
+
+  // ── CoinMetrics on-chain (Exchange Reserve + Flow + True MVRV) ───────────────
+  const cm = daily?.coinMetrics ?? null;
+  const exRes  = cm?.exchangeReserve ?? null;
+  const exFlow = cm?.exchangeFlow ?? null;
+  const mvrvTrue = cm?.mvrv ?? null;
+
+  const exResLine = exRes
+    ? `- BTC Exchange Reserve: ${(exRes.current / 1000).toFixed(1)}k BTC | 7d: ${exRes.change7d > 0 ? '+' : ''}${exRes.change7d.toLocaleString()} BTC (${exRes.changePct7d > 0 ? '+' : ''}${exRes.changePct7d}%) | ${exRes.signal} ${exRes.trend}`
+    : `- BTC Exchange Reserve: — [CoinMetrics]`;
+
+  const exFlowLine = exFlow
+    ? `- BTC Exchange Flow (daily): inflow ${exFlow.inflow.toLocaleString()} BTC | outflow ${exFlow.outflow.toLocaleString()} BTC | net: ${exFlow.netflow > 0 ? '+' : ''}${exFlow.netflow.toLocaleString()} BTC (${exFlow.label})`
+    : null;
+
+  // True MVRV — prefer CoinMetrics; fallback to proxy (realizedMult)
+  const mvrvTrueLine = mvrvTrue?.value != null
+    ? `- MVRV Ratio (true, CoinMetrics): ${mvrvTrue.value} | zona: ${mvrvTrue.zone} | ${mvrvTrue.signal}`
+    : null;
+
+  // Exchange netflow label: prefer daily CoinMetrics, fallback to weekly CoinMetrics
+  const exchangeNetflowLabel = exFlow?.label ?? weekly?.exchangeNetflow?.label ?? '[data tidak tersedia]';
+
   const total2 = manualOverrides.total2
     ?? (total2Raw != null ? `$${total2Raw}T${fmtWow(total2WoW)}` : null)
-    ?? '___';
+    ?? '—';
   const total3 = manualOverrides.total3
     ?? (total3Raw != null ? `$${total3Raw}B${fmtWow(total3WoW)}` : null)
-    ?? '___';
+    ?? '—';
   const othersDom = manualOverrides.othersDManual
     ?? v(daily?.cmc?.othersDominance)
     ?? v(weekly?.othersDom?.othersDominance);
@@ -224,17 +252,24 @@ ${pmiLine}
   const msciDir   = v(weekly?.msciEm?.direction);
   const totalStable = v(daily?.crypto?.stablecoinSupply?.total);
 
+  // Auto-compute BTC.D direction from 7-day snapshot delta (direct, not ETH/BTC proxy)
+  const prevDom   = daily?._prevWeek?.btc_dominance ?? null;
+  const currDom   = daily?.crypto?.btcDominance ?? null;
+  const domDelta  = (prevDom != null && currDom != null) ? parseFloat((currDom - prevDom).toFixed(2)) : null;
   const btcDomDir = manualOverrides.btcDominanceDirection
-    ?? (weekly?.ratioTrend?.ethBtc
-      ? (weekly.ratioTrend.ethBtc.weekChange < -2 ? 'naik' : weekly.ratioTrend.ethBtc.weekChange > 2 ? 'turun' : 'flat')
-      : '___');
+    ?? (domDelta != null
+      ? (domDelta > 0.3 ? 'naik' : domDelta < -0.3 ? 'turun' : 'flat')
+      : '—');
+  const btcDomDeltaStr = domDelta != null ? ` (${domDelta > 0 ? '+' : ''}${domDelta}% WoW)` : '';
 
+  const proxy = weekly?.altseasonProxy;
   const altseasonFetched = weekly?.altseason?.value != null
-    ? `${weekly.altseason.value} — ${weekly.altseason.signal}`
-    : null;
-  const altseasonIdx    = manualOverrides.altseasonIndex ?? altseasonFetched ?? '___';
-  const exchangeNetflow = manualOverrides.exchangeNetflow
-    ?? (weekly?.exchangeNetflow?.label ?? '[data tidak tersedia]');
+    ? `${weekly.altseason.value} — ${weekly.altseason.signal}${proxy ? ` | proxy: ${proxy.value} (${proxy.signal})` : ''}`
+    : proxy?.value != null
+      ? `${proxy.value} — ${proxy.signal} ⚠️ proxy (${proxy.source})`
+      : null;
+  const altseasonIdx = manualOverrides.altseasonIndex ?? altseasonFetched ?? '—';
+  const exchangeNetflow = manualOverrides.exchangeNetflow ?? exchangeNetflowLabel;
 
   // ── Monthly ───────────────────────────────────────────────────────────────
   const monthlySrc  = srcLabel(monthly);
@@ -247,10 +282,22 @@ ${pmiLine}
     m2Line = `- Global M2 YoY growth: ${m2.globalYoY}% | Total: $${m2.globalTrillions}T
   (US: $${m2.us}T ${m2.usYoY !== null ? `${m2.usYoY}% YoY` : ''} | CN: $${m2.cn}T ${m2.cnYoY !== null ? `${m2.cnYoY}% YoY` : ''} | JP: $${m2.jp}T | EZ: $${m2.ez}T)`;
   } else if (m2 && m2.us) {
-    m2Line = `- Global M2 YoY growth: ___ (fallback US M2: $${m2.us}T, ${m2.usYoY}% YoY)`;
+    m2Line = `- Global M2 YoY growth: — (fallback US M2: $${m2.us}T, ${m2.usYoY}% YoY)`;
   } else {
-    m2Line = `- Global M2 YoY growth: ___`;
+    m2Line = `- Global M2 YoY growth: —`;
   }
+
+  // Global M2 scorecard signal — used in Layer 1 pre-filled row
+  const m2YoY    = m2?.globalYoY ?? m2?.usYoY ?? null;
+  const m2Total  = m2?.globalTrillions != null ? `$${m2.globalTrillions}T` : (m2?.us ? `$${m2.us}T (US)` : '—');
+  const m2Signal = m2YoY == null ? '—'
+    : m2YoY > 5  ? '✅'
+    : m2YoY > 0  ? '⚠️'
+    : '🔴';
+  const m2Trend  = m2YoY == null ? '—'
+    : m2YoY > 5  ? 'ekspansif kuat'
+    : m2YoY > 0  ? 'ekspansif moderat'
+    : 'kontraktif';
 
   const ismMfg   = fed?.pmi?.manufacturing?.value;
   const ismSvc   = fed?.pmi?.services?.value;
@@ -308,6 +355,7 @@ Perubahan fase hanya valid jika ≥3 signal upstream konfirmasi.
 |-----------|---------|--------|---------|
 | BTC vs 200d MA | < -10% (bearish, fase 0/1) | -10% s/d +20% | > +20% (bullish kuat) |
 | BTC vs ATH | < -50% (bear market) | -20% s/d -50% | < -20% (bull market recovery) |
+| Global M2 YoY | < 0% (kontraktif) | 0–5% | > 5% (ekspansif kuat, 6–12 bln lead BTC) |
 | FCI (NFCI) | > 0.3 | -0.3 s/d 0.3 | < -0.3 |
 | DXY | > 104 | 100–104 | < 100 |
 | US 10Y Yield | > 4.5% | 4.0–4.5% | < 4.0% |
@@ -316,6 +364,9 @@ Perubahan fase hanya valid jika ≥3 signal upstream konfirmasi.
 | BTC Exchange Netflow | Inflow besar | Flat | Outflow besar |
 | TVL DeFi WoW | < -5% | -5–+5% | > +5% |
 | Oil Brent | > $100 | $80–100 | < $80 |
+| BTC Exchange Reserve 7d | > +2% (whale deposit, distribusi) | -0.5–+0.5% | < -2% (whale withdrawal, akumulasi) |
+| MVRV Ratio (true) | < 1.0 (capitulation) | 1.0–2.0 (fair value) | > 3.5 (distribusi zone) |
+| ETF Flow proxy ⚠️ | Strong Outflow (skor < -2) | Neutral (-0.5–+0.5) | Strong Inflow (skor > +2) |
 | NUPL proxy | < 0 (capitulation) | 0–0.25 (hope) | > 0.5 (belief/euphoria) |
 | SOPR proxy (price ratio) | < 0.85 (selloff tajam) | 0.95–1.05 (netral) | > 1.20 (overextended) |
 | Realized Price Multiple (MVRV proxy) | < 1.0x (capitulation) | 1.0–2.0x (akumulasi) | > 3.5x (distribusi) |
@@ -340,7 +391,7 @@ ${fedBlock}
 - BTC price: $${btcPrice} | 24h: ${btcChange}%${btcVol != null ? ` | vol 24h: $${btcVol}B` : ''}
 ${athLine}
 ${ma200Line}
-- BTC Dominance: ${btcDom}% | arah: ${btcDomDir}
+- BTC Dominance: ${btcDom}%${btcDomDeltaStr} | arah: ${btcDomDir}
 - ETH/BTC: ${ethBtc} | SOL/BTC: ${solBtc}
 - DXY: ${dxyVal} | arah: ${dxyDir}
 - Gold (XAUUSD): $${goldPrice} | 24h: ${goldChange}%
@@ -352,7 +403,10 @@ ${stableDomLine}
 - TOTAL2: ${total2} | TOTAL3: ${total3} | OTHERS.D: ${othersDom}%
 
 ### DERIVATIF & ON-CHAIN ✅ live
-${nuplLine}
+${exResLine}
+${exFlowLine ? exFlowLine + '\n' : ''}- BTC exchange netflow (weekly): ${exchangeNetflow}
+${etfLine ? etfLine + '\n' : ''}
+${mvrvTrueLine ? mvrvTrueLine + '\n' : ''}${nuplLine}
 ${soprLine}
 ${realizedMultLine}
 ${piLine}
@@ -375,7 +429,7 @@ ${trendsLine}
 - US 10Y Yield: ${yield10y}% | arah: ${yieldDir}
 - ETH/BTC ratio: ${ethBtc} | arah minggu ini: ${v(weekly?.ratioTrend?.ethBtc?.direction)} ${v(weekly?.ratioTrend?.ethBtc?.weekChange, '')}%
 - SOL/BTC ratio: ${solBtc} | arah: ${solBtcDir}
-- BTC.D arah minggu ini: ${btcDomDir}
+- BTC.D arah minggu ini: ${btcDomDir}${btcDomDeltaStr}
 - BTC exchange netflow: ${exchangeNetflow}
 - Altseason Index: ${altseasonIdx}
 - TVL DeFi (DefiLlama): $${tvl}B | vs minggu lalu: ${tvlChg}%
@@ -455,30 +509,34 @@ Format: EKSPANSI / KONTRAKSI / MIXED — alasan ≤3 kalimat.
 **Layer 1 — Macro**
 | Indikator | Nilai | vs Threshold | Status | Arah |
 |-----------|-------|--------------|--------|------|
+| Global M2 YoY | ${m2YoY != null ? m2YoY + '%' : '—'} (${m2Total}) | >5% ekspansif kuat, <0% kontraktif | ${m2Signal} | ${m2Trend} |
 
 **Layer 2 — Market Structure**
 | Indikator | Nilai | vs Threshold | Status | Arah |
 |-----------|-------|--------------|--------|------|
-| BTC vs 200d MA | ${ma200Gap != null ? (ma200Gap > 0 ? '+' : '') + ma200Gap + '%' : '___'} | <-10% bearish, >+20% bullish kuat | | ${ma200Sig ?? '___'} |
-| BTC vs ATH | ${athChg != null ? athChg + '%' : '___'} | <-50% bear market, >-20% bull recovery | | |
-| BTC vol 24h | ${btcVol != null ? '$' + btcVol + 'B' : '___'} | konteks konfirmasi trend | | |
+| BTC vs 200d MA | ${ma200Gap != null ? (ma200Gap > 0 ? '+' : '') + ma200Gap + '%' : '—'} | <-10% bearish, >+20% bullish kuat | | ${ma200Sig ?? '—'} |
+| BTC vs ATH | ${athChg != null ? athChg + '%' : '—'} | <-50% bear market, >-20% bull recovery | | |
+| BTC vol 24h | ${btcVol != null ? '$' + btcVol + 'B' : '—'} | konteks konfirmasi trend | | |
 
 **Layer 3 — Derivatives & On-chain**
 | Indikator | Nilai | vs Threshold | Status | Arah |
 |-----------|-------|--------------|--------|------|
-| NUPL proxy | ${nupl?.nupl != null ? (nupl.nupl > 0 ? '+' : '') + nupl.nupl : '___'} | <0 capitulation, >0.75 euphoria | | zona: ${nupl?.nuplZone ?? '___'} |
-| SOPR proxy (price ratio) | ${nupl?.sopr ?? '___'} | <0.85 selloff tajam, >1.20 overextended | | |
-| Realized Price Multiple | ${realizedMult != null ? realizedMult + 'x' : '___'} | <1.0x capitulation, >3.5x distribusi | | |
-| Pi Cycle Top gap | ${piCycle ? (piCycle.gapPct > 0 ? '+' : '') + piCycle.gapPct + '%' : '___'} | >0% crossing=top, <-30% aman | | |
-| Active Addresses WoW | ${activeAddr?.weekChange != null ? (activeAddr.weekChange > 0 ? '+' : '') + activeAddr.weekChange + '%' : '___'} | <-10% capitulation, >+2% adoption | | ${activeAddr?.trend ?? '___'} |
-| Miner Revenue WoW | ${minerRev?.weekChange != null ? (minerRev.weekChange > 0 ? '+' : '') + minerRev.weekChange + '%' : '___'} | <-20% capitulation risk, >+2% bullish | | ${minerRev?.trend ?? '___'} |
-| Long/Short Ratio | ${ls?.ratio ?? '___'} | <0.6 shorts dominan, >1.8 longs dominan | | ${ls?.signal ?? '___'} |
-| Hash Rate WoW | ${hr?.weekChange != null ? (hr.weekChange > 0 ? '+' : '') + hr.weekChange + '%' : '___'} | <-5% capitulation, >+1% bullish | | ${hr?.trend ?? '___'} |
-| Stablecoin Dom. (USDT+USDC) | ${stableDomPct != null ? stableDomPct + '%' : '___'} | >6% risk-off, <3% risk-on | | ${stableWoW != null ? (stableWoW > 0 ? '+' : '') + stableWoW + '% WoW' : '___'} |
-| OI BTC | $${oi?.totalBillion ?? '___'}B | ekspansi >$30B, kontraksi <$15B | | ${oi?.trend ?? '___'} |
-| Perp Premium (ann.) | ${basis?.annualizedPct ?? '___'}% | >15% overleveraged, <0% backwardation | | |
-| Perp Sentiment Proxy | ${skew?.skewProxy != null ? (skew.skewProxy > 0 ? '+' : '') + skew.skewProxy : '___'} | >10 fear/shorts, <-3 greed/longs | | |
-| Google Trends "bitcoin" | ${gt ? gt.currentValue + '/100' + (gt._fromCache ? ' 💾' : '') : '___'} | >80 FOMO ekstrem, <20 bear | | ${gt?.trend ?? '___'} |
+| BTC Exchange Reserve | ${exRes ? (exRes.current / 1000).toFixed(1) + 'k BTC' : '—'} | naik = whale deposit 🔴, turun = akumulasi ✅ | ${exRes?.signal ?? '—'} | ${exRes ? (exRes.changePct7d > 0 ? '+' : '') + exRes.changePct7d + '% 7d' : '—'} |
+| MVRV Ratio (true) | ${mvrvTrue?.value ?? '—'} | <1.0 capitulation, >3.5 distribusi | ${mvrvTrue?.value != null ? (mvrvTrue.value > 3.5 ? '🔴' : mvrvTrue.value > 2.0 ? '⚠️' : '✅') : '—'} | zona: ${mvrvTrue?.zone ?? '—'} |
+| ETF Flow proxy ⚠️ | ${etf ? etf.label : '—'} | Strong Inflow ✅, Strong Outflow 🔴 | ${etf?.signal ?? '—'} | score: ${etf ? (etf.score > 0 ? '+' : '') + etf.score : '—'} |
+| NUPL proxy | ${nupl?.nupl != null ? (nupl.nupl > 0 ? '+' : '') + nupl.nupl : '—'} | <0 capitulation, >0.75 euphoria | | zona: ${nupl?.nuplZone ?? '—'} |
+| SOPR proxy (price ratio) | ${nupl?.sopr ?? '—'} | <0.85 selloff tajam, >1.20 overextended | | |
+| Realized Price Multiple | ${realizedMult != null ? realizedMult + 'x' : '—'} | <1.0x capitulation, >3.5x distribusi | | |
+| Pi Cycle Top gap | ${piCycle ? (piCycle.gapPct > 0 ? '+' : '') + piCycle.gapPct + '%' : '—'} | >0% crossing=top, <-30% aman | | |
+| Active Addresses WoW | ${activeAddr?.weekChange != null ? (activeAddr.weekChange > 0 ? '+' : '') + activeAddr.weekChange + '%' : '—'} | <-10% capitulation, >+2% adoption | | ${activeAddr?.trend ?? '—'} |
+| Miner Revenue WoW | ${minerRev?.weekChange != null ? (minerRev.weekChange > 0 ? '+' : '') + minerRev.weekChange + '%' : '—'} | <-20% capitulation risk, >+2% bullish | | ${minerRev?.trend ?? '—'} |
+| Long/Short Ratio | ${ls?.ratio ?? '—'} | <0.6 shorts dominan, >1.8 longs dominan | | ${ls?.signal ?? '—'} |
+| Hash Rate WoW | ${hr?.weekChange != null ? (hr.weekChange > 0 ? '+' : '') + hr.weekChange + '%' : '—'} | <-5% capitulation, >+1% bullish | | ${hr?.trend ?? '—'} |
+| Stablecoin Dom. (USDT+USDC) | ${stableDomPct != null ? stableDomPct + '%' : '—'} | >6% risk-off, <3% risk-on | | ${stableWoW != null ? (stableWoW > 0 ? '+' : '') + stableWoW + '% WoW' : '—'} |
+| OI BTC | $${oi?.totalBillion ?? '—'}B | ekspansi >$30B, kontraksi <$15B | | ${oi?.trend ?? '—'} |
+| Perp Premium (ann.) | ${basis?.annualizedPct ?? '—'}% | >15% overleveraged, <0% backwardation | | |
+| Perp Sentiment Proxy | ${skew?.skewProxy != null ? (skew.skewProxy > 0 ? '+' : '') + skew.skewProxy : '—'} | >10 fear/shorts, <-3 greed/longs | | |
+| Google Trends "bitcoin" | ${gt ? gt.currentValue + '/100' + (gt._fromCache ? ' 💾' : '') : '—'} | >80 FOMO ekstrem, <20 bear | | ${gt?.trend ?? '—'} |
 
 Status: ✅ bullish / ⚠️ netral / 🔴 bearish
 
@@ -499,6 +557,11 @@ Divergence alert wajib — flag otomatis jika salah satu kondisi berikut terjadi
 - BTC > +50% di atas 200d MA tapi NUPL < 0.5 (overextended secara price structure tapi holder belum euphoria → mid-cycle stretch, bukan top)
 - Google Trends > 80 tapi Fear & Greed < 50 (retail FOMO tapi sentiment crypto belum konfirmasi → bisa false spike)
 - Google Trends < 20 tapi BTC price naik (harga naik tanpa retail interest → whale/institutional driven, belum sustainable untuk alt season)
+- Exchange Reserve naik 7d tapi BTC price juga naik (whale deposit ke exchange sambil harga naik → distribusi tersembunyi, waspadai dump)
+- Exchange Reserve turun tajam (7d < -2%) tapi MVRV > 3.5 (akumulasi tapi valuasi sudah stretched → window distribusi dekat)
+- Exchange Reserve naik tajam (7d > +2%) tapi NUPL < 0.25 (whale deposit di zona fear — bisa capitulation bottom, bukan distribusi)
+- ETF Flow proxy "Strong Outflow" tapi Exchange Reserve juga turun (ETF selloff tapi whale withdrawal — konflik: retail keluar, institusi akumulasi?)
+- ETF Flow proxy "Strong Inflow" tapi Fear & Greed < 30 (ETF demand tinggi di tengah fear — bisa early accumulation dari smart money)
 
 ---
 
@@ -617,8 +680,8 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
     lines.push(`  WLRRAL  : ___`);
 
   if (p) {
-    const mfg = p.manufacturing?.value ?? '___';
-    const svc = p.services?.value ?? '___';
+    const mfg = p.manufacturing?.value ?? '—';
+    const svc = p.services?.value ?? '—';
     const mo  = p.releasedMonth
       ? (() => { const [yr, mn] = p.releasedMonth.split('-'); return `${new Date(+yr, +mn - 1).toLocaleString('en-US', { month: 'short' })} ${yr}`; })()
       : null;
@@ -628,29 +691,29 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
     lines.push(`  PMI     : ___`);
   }
 
-  lines.push(`  Trifecta: ${fed?.trifectaScore ?? '___'} hijau → ${fed?.overallStatus ?? '___'}`);
+  lines.push(`  Trifecta: ${fed?.trifectaScore ?? '—'} hijau → ${fed?.overallStatus ?? '—'}`);
 
   // ── Daily ─────────────────────────────────────────────────────────────────
   lines.push('');
   lines.push('DAILY [✅ live]:');
   if (daily?.crypto) {
     const bvol = daily.crypto.btc?.volume24hBillion;
-    lines.push(`  BTC    : $${daily.crypto.btc?.price?.toLocaleString() ?? '___'} (${daily.crypto.btc?.change24h >= 0 ? '+' : ''}${daily.crypto.btc?.change24h ?? '___'}%)${bvol != null ? ` | vol: $${bvol}B` : ''}`);
+    lines.push(`  BTC    : $${daily.crypto.btc?.price?.toLocaleString() ?? '—'} (${daily.crypto.btc?.change24h >= 0 ? '+' : ''}${daily.crypto.btc?.change24h ?? '—'}%)${bvol != null ? ` | vol: $${bvol}B` : ''}`);
     if (daily.nuplProxy?.ath != null)
       lines.push(`  ATH    : $${daily.nuplProxy.ath.toLocaleString('en-US')} | dari ATH: ${daily.nuplProxy.athChangePct}%`);
     if (daily.nuplProxy?.ma200 != null)
       lines.push(`  200MA  : $${daily.nuplProxy.ma200.toLocaleString('en-US')} | gap: ${daily.nuplProxy.ma200GapPct > 0 ? '+' : ''}${daily.nuplProxy.ma200GapPct}%`);
-    lines.push(`  ETH    : $${daily.crypto.eth?.price?.toLocaleString() ?? '___'} (${daily.crypto.eth?.change24h >= 0 ? '+' : ''}${daily.crypto.eth?.change24h ?? '___'}%)`);
-    lines.push(`  BTC.D  : ${daily.crypto.btcDominance ?? '___'}%`);
-    lines.push(`  ETH/BTC: ${daily.crypto.ethBtcRatio ?? '___'}  | SOL/BTC: ${daily.crypto.solBtcRatio ?? '___'}`);
-    lines.push(`  F&G    : ${daily.fearGreed?.value ?? '___'} — ${daily.fearGreed?.label ?? '___'}`);
-    lines.push(`  Funding: BTC ${daily.funding?.btc ?? '___'}% | ETH ${daily.funding?.eth ?? '___'}% (${daily.funding?.source ?? ''})`);
+    lines.push(`  ETH    : $${daily.crypto.eth?.price?.toLocaleString() ?? '—'} (${daily.crypto.eth?.change24h >= 0 ? '+' : ''}${daily.crypto.eth?.change24h ?? '—'}%)`);
+    lines.push(`  BTC.D  : ${daily.crypto.btcDominance ?? '—'}%${btcDomDeltaStr} → ${btcDomDir}`);
+    lines.push(`  ETH/BTC: ${daily.crypto.ethBtcRatio ?? '—'}  | SOL/BTC: ${daily.crypto.solBtcRatio ?? '—'}`);
+    lines.push(`  F&G    : ${daily.fearGreed?.value ?? '—'} — ${daily.fearGreed?.label ?? '—'}`);
+    lines.push(`  Funding: BTC ${daily.funding?.btc ?? '—'}% | ETH ${daily.funding?.eth ?? '—'}% (${daily.funding?.source ?? ''})`);
   } else {
     lines.push(`  crypto : ___`);
   }
-  lines.push(`  DXY    : ${daily?.dxy?.value ?? '___'} (${daily?.dxy?.direction ?? '___'})`);
-  lines.push(`  Gold   : $${daily?.gold?.price ?? '___'} (${daily?.gold?.change24h ?? '___'}%)`);
-  lines.push(`  Oil    : $${daily?.brentOil?.price ?? '___'} (${daily?.brentOil?.direction ?? '___'})`);
+  lines.push(`  DXY    : ${daily?.dxy?.value ?? '—'} (${daily?.dxy?.direction ?? '—'})`);
+  lines.push(`  Gold   : $${daily?.gold?.price ?? '—'} (${daily?.gold?.change24h ?? '—'}%)`);
+  lines.push(`  Oil    : $${daily?.brentOil?.price ?? '—'} (${daily?.brentOil?.direction ?? '—'})`);
   if (daily?.cmc && !daily.cmc.skipped) {
     lines.push(`  TOTAL2 : $${daily.cmc.total2}T  | TOTAL3: $${daily.cmc.total3}B  | Others.D: ${daily.cmc.othersDominance}%`);
   } else {
@@ -666,6 +729,18 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
   // ── On-chain & Derivatives ──────────────────────────────────────────────
   lines.push('');
   lines.push('ON-CHAIN & DERIVATIF [✅ live]:');
+  if (daily?.coinMetrics?.exchangeReserve) {
+    const er = daily.coinMetrics.exchangeReserve;
+    const ef = daily.coinMetrics.exchangeFlow;
+    const mv = daily.coinMetrics.mvrv;
+    lines.push(`  ExRes  : ${(er.current / 1000).toFixed(1)}k BTC | 7d: ${er.change7d > 0 ? '+' : ''}${er.change7d.toLocaleString()} BTC (${er.changePct7d > 0 ? '+' : ''}${er.changePct7d}%) ${er.signal}`);
+    if (ef) lines.push(`  ExFlow : in ${ef.inflow.toLocaleString()} / out ${ef.outflow.toLocaleString()} BTC | net: ${ef.netflow > 0 ? '+' : ''}${ef.netflow.toLocaleString()} BTC`);
+    if (mv?.value != null) lines.push(`  MVRV✓  : ${mv.value} | zona: ${mv.zone} ${mv.value > 3.5 ? '🔴' : mv.value > 2.0 ? '⚠️' : '✅'}`);
+  }
+  if (daily?.etfFlow) {
+    const ef = daily.etfFlow;
+    lines.push(`  ETF⚠️   : ${ef.label} | score: ${ef.score > 0 ? '+' : ''}${ef.score} ${ef.signal} (${ef.etfsUsed} ETFs, proxy)`);
+  }
   if (daily?.nuplProxy) {
     const n = daily.nuplProxy;
     const mult = n.currentPrice && n.realizedPriceProxy
@@ -688,19 +763,19 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
   }
   if (daily?.hashRate) {
     const hr = daily.hashRate;
-    lines.push(`  HashR  : ${hr.latestEH} EH/s | WoW: ${hr.weekChange != null ? (hr.weekChange > 0 ? '+' : '') + hr.weekChange + '%' : '___'} — ${hr.trend}`);
+    lines.push(`  HashR  : ${hr.latestEH} EH/s | WoW: ${hr.weekChange != null ? (hr.weekChange > 0 ? '+' : '') + hr.weekChange + '%' : '—'} — ${hr.trend}`);
   } else {
     lines.push(`  HashR  : ___`);
   }
   if (daily?.activeAddresses) {
     const aa = daily.activeAddresses;
-    lines.push(`  Addr   : ${aa.avg7d.toLocaleString('en-US')} (7d avg) | WoW: ${aa.weekChange != null ? (aa.weekChange > 0 ? '+' : '') + aa.weekChange + '%' : '___'} — ${aa.trend}`);
+    lines.push(`  Addr   : ${aa.avg7d.toLocaleString('en-US')} (7d avg) | WoW: ${aa.weekChange != null ? (aa.weekChange > 0 ? '+' : '') + aa.weekChange + '%' : '—'} — ${aa.trend}`);
   } else {
     lines.push(`  Addr   : ___`);
   }
   if (daily?.minerRevenue) {
     const mr = daily.minerRevenue;
-    lines.push(`  Miners : $${mr.revMillion}M/day | WoW: ${mr.weekChange != null ? (mr.weekChange > 0 ? '+' : '') + mr.weekChange + '%' : '___'} — ${mr.trend}`);
+    lines.push(`  Miners : $${mr.revMillion}M/day | WoW: ${mr.weekChange != null ? (mr.weekChange > 0 ? '+' : '') + mr.weekChange + '%' : '—'} — ${mr.trend}`);
   } else {
     lines.push(`  Miners : ___`);
   }
@@ -719,12 +794,12 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
   else
     lines.push(`  Basis  : ___`);
   if (daily?.optionsSkew)
-    lines.push(`  Skew   : ${daily.optionsSkew.skewProxy != null ? (daily.optionsSkew.skewProxy > 0 ? '+' : '') + daily.optionsSkew.skewProxy : '___'} | funding: ${daily.optionsSkew.avgFunding8h ?? '___'}%`);
+    lines.push(`  Skew   : ${daily.optionsSkew.skewProxy != null ? (daily.optionsSkew.skewProxy > 0 ? '+' : '') + daily.optionsSkew.skewProxy : '—'} | funding: ${daily.optionsSkew.avgFunding8h ?? '—'}%`);
   else
     lines.push(`  Skew   : ___`);
   if (daily?.googleTrends && !daily.googleTrends.skipped) {
     const gt = daily.googleTrends;
-    lines.push(`  Trends : ${gt.currentValue}/100${gt._fromCache ? ' 💾' : ''} | avg4w: ${gt.avg4w} | WoW: ${gt.weekChange != null ? (gt.weekChange > 0 ? '+' : '') + gt.weekChange + ' pts' : '___'} — ${gt.trend}`);
+    lines.push(`  Trends : ${gt.currentValue}/100${gt._fromCache ? ' 💾' : ''} | avg4w: ${gt.avg4w} | WoW: ${gt.weekChange != null ? (gt.weekChange > 0 ? '+' : '') + gt.weekChange + ' pts' : '—'} — ${gt.trend}`);
   } else {
     lines.push(`  Trends : ___ (SERPAPI_API_KEY tidak diset)`);
   }
@@ -732,22 +807,24 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
   // ── Weekly ────────────────────────────────────────────────────────────────
   lines.push('');
   lines.push(`WEEKLY [${weekly?._fromCache ? `💾 cache: ${weekly._cachedAt?.slice(0,10)}` : weekly && !weekly.skipped ? '✅ live' : '⚠️ tidak tersedia'}]:`);
-  lines.push(`  10Y    : ${weekly?.yield10y?.value ?? '___'}% (${weekly?.yield10y?.direction ?? '___'})`);
-  lines.push(`  NFCI   : ${weekly?.nfci?.value ?? '___'} (${weekly?.nfci?.trend ?? '___'})`);
-  lines.push(`  TVL    : $${weekly?.tvl?.tvl ?? '___'}B (${weekly?.tvl?.changePercent != null ? (weekly.tvl.changePercent >= 0 ? '+' : '') + weekly.tvl.changePercent : '___'}%)`);
-  lines.push(`  MSCI EM: ${weekly?.msciEm?.value ?? '___'} (${weekly?.msciEm?.direction ?? '___'})`);
-  lines.push(`  ETH/BTC: ${weekly?.ratioTrend?.ethBtc?.ratio ?? '___'} (${weekly?.ratioTrend?.ethBtc?.direction ?? '___'})`);
-  lines.push(`  SOL/BTC: ${weekly?.ratioTrend?.solBtc?.ratio ?? '___'} (${weekly?.ratioTrend?.solBtc?.direction ?? '___'})`);
+  lines.push(`  10Y    : ${weekly?.yield10y?.value ?? '—'}% (${weekly?.yield10y?.direction ?? '—'})`);
+  lines.push(`  NFCI   : ${weekly?.nfci?.value ?? '—'} (${weekly?.nfci?.trend ?? '—'})`);
+  lines.push(`  TVL    : $${weekly?.tvl?.tvl ?? '—'}B (${weekly?.tvl?.changePercent != null ? (weekly.tvl.changePercent >= 0 ? '+' : '') + weekly.tvl.changePercent : '—'}%)`);
+  lines.push(`  MSCI EM: ${weekly?.msciEm?.value ?? '—'} (${weekly?.msciEm?.direction ?? '—'})`);
+  lines.push(`  ETH/BTC: ${weekly?.ratioTrend?.ethBtc?.ratio ?? '—'} (${weekly?.ratioTrend?.ethBtc?.direction ?? '—'})`);
+  lines.push(`  SOL/BTC: ${weekly?.ratioTrend?.solBtc?.ratio ?? '—'} (${weekly?.ratioTrend?.solBtc?.direction ?? '—'})`);
   if (weekly?.altseason?.value != null)
-    lines.push(`  Altszn : ${weekly.altseason.value} — ${weekly.altseason.signal} ✅`);
+    lines.push(`  Altszn : ${weekly.altseason.value} — ${weekly.altseason.signal} ✅${weekly.altseasonProxy ? ` | proxy: ${weekly.altseasonProxy.value}` : ''}`);
+  else if (weekly?.altseasonProxy?.value != null)
+    lines.push(`  Altszn : ${weekly.altseasonProxy.value} — ${weekly.altseasonProxy.signal} ⚠️ proxy`);
   else
-    lines.push(`  Altszn : ___`);
+    lines.push(`  Altszn : —`);
 
   // ── Monthly ───────────────────────────────────────────────────────────────
   lines.push('');
   lines.push(`MONTHLY [${monthly?._fromCache ? `💾 cache: ${monthly._cachedAt?.slice(0,10)}` : monthly && !monthly.skipped ? '✅ live' : '⚠️ tidak tersedia'}]:`);
-  lines.push(`  CPI    : ${monthly?.cpi?.yoy ?? '___'}% YoY`);
-  lines.push(`  Fed    : ${monthly?.fedRate?.label ?? '___'}`);
+  lines.push(`  CPI    : ${monthly?.cpi?.yoy ?? '—'}% YoY`);
+  lines.push(`  Fed    : ${monthly?.fedRate?.label ?? '—'}`);
   if (monthly?.m2?.globalTrillions) {
     lines.push(`  G-M2   : $${monthly.m2.globalTrillions}T total | YoY: ${monthly.m2.globalYoY}%`);
     lines.push(`           US $${monthly.m2.us}T | CN $${monthly.m2.cn}T | JP $${monthly.m2.jp}T | EZ $${monthly.m2.ez}T`);
