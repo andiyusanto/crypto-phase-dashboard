@@ -87,14 +87,12 @@ const config = {
   alphaVantageApiKey: process.env.ALPHA_VANTAGE_API_KEY,
   oilPriceApiKey:    process.env.OIL_PRICE_API_KEY,
   coinMarketCapApiKey: process.env.COINMARKETCAP_API_KEY,
-  tradingEconomicsApiKey: process.env.TRADING_ECONOMICS_API_KEY,
   serpApiKey:          process.env.SERPAPI_API_KEY,
 
   anthropicApiKey:   process.env.ANTHROPIC_API_KEY,
   openaiApiKey:      process.env.OPENAI_API_KEY,
   geminiApiKey:      process.env.GEMINI_API_KEY,
   perplexityApiKey:  process.env.PERPLEXITY_API_KEY,
-  xaiApiKey:         process.env.XAI_API_KEY,
   openRouterApiKey:  process.env.OPENROUTER_API_KEY,
 
   telegramBotToken:  process.env.TELEGRAM_BOT_TOKEN,

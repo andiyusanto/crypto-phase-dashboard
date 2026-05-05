@@ -162,7 +162,8 @@
       "Bash(curl -s \"https://data.etf.com/funds/ibit/flows\" -H \"User-Agent: Mozilla/5.0\")",
       "Bash(curl -s \"https://query1.finance.yahoo.com/v8/finance/chart/IBIT?interval=1d&range=5d&modules=fundSummary\" -H \"User-Agent: Mozilla/5.0\")",
       "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\)\\); const m=d?.chart?.result?.[0]; console.log\\('meta keys with total/share/aum:', Object.keys\\(m?.meta??{}\\).filter\\(k=>k.toLowerCase\\(\\).includes\\('total'\\)||k.toLowerCase\\(\\).includes\\('share'\\)||k.toLowerCase\\(\\).includes\\('aum'\\)||k.toLowerCase\\(\\).includes\\('asset'\\)\\)\\)\")",
-      "Bash(node --check src/index.js)"
+      "Bash(node --check src/index.js)",
+      "Bash(node --check /home/tengkorakhitam/Crypto-Project-Dashboard/crypto-phase-dashboard/src/index.js)"
     ],
     "additionalDirectories": [
       "/tmp"

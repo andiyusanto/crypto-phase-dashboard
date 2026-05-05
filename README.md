@@ -92,7 +92,7 @@ Setup: Channel Settings → Integrations → Webhooks → **New Webhook** → Co
 | `TWELVE_DATA_API_KEY` | DXY, Gold, MSCI EM | **Gratis** (800 req/hari) |
 | `OIL_PRICE_API_KEY` | Brent Crude Oil | **Gratis** (200 req/bulan) |
 | `COINMARKETCAP_API_KEY` | TOTAL2, TOTAL3, OTHERS.D | **Gratis** |
-| `SERPAPI_API_KEY` | Google Trends "bitcoin" (Tier 3 retail FOMO signal) | **Gratis** (100 req/bulan) |
+| `SERPAPI_API_KEY` | Google Trends "bitcoin" (Tier 3 retail FOMO signal) | **Gratis** (250 searches/bulan, non-commercial) |
 
 > **SerpAPI**: Digunakan dengan 12-jam in-memory cache → ~60 req/bulan efektif, well within free tier.
 
