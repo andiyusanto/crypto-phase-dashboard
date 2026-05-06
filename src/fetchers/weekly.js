@@ -201,8 +201,8 @@ export async function fetchBrentOilWeekly(apiKey) {
 // Diambil dari CoinGecko (sudah ada di daily, tapi weekly perlu trend 7 hari)
 export async function fetchRatioTrend() {
   try {
-    // Ambil data 7 hari historis BTC dan ETH
-    const [btcHist, ethHist, solHist] = await Promise.all([
+    // Ambil data 7 hari historis BTC, ETH, SOL, AVAX, XRP
+    const [btcHist, ethHist, solHist, avaxHist, xrpHist] = await Promise.all([
       axios.get('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart', {
         params: { vs_currency: 'usd', days: 7, interval: 'daily' },
       }),
@@ -212,20 +212,36 @@ export async function fetchRatioTrend() {
       axios.get('https://api.coingecko.com/api/v3/coins/solana/market_chart', {
         params: { vs_currency: 'usd', days: 7, interval: 'daily' },
       }),
+      axios.get('https://api.coingecko.com/api/v3/coins/avalanche-2/market_chart', {
+        params: { vs_currency: 'usd', days: 7, interval: 'daily' },
+      }),
+      axios.get('https://api.coingecko.com/api/v3/coins/ripple/market_chart', {
+        params: { vs_currency: 'usd', days: 7, interval: 'daily' },
+      }),
     ]);
 
-    const btcPrices = btcHist.data.prices;
-    const ethPrices = ethHist.data.prices;
-    const solPrices = solHist.data.prices;
+    const btcPrices  = btcHist.data.prices;
+    const ethPrices  = ethHist.data.prices;
+    const solPrices  = solHist.data.prices;
+    const avaxPrices = avaxHist.data.prices;
+    const xrpPrices  = xrpHist.data.prices;
 
     // Rasio sekarang vs 7 hari lalu
-    const ethBtcNow = ethPrices[ethPrices.length - 1][1] / btcPrices[btcPrices.length - 1][1];
-    const ethBtcPrev = ethPrices[0][1] / btcPrices[0][1];
+    const ethBtcNow    = ethPrices[ethPrices.length - 1][1] / btcPrices[btcPrices.length - 1][1];
+    const ethBtcPrev   = ethPrices[0][1] / btcPrices[0][1];
     const ethBtcChange = ((ethBtcNow - ethBtcPrev) / ethBtcPrev) * 100;
 
-    const solBtcNow = solPrices[solPrices.length - 1][1] / btcPrices[btcPrices.length - 1][1];
-    const solBtcPrev = solPrices[0][1] / btcPrices[0][1];
+    const solBtcNow    = solPrices[solPrices.length - 1][1] / btcPrices[btcPrices.length - 1][1];
+    const solBtcPrev   = solPrices[0][1] / btcPrices[0][1];
     const solBtcChange = ((solBtcNow - solBtcPrev) / solBtcPrev) * 100;
+
+    const avaxBtcNow    = avaxPrices[avaxPrices.length - 1][1] / btcPrices[btcPrices.length - 1][1];
+    const avaxBtcPrev   = avaxPrices[0][1] / btcPrices[0][1];
+    const avaxBtcChange = ((avaxBtcNow - avaxBtcPrev) / avaxBtcPrev) * 100;
+
+    const xrpBtcNow    = xrpPrices[xrpPrices.length - 1][1] / btcPrices[btcPrices.length - 1][1];
+    const xrpBtcPrev   = xrpPrices[0][1] / btcPrices[0][1];
+    const xrpBtcChange = ((xrpBtcNow - xrpBtcPrev) / xrpBtcPrev) * 100;
 
     return {
       ethBtc: {
@@ -237,6 +253,16 @@ export async function fetchRatioTrend() {
         ratio: parseFloat(solBtcNow.toFixed(6)),
         weekChange: parseFloat(solBtcChange.toFixed(2)),
         direction: solBtcChange > 3 ? 'naik' : solBtcChange < -3 ? 'turun' : 'flat',
+      },
+      avaxBtc: {
+        ratio: parseFloat(avaxBtcNow.toFixed(8)),
+        weekChange: parseFloat(avaxBtcChange.toFixed(2)),
+        direction: avaxBtcChange > 3 ? 'naik' : avaxBtcChange < -3 ? 'turun' : 'flat',
+      },
+      xrpBtc: {
+        ratio: parseFloat(xrpBtcNow.toFixed(8)),
+        weekChange: parseFloat(xrpBtcChange.toFixed(2)),
+        direction: xrpBtcChange > 3 ? 'naik' : xrpBtcChange < -3 ? 'turun' : 'flat',
       },
     };
   } catch (err) {
@@ -401,37 +427,51 @@ export async function fetchAllWeeklyData(config = {}) {
 
 // ── ALTSEASON PROXY ───────────────────────────────────────────────────────────
 // Kalkulasi altseason score (0–100) dari data yang sudah kita punya:
-// ETH/BTC weekChange (40 pts) + SOL/BTC weekChange (30 pts) + OTHERS.D (30 pts)
+// ETH/BTC (35pts) + SOL/BTC (25pts) + AVAX/BTC (20pts) + XRP/BTC (10pts) + OTHERS.D (10pts)
 // Skala dan threshold dikalibrasi agar konsisten dengan blockchaincenter.net
 export function computeAltseasonProxy(ratioTrend, othersDom) {
-  const ethChg  = ratioTrend?.ethBtc?.weekChange ?? null;
-  const solChg  = ratioTrend?.solBtc?.weekChange ?? null;
-  const othersD = othersDom?.othersDominance     ?? null;
+  const ethChg  = ratioTrend?.ethBtc?.weekChange  ?? null;
+  const solChg  = ratioTrend?.solBtc?.weekChange  ?? null;
+  const avaxChg = ratioTrend?.avaxBtc?.weekChange ?? null;
+  const xrpChg  = ratioTrend?.xrpBtc?.weekChange  ?? null;
+  const othersD = othersDom?.othersDominance      ?? null;
 
-  // ETH/BTC momentum — 40 pts, primary signal (ETH leads alt rotation)
-  const ethScore = ethChg == null ? 20
-    : ethChg > 15  ? 40 : ethChg > 8  ? 32 : ethChg > 3  ? 24
-    : ethChg > 0   ? 16 : ethChg > -3 ? 10 : ethChg > -8 ? 5 : 0;
+  // ETH/BTC momentum — 35 pts, primary signal (ETH leads alt rotation)
+  const ethScore = ethChg == null ? 17
+    : ethChg > 15  ? 35 : ethChg > 8  ? 28 : ethChg > 3  ? 21
+    : ethChg > 0   ? 14 : ethChg > -3 ? 9  : ethChg > -8 ? 4 : 0;
 
-  // SOL/BTC momentum — 30 pts, high-beta confirmation
-  const solScore = solChg == null ? 15
-    : solChg > 15  ? 30 : solChg > 8  ? 24 : solChg > 3  ? 18
-    : solChg > 0   ? 12 : solChg > -3 ? 7  : solChg > -8 ? 3  : 0;
+  // SOL/BTC momentum — 25 pts, high-beta primary confirmation
+  const solScore = solChg == null ? 12
+    : solChg > 15  ? 25 : solChg > 8  ? 20 : solChg > 3  ? 15
+    : solChg > 0   ? 10 : solChg > -3 ? 6  : solChg > -8 ? 2  : 0;
 
-  // OTHERS.D level — 30 pts, structural small-cap rotation
-  const domScore = othersD == null ? 15
-    : othersD > 25 ? 30 : othersD > 20 ? 24 : othersD > 15 ? 18
-    : othersD > 12 ? 12 : othersD > 9  ? 7  : othersD > 6  ? 3  : 0;
+  // AVAX/BTC momentum — 20 pts, high-beta secondary confirmation
+  const avaxScore = avaxChg == null ? 10
+    : avaxChg > 15  ? 20 : avaxChg > 8  ? 16 : avaxChg > 3  ? 12
+    : avaxChg > 0   ? 8  : avaxChg > -3 ? 4  : avaxChg > -8 ? 1  : 0;
 
-  const score  = Math.min(100, Math.round(ethScore + solScore + domScore));
+  // XRP/BTC momentum — 10 pts, institutional rotation leading indicator
+  const xrpScore = xrpChg == null ? 5
+    : xrpChg > 15  ? 10 : xrpChg > 8  ? 8 : xrpChg > 3  ? 6
+    : xrpChg > 0   ? 4  : xrpChg > -3 ? 2 : xrpChg > -8 ? 1 : 0;
+
+  // OTHERS.D level — 10 pts, structural small-cap rotation
+  const domScore = othersD == null ? 5
+    : othersD > 25 ? 10 : othersD > 20 ? 8 : othersD > 15 ? 6
+    : othersD > 12 ? 4  : othersD > 9  ? 2 : othersD > 6  ? 1 : 0;
+
+  const score  = Math.min(100, Math.round(ethScore + solScore + avaxScore + xrpScore + domScore));
   const signal = score >= 75 ? 'Altseason 🚀'
     : score >= 55             ? 'Altseason territory ⚡'
     : score <= 25             ? 'Bitcoin Season 🟠'
     :                           'Neutral / Bitcoin favored ⚠️';
 
   const components = [
-    ethChg  != null ? `ETH/BTC WoW: ${ethChg > 0 ? '+' : ''}${ethChg}%` : null,
-    solChg  != null ? `SOL/BTC WoW: ${solChg > 0 ? '+' : ''}${solChg}%` : null,
+    ethChg  != null ? `ETH/BTC WoW: ${ethChg > 0 ? '+' : ''}${ethChg}%`   : null,
+    solChg  != null ? `SOL/BTC WoW: ${solChg > 0 ? '+' : ''}${solChg}%`   : null,
+    avaxChg != null ? `AVAX/BTC WoW: ${avaxChg > 0 ? '+' : ''}${avaxChg}%` : null,
+    xrpChg  != null ? `XRP/BTC WoW: ${xrpChg > 0 ? '+' : ''}${xrpChg}%`   : null,
     othersD != null ? `OTHERS.D: ${othersD}%` : null,
   ].filter(Boolean).join(' | ');
 

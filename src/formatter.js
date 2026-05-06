@@ -377,9 +377,13 @@ ${vixLine}
   const nfciPrev  = v(weekly?.nfci?.prevWeek);
   const yield10y  = v(weekly?.yield10y?.value);
   const yieldDir  = v(weekly?.yield10y?.direction);
-  const ethBtc    = v(weekly?.ratioTrend?.ethBtc?.ratio ?? daily?.crypto?.ethBtcRatio);
-  const solBtc    = v(weekly?.ratioTrend?.solBtc?.ratio ?? daily?.crypto?.solBtcRatio);
-  const solBtcDir = v(weekly?.ratioTrend?.solBtc?.direction);
+  const ethBtc     = v(weekly?.ratioTrend?.ethBtc?.ratio  ?? daily?.crypto?.ethBtcRatio);
+  const solBtc     = v(weekly?.ratioTrend?.solBtc?.ratio  ?? daily?.crypto?.solBtcRatio);
+  const solBtcDir  = v(weekly?.ratioTrend?.solBtc?.direction);
+  const avaxBtc    = v(weekly?.ratioTrend?.avaxBtc?.ratio ?? daily?.crypto?.avaxBtcRatio);
+  const avaxBtcDir = v(weekly?.ratioTrend?.avaxBtc?.direction);
+  const xrpBtc     = v(weekly?.ratioTrend?.xrpBtc?.ratio  ?? daily?.crypto?.xrpBtcRatio);
+  const xrpBtcDir  = v(weekly?.ratioTrend?.xrpBtc?.direction);
   const tvl       = v(weekly?.tvl?.tvl);
   const tvlChg    = v(weekly?.tvl?.changePercent);
   const msciEm    = v(weekly?.msciEm?.value);
@@ -534,7 +538,7 @@ ${fedBlock}
 ${athLine}
 ${ma200Line}
 - BTC Dominance: ${btcDom}%${btcDomDeltaStr} | arah: ${btcDomDir}
-- ETH/BTC: ${ethBtc} | SOL/BTC: ${solBtc}
+- ETH/BTC: ${ethBtc} | SOL/BTC: ${solBtc} | AVAX/BTC: ${avaxBtc} | XRP/BTC: ${xrpBtc}
 - DXY: ${dxyVal} | arah: ${dxyDir}
 - Gold (XAUUSD): $${goldPrice} | 24h: ${goldChange}%
 - Oil Brent: $${oilPrice} | arah: ${oilDir}
@@ -570,7 +574,9 @@ ${trendsLine}
 - FCI (Chicago Fed NFCI): ${nfci} | vs minggu lalu: ${nfciPrev}
 - US 10Y Yield: ${yield10y}% | arah: ${yieldDir}
 - ETH/BTC ratio: ${ethBtc} | arah minggu ini: ${v(weekly?.ratioTrend?.ethBtc?.direction)} ${v(weekly?.ratioTrend?.ethBtc?.weekChange, '')}%
-- SOL/BTC ratio: ${solBtc} | arah: ${solBtcDir}
+- SOL/BTC ratio: ${solBtc} | arah: ${solBtcDir} ${v(weekly?.ratioTrend?.solBtc?.weekChange, '')}%
+- AVAX/BTC ratio: ${avaxBtc} | arah: ${avaxBtcDir} ${v(weekly?.ratioTrend?.avaxBtc?.weekChange, '')}%
+- XRP/BTC ratio: ${xrpBtc} | arah: ${xrpBtcDir} ${v(weekly?.ratioTrend?.xrpBtc?.weekChange, '')}%
 - BTC.D arah minggu ini: ${btcDomDir}${btcDomDeltaStr}
 - BTC exchange netflow: ${exchangeNetflow}
 - Altseason Index: ${altseasonIdx}
@@ -602,7 +608,7 @@ LAYER 0–1 (CORE / SAFE HAVEN):
 - BTC, ETH, Gold (XAU)
 
 LAYER 2 (L1 / HIGH-BETA):
-- SOL, AVAX, ALGO
+- SOL, AVAX, XRP
 
 LAYER 3 (DeFi Core):
 - LDO, AAVE, UNI, LINK

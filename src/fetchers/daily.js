@@ -29,7 +29,7 @@ export async function fetchCryptoData() {
       timeout: 12000,
     }),
     axios.get('https://api.binance.com/api/v3/ticker/24hr', {
-      params: { symbols: JSON.stringify(['BTCUSDT', 'ETHUSDT', 'SOLUSDT']) },
+      params: { symbols: JSON.stringify(['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'AVAXUSDT', 'XRPUSDT']) },
       timeout: 8000,
     }),
   ]);
@@ -54,28 +54,32 @@ export async function fetchCryptoData() {
   }
 
   // ── Prices: Binance primary, CoinGecko fallback ───────────────────────────
-  let btc, eth, sol;
+  let btc, eth, sol, avax, xrp;
 
   if (bnTickerRes.status === 'fulfilled') {
     const tickers = bnTickerRes.value.data;
     const find    = (sym) => tickers.find(t => t.symbol === sym);
-    const bn      = { btc: find('BTCUSDT'), eth: find('ETHUSDT'), sol: find('SOLUSDT') };
+    const bn      = { btc: find('BTCUSDT'), eth: find('ETHUSDT'), sol: find('SOLUSDT'), avax: find('AVAXUSDT'), xrp: find('XRPUSDT') };
 
-    btc = { price: Math.round(parseFloat(bn.btc.lastPrice)), change24h: parseFloat(parseFloat(bn.btc.priceChangePercent).toFixed(2)), volume24hBillion: parseFloat((parseFloat(bn.btc.quoteVolume) / 1e9).toFixed(2)) };
-    eth = { price: Math.round(parseFloat(bn.eth.lastPrice)), change24h: parseFloat(parseFloat(bn.eth.priceChangePercent).toFixed(2)) };
-    sol = { price: parseFloat(parseFloat(bn.sol.lastPrice).toFixed(2)), change24h: parseFloat(parseFloat(bn.sol.priceChangePercent).toFixed(2)) };
+    btc  = { price: Math.round(parseFloat(bn.btc.lastPrice)), change24h: parseFloat(parseFloat(bn.btc.priceChangePercent).toFixed(2)), volume24hBillion: parseFloat((parseFloat(bn.btc.quoteVolume) / 1e9).toFixed(2)) };
+    eth  = { price: Math.round(parseFloat(bn.eth.lastPrice)), change24h: parseFloat(parseFloat(bn.eth.priceChangePercent).toFixed(2)) };
+    sol  = { price: parseFloat(parseFloat(bn.sol.lastPrice).toFixed(2)), change24h: parseFloat(parseFloat(bn.sol.priceChangePercent).toFixed(2)) };
+    avax = { price: parseFloat(parseFloat(bn.avax.lastPrice).toFixed(2)), change24h: parseFloat(parseFloat(bn.avax.priceChangePercent).toFixed(2)) };
+    xrp  = { price: parseFloat(parseFloat(bn.xrp.lastPrice).toFixed(4)), change24h: parseFloat(parseFloat(bn.xrp.priceChangePercent).toFixed(2)) };
     console.log('  ✓ Harga via Binance');
   } else {
     console.warn('⚠️  Binance ticker gagal, fallback ke CoinGecko:', bnTickerRes.reason?.message);
     try {
       const fb = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
-        params: { ids: 'bitcoin,ethereum,solana', vs_currencies: 'usd', include_24hr_change: true, include_24hr_vol: true },
+        params: { ids: 'bitcoin,ethereum,solana,avalanche-2,ripple', vs_currencies: 'usd', include_24hr_change: true, include_24hr_vol: true },
         timeout: 12000,
       });
       const p = fb.data;
-      btc = { price: Math.round(p.bitcoin.usd), change24h: parseFloat(p.bitcoin.usd_24h_change.toFixed(2)), volume24hBillion: parseFloat((p.bitcoin.usd_24h_vol / 1e9).toFixed(2)) };
-      eth = { price: Math.round(p.ethereum.usd), change24h: parseFloat(p.ethereum.usd_24h_change.toFixed(2)) };
-      sol = { price: parseFloat(p.solana.usd.toFixed(2)), change24h: parseFloat(p.solana.usd_24h_change.toFixed(2)) };
+      btc  = { price: Math.round(p.bitcoin.usd), change24h: parseFloat(p.bitcoin.usd_24h_change.toFixed(2)), volume24hBillion: parseFloat((p.bitcoin.usd_24h_vol / 1e9).toFixed(2)) };
+      eth  = { price: Math.round(p.ethereum.usd), change24h: parseFloat(p.ethereum.usd_24h_change.toFixed(2)) };
+      sol  = { price: parseFloat(p.solana.usd.toFixed(2)), change24h: parseFloat(p.solana.usd_24h_change.toFixed(2)) };
+      avax = { price: parseFloat(p['avalanche-2'].usd.toFixed(2)), change24h: parseFloat(p['avalanche-2'].usd_24h_change.toFixed(2)) };
+      xrp  = { price: parseFloat(p.ripple.usd.toFixed(4)), change24h: parseFloat(p.ripple.usd_24h_change.toFixed(2)) };
       console.log('  ✓ Harga via CoinGecko (fallback)');
     } catch (err) {
       console.error('❌ CoinGecko price fallback juga gagal:', err.message);
@@ -87,10 +91,14 @@ export async function fetchCryptoData() {
     btc,
     eth,
     sol,
+    avax,
+    xrp,
     btcDominance:          parseFloat(btcDominance.toFixed(2)),
     totalMarketCapBillion: parseFloat((global.total_market_cap?.usd / 1e9).toFixed(2)),
     ethBtcRatio:           parseFloat((eth.price / btc.price).toFixed(6)),
     solBtcRatio:           parseFloat((sol.price / btc.price).toFixed(6)),
+    avaxBtcRatio:          parseFloat((avax.price / btc.price).toFixed(8)),
+    xrpBtcRatio:           parseFloat((xrp.price / btc.price).toFixed(8)),
     stablecoinSupply,
   };
 }
