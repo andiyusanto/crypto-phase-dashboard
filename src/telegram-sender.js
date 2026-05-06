@@ -156,6 +156,17 @@ export function formatFetchSummaryForTelegram(daily, weekly, monthly, fed) {
     if (fed.reserves?.totalTrillions != null)
       lines.push(`WLRRAL: $${fed.reserves.totalTrillions}T ${fed.reserves.signal}`);
     lines.push(`Score: *${fed.trifectaScore}* → ${fed.overallStatus}`);
+    lines.push('', `📉 *PHASE 0 MACRO STRESS*`);
+    if (fed.tga?.balanceBillions != null)
+      lines.push(`TGA  : $${fed.tga.balanceBillions}B (Δ${fed.tga.weekChangeBillions >= 0 ? '+' : ''}${fed.tga.weekChangeBillions}B | ${fed.tga.trend}) ${fed.tga.signal}`);
+    if (fed.hySpread?.spreadPct != null)
+      lines.push(`HY OAS: ${fed.hySpread.spreadPct}% | ${fed.hySpread.zone} ${fed.hySpread.signal}`);
+    if (fed.yieldCurve?.spread != null)
+      lines.push(`Curve: ${fed.yieldCurve.spread >= 0 ? '+' : ''}${fed.yieldCurve.spread}% (${fed.yieldCurve.zone}) ${fed.yieldCurve.signal}`);
+    if (fed.vix?.value != null)
+      lines.push(`VIX  : ${fed.vix.value} | ${fed.vix.zone} ${fed.vix.signal}`);
+    if (fed.macroStressScore)
+      lines.push(`Stress: *${fed.macroStressScore}* merah → ${fed.macroStressLabel}`);
   }
 
   // WoW helper
@@ -218,9 +229,58 @@ export function formatFetchSummaryForTelegram(daily, weekly, monthly, fed) {
     if (cm?.exchangeReserve) {
       const er = cm.exchangeReserve;
       const mv = cm.mvrv;
+      const rc = cm.realizedCap;
       lines.push(`Exchange Reserve: ${(er.current / 1000).toFixed(1)}k BTC | 7d: ${er.change7d > 0 ? '+' : ''}${er.change7d.toLocaleString()} BTC (${er.changePct7d > 0 ? '+' : ''}${er.changePct7d}%) ${er.signal}`);
       if (mv?.value != null) lines.push(`MVRV (true): ${mv.value} | ${mv.zone} ${mv.value > 3.5 ? '🔴' : mv.value > 2.0 ? '⚠️' : '✅'}`);
+      if (rc?.valueBillion != null) lines.push(`Realized Cap: $${rc.valueBillion}B | MoM: ${rc.growthMoM != null ? (rc.growthMoM >= 0 ? '+' : '') + rc.growthMoM + '%' : '—'} ${rc.growthMoM > 5 ? '✅' : rc.growthMoM > 0 ? '⚠️' : '🔴'}`);
     }
+    if (daily?.txVolume?.avg7dBtc != null) {
+      const tv = daily.txVolume;
+      const btcPx = daily?.crypto?.btc?.price;
+      const mktB  = cm?.mktCapBillion;
+      const txUsdB = (tv.avg7dBtc != null && btcPx) ? parseFloat((tv.avg7dBtc * btcPx / 1e9).toFixed(1)) : null;
+      const nvt = (mktB && txUsdB) ? parseFloat((mktB / txUsdB).toFixed(1)) : null;
+      lines.push(`NVT: ${nvt ?? '—'} | TxVol: ${tv.avg7dBtc.toLocaleString()} BTC/day ${nvt != null ? (nvt < 35 ? '✅ undervalued' : nvt < 65 ? '⚠️ fair' : '🔴 stretched') : ''}`);
+    }
+    if (daily?.outputVolume?.avg7dBtc != null) {
+      const ov = daily.outputVolume;
+      lines.push(`Coin Velocity: ${ov.avg7dBtc.toLocaleString()} BTC/day | WoW: ${ov.weekChange != null ? (ov.weekChange >= 0 ? '+' : '') + ov.weekChange + '%' : '—'} | ${ov.hodlSignal}`);
+    }
+    // Phase 3 — Flow Acceleration + DVOL + Funding Streak
+    if (cm?.flowAcceleration != null)
+      lines.push(`Flow Accel: ${cm.flowAcceleration >= 0 ? '+' : ''}${cm.flowAcceleration}% WoW inflow | ${cm.flowAccelSignal}`);
+    const dvol3 = daily?.deribitIV;
+    if (dvol3)
+      lines.push(`BTC RVol 30d: ${dvol3.value}% ann | ${dvol3.zone} ${dvol3.signal.split('—')[0].trim()}`);
+    const fs = daily?.fundingStreak;
+    if (fs && fs.streakDays >= 1)
+      lines.push(`Funding Streak: ${fs.streakDays} hari >0.05% | avg7d: ${fs.avgRate7d ?? '—'}% | ${fs.signal}`);
+    // Phase 4 — Realized P/L + Skew proxy + Stablecoin Growth
+    const rc4 = cm?.realizedCap;
+    if (rc4?.growth7d != null)
+      lines.push(`Realized P/L (7d δ): ${rc4.growth7d >= 0 ? '+' : ''}${rc4.growth7d}% | ${rc4.realizedPLSignal}`);
+    const ba4 = daily?.btcBasis?.annualizedPct ?? null;
+    const fu4 = daily?.funding?.btc ?? null;
+    if (ba4 != null && fu4 != null) {
+      const sk4sig = ba4 < 0 ? '🔴 backwardation' : ba4 < 5 && fu4 > 0.05 ? '🔴 diverge Phase 4' : ba4 < 10 && fu4 > 0.03 ? '⚠️ hedging mulai' : '✅ normal';
+      lines.push(`Skew proxy: basis ${ba4}% ann | funding ${fu4}% | ${sk4sig}`);
+    }
+    const sn4 = daily?.crypto?.stablecoinSupply?.total ?? null;
+    const sp4 = daily?._prevWeek?.stablecoin_billion ?? null;
+    const sg4 = (sn4 != null && sp4 != null && sp4 > 0)
+      ? parseFloat(((sn4 - sp4) / sp4 * 100).toFixed(2)) : null;
+    if (sg4 != null)
+      lines.push(`Stable Supply WoW: ${sg4 >= 0 ? '+' : ''}${sg4}% | $${sn4}B ${sg4 < -1 ? '🔴 rotasi cash' : sg4 > 5 ? '✅ printing' : '⚠️ flat'}`);
+    // Phase 2 — CME Premium + L2 TVL
+    const cme2 = daily?.btcCmePremium;
+    const spot2 = daily?.crypto?.btc?.price;
+    const pct2 = (cme2?.futuresPrice != null && spot2 != null && spot2 > 0)
+      ? parseFloat(((cme2.futuresPrice - spot2) / spot2 * 100).toFixed(2)) : null;
+    if (pct2 != null)
+      lines.push(`CME Premium: ${pct2 >= 0 ? '+' : ''}${pct2}% | futures $${cme2.futuresPrice.toLocaleString()}`);
+    const l2_2 = daily?.l2TVL;
+    if (l2_2)
+      lines.push(`L2 TVL: $${l2_2.totalBillion}B | ${l2_2.chains.slice(0, 3).map(c => `${c.name} $${c.tvlBillion}B`).join(' | ')} | ${l2_2.signal}`);
     if (etf)
       lines.push(`ETF Flow ⚠️: ${etf.label} | skor: ${etf.score > 0 ? '+' : ''}${etf.score} ${etf.signal} (${etf.etfsUsed} ETFs, estimasi)`);
     if (nupl) {

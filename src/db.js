@@ -76,6 +76,17 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS funding_rate_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    rate_date TEXT NOT NULL UNIQUE,
+    btc_rate REAL,
+    eth_rate REAL,
+    source TEXT,
+    fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 // ── MIGRATIONS (add columns to existing installs) ─────────────────────────────
 const migrate = (sql) => { try { db.exec(sql); } catch (_) { /* column/index exists */ } };
 
@@ -269,6 +280,26 @@ export const getPrevWeekSnapshot = () => {
     LIMIT 1
   `).get();
   return row ?? null;
+};
+
+// ── FUNDING RATE HISTORY (streak computation for Phase 3) ────────────────────
+
+export const saveFundingRate = (data) => {
+  if (data?.btcRate == null) return;
+  const date = new Date().toISOString().slice(0, 10);
+  db.prepare(`
+    INSERT OR REPLACE INTO funding_rate_history (rate_date, btc_rate, eth_rate, source, fetched_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(date, data.btcRate, data.ethRate ?? null, data.source ?? null, new Date().toISOString());
+  console.log(`  ✓ Funding rate saved (${date}): BTC ${data.btcRate}%`);
+};
+
+export const getFundingRateHistory = (days = 14) => {
+  return db.prepare(`
+    SELECT rate_date, btc_rate, eth_rate, source FROM funding_rate_history
+    ORDER BY rate_date DESC
+    LIMIT ?
+  `).all(days);
 };
 
 export default db;

@@ -172,15 +172,27 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
 
   // Fed Liquidity
   if (fed && !fed.skipped) {
-    const w  = fed.walcl;
-    const r  = fed.rrp;
-    const rv = fed.reserves;
+    const w   = fed.walcl;
+    const r   = fed.rrp;
+    const rv  = fed.reserves;
+    const tg  = fed.tga;
+    const hy  = fed.hySpread;
+    const yc  = fed.yieldCurve;
+    const vx  = fed.vix;
     const lines = [];
     if (w?.totalTrillions  != null) lines.push(`**WALCL**: $${w.totalTrillions}T (${w.weekChangeBillions >= 0 ? '+' : ''}${w.weekChangeBillions}B) ${w.signal}`);
     if (r?.balanceBillions != null) lines.push(`**RRP**: $${r.balanceBillions}B · trend: ${r.trend} ${r.signal}`);
     if (rv?.totalTrillions != null) lines.push(`**WLRRAL**: $${rv.totalTrillions}T ${rv.signal}`);
     lines.push(`**Trifecta**: ${fed.trifectaScore} → ${fed.overallStatus}`);
-    if (lines.length) fields.push({ name: '🏦 Fed Liquidity', value: lines.join('\n'), inline: false });
+    if (lines.length) fields.push({ name: '🏦 Fed Liquidity Trifecta', value: lines.join('\n'), inline: false });
+
+    const stress = [];
+    if (tg?.balanceBillions != null) stress.push(`**TGA**: $${tg.balanceBillions}B (Δ${tg.weekChangeBillions >= 0 ? '+' : ''}${tg.weekChangeBillions}B · ${tg.trend}) ${tg.signal}`);
+    if (hy?.spreadPct != null)       stress.push(`**HY OAS**: ${hy.spreadPct}% · ${hy.zone} ${hy.signal}`);
+    if (yc?.spread != null)          stress.push(`**Yield Curve**: ${yc.spread >= 0 ? '+' : ''}${yc.spread}% · ${yc.zone} ${yc.signal}`);
+    if (vx?.value != null)           stress.push(`**VIX**: ${vx.value} · ${vx.zone} ${vx.signal}`);
+    if (fed.macroStressScore)        stress.push(`**Stress Score**: ${fed.macroStressScore} merah → ${fed.macroStressLabel}`);
+    if (stress.length) fields.push({ name: '📉 Phase 0 Macro Stress', value: stress.join('\n'), inline: false });
   }
 
   // WoW helper
@@ -241,9 +253,58 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
     if (cm?.exchangeReserve) {
       const er = cm.exchangeReserve;
       const mv = cm.mvrv;
+      const rc = cm.realizedCap;
       lines.push(`**Exchange Reserve**: ${(er.current / 1000).toFixed(1)}k BTC · 7d: ${er.change7d > 0 ? '+' : ''}${er.change7d.toLocaleString()} BTC (${er.changePct7d > 0 ? '+' : ''}${er.changePct7d}%) ${er.signal}`);
       if (mv?.value != null) lines.push(`**MVRV (true)**: ${mv.value} · ${mv.zone} ${mv.value > 3.5 ? '🔴' : mv.value > 2.0 ? '⚠️' : '✅'}`);
+      if (rc?.valueBillion != null) lines.push(`**Realized Cap**: $${rc.valueBillion}B · MoM: ${rc.growthMoM != null ? (rc.growthMoM >= 0 ? '+' : '') + rc.growthMoM + '%' : '—'} ${rc.growthMoM > 5 ? '✅' : rc.growthMoM > 0 ? '⚠️' : '🔴'}`);
     }
+    if (daily?.txVolume?.avg7dBtc != null) {
+      const tv   = daily.txVolume;
+      const btcPx = daily?.crypto?.btc?.price;
+      const mktB  = cm?.mktCapBillion;
+      const txUsdB = (tv.avg7dBtc && btcPx) ? parseFloat((tv.avg7dBtc * btcPx / 1e9).toFixed(1)) : null;
+      const nvt   = (mktB && txUsdB) ? parseFloat((mktB / txUsdB).toFixed(1)) : null;
+      lines.push(`**NVT**: ${nvt ?? '—'} · TxVol: ${tv.avg7dBtc.toLocaleString()} BTC/day ${nvt != null ? (nvt < 35 ? '✅ undervalued' : nvt < 65 ? '⚠️ fair' : '🔴 stretched') : ''}`);
+    }
+    if (daily?.outputVolume?.avg7dBtc != null) {
+      const ov = daily.outputVolume;
+      lines.push(`**Coin Velocity**: ${ov.avg7dBtc.toLocaleString()} BTC/day · WoW: ${ov.weekChange != null ? (ov.weekChange >= 0 ? '+' : '') + ov.weekChange + '%' : '—'} · ${ov.hodlSignal}`);
+    }
+    // Phase 3 — Flow Acceleration + DVOL + Funding Streak
+    if (cm?.flowAcceleration != null)
+      lines.push(`**Flow Accel**: ${cm.flowAcceleration >= 0 ? '+' : ''}${cm.flowAcceleration}% WoW inflow · ${cm.flowAccelSignal}`);
+    const dvol3 = daily?.deribitIV;
+    if (dvol3)
+      lines.push(`**BTC RVol 30d**: ${dvol3.value}% ann · Δ7d: ${dvol3.dayChange >= 0 ? '+' : ''}${dvol3.dayChange} · ${dvol3.zone} ${dvol3.signal.split('—')[0].trim()}`);
+    const fs3 = daily?.fundingStreak;
+    if (fs3 && fs3.streakDays >= 1)
+      lines.push(`**Funding Streak**: ${fs3.streakDays} hari >0.05% · avg7d: ${fs3.avgRate7d ?? '—'}% · ${fs3.signal}`);
+    // Phase 4 — Realized P/L + Skew proxy + Stablecoin Growth
+    const rc4d = cm?.realizedCap;
+    if (rc4d?.growth7d != null)
+      lines.push(`**Realized P/L (7d δ)**: ${rc4d.growth7d >= 0 ? '+' : ''}${rc4d.growth7d}% · ${rc4d.realizedPLSignal}`);
+    const ba4d = daily?.btcBasis?.annualizedPct ?? null;
+    const fu4d = daily?.funding?.btc ?? null;
+    if (ba4d != null && fu4d != null) {
+      const sk4d = ba4d < 0 ? '🔴 backwardation' : ba4d < 5 && fu4d > 0.05 ? '🔴 diverge Phase 4' : ba4d < 10 && fu4d > 0.03 ? '⚠️ hedging mulai' : '✅ normal';
+      lines.push(`**Skew proxy**: basis ${ba4d}% ann · funding ${fu4d}% · ${sk4d}`);
+    }
+    const sn4d = daily?.crypto?.stablecoinSupply?.total ?? null;
+    const sp4d = daily?._prevWeek?.stablecoin_billion ?? null;
+    const sg4d = (sn4d != null && sp4d != null && sp4d > 0)
+      ? parseFloat(((sn4d - sp4d) / sp4d * 100).toFixed(2)) : null;
+    if (sg4d != null)
+      lines.push(`**Stable Supply WoW**: ${sg4d >= 0 ? '+' : ''}${sg4d}% · $${sn4d}B · ${sg4d < -1 ? '🔴 rotasi cash' : sg4d > 5 ? '✅ Tether printing' : '⚠️ flat'}`);
+    // Phase 2 — CME Premium + L2 TVL
+    const cme2d = daily?.btcCmePremium;
+    const spot2d = daily?.crypto?.btc?.price;
+    const pct2d = (cme2d?.futuresPrice != null && spot2d != null && spot2d > 0)
+      ? parseFloat(((cme2d.futuresPrice - spot2d) / spot2d * 100).toFixed(2)) : null;
+    if (pct2d != null)
+      lines.push(`**CME Premium**: ${pct2d >= 0 ? '+' : ''}${pct2d}% · futures $${cme2d.futuresPrice.toLocaleString()}`);
+    const l2_2d = daily?.l2TVL;
+    if (l2_2d)
+      lines.push(`**L2 TVL**: $${l2_2d.totalBillion}B · ${l2_2d.chains.slice(0, 3).map(c => `${c.name} $${c.tvlBillion}B`).join(' · ')} · ${l2_2d.signal}`);
     if (etf)
       lines.push(`**ETF Flow ⚠️**: ${etf.label} · skor: ${etf.score > 0 ? '+' : ''}${etf.score} ${etf.signal} (${etf.etfsUsed} ETFs, estimasi)`);
     if (nupl) {

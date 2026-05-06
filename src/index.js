@@ -58,6 +58,7 @@ import {
   saveMonthlyData,   getLatestMonthlyData,
   saveOilPrice,      getLatestOilPrice,
   saveDailySnapshot, getPrevWeekSnapshot,
+  saveFundingRate,   getFundingRateHistory,
 } from './db.js';
 import { formatDashboardPrompt, formatDataSummary } from './formatter.js';
 import { analyzeWith, saveAnalysis } from './claude-analyst.js';
@@ -221,6 +222,28 @@ async function main() {
       saveDailySnapshot(daily);
       const prevWeek = getPrevWeekSnapshot();
       if (prevWeek) daily = { ...daily, _prevWeek: prevWeek };
+
+      // Save funding rate history for Phase 3 streak computation
+      if (daily?.funding?.btc != null) {
+        saveFundingRate({ btcRate: daily.funding.btc, ethRate: daily.funding.eth, source: daily.funding.source });
+      }
+      // Compute funding streak: consecutive days where BTC funding > 0.05%
+      const fundingHistory = getFundingRateHistory(14);
+      if (fundingHistory.length > 0) {
+        let streakDays = 0;
+        for (const row of fundingHistory) {
+          if ((row.btc_rate ?? 0) > 0.05) streakDays++;
+          else break;
+        }
+        const avg7Arr   = fundingHistory.slice(0, 7);
+        const avgRate7d = avg7Arr.length
+          ? parseFloat((avg7Arr.reduce((s, r) => s + (r.btc_rate ?? 0), 0) / avg7Arr.length).toFixed(4))
+          : null;
+        const streakSignal = streakDays >= 7 ? '🔴 overleveraged — streak panjang Phase 3'
+          : streakDays >= 3 ? '⚠️ funding persistent tinggi'
+          : '✅ normal';
+        daily = { ...daily, fundingStreak: { streakDays, avgRate7d, signal: streakSignal } };
+      }
 
       console.log(chalk.green('✓ Daily data'));
     }

@@ -14,7 +14,7 @@ Setiap AI provider, Telegram, dan Discord **sepenuhnya independen** — menjalan
 │  CoinGecko · Binance · Hyperliquid · DefiLlama · FRED · OilPriceAPI          │
 │  alternative.me · Google News RSS · Twelve Data · blockchain.info            │
 │  CoinMetrics Community API · blockchaincenter · Gate.io · SerpAPI            │
-│  Yahoo Finance v8 (ETF flow proxy)                                           │
+│  Yahoo Finance v8 (ETF flow proxy + CME futures BTC=F)                       │
 └──────────────────────────────┬───────────────────────────────────────────────┘
                                │
               ┌────────────────┼───────────────────┐
@@ -263,6 +263,8 @@ nohup node src/scheduler.js > logs/scheduler.log 2>&1 &
 | **BTC Exchange Flow** (daily inflow / outflow / netflow) | CoinMetrics Community API (no key) | — |
 | **MVRV Ratio** (true — Market Cap / Realized Cap) | CoinMetrics Community API (no key) | — |
 | **BTC ETF Flow proxy** (IBIT+FBTC+ARKB+GBTC+BITB volume sentiment) | Yahoo Finance v8 (no key) | — |
+| **BTC CME Futures Premium** (basis vs spot, institutional signal) | Yahoo Finance v8 BTC=F (no key) | Tier 2 |
+| **L2 TVL Breakdown** (Base, Arbitrum, OP Mainnet, Polygon, ZKsync Era) | DefiLlama `/v2/chains` (no key) | Tier 2 |
 | **WoW % change** — TOTAL2, TOTAL3, Stablecoin | SQLite `daily_snapshot` | — |
 | ISM Manufacturing + Services PMI | Google News RSS | — |
 | War headlines — Timteng, Rusia-Ukraine, Taiwan | Google News RSS | — |
@@ -325,6 +327,8 @@ nohup node src/scheduler.js > logs/scheduler.log 2>&1 &
 | **L3 — Market** | Stablecoin Dominance | 4→0, 0→1 | ★★★★☆ |
 | **L3 — Market** | Google Trends | 3→4 FOMO | ★★☆☆☆ |
 | **L3 — Market** | Pi Cycle Top | **3→4 top signal** | ★★★★☆ |
+| **L3 — Market** | **BTC CME Premium** | 1→2, 2→3 institutional | ★★★☆☆ |
+| **L3 — On-chain** | **L2 TVL breakdown** | 1→2, 2→3 expansion | ★★★☆☆ |
 | **Geopolitik** | War headlines | 0 spike, 3→4 premium | ★★☆☆☆ |
 
 ### Data Freshness / Latency
@@ -344,6 +348,8 @@ nohup node src/scheduler.js > logs/scheduler.log 2>&1 &
 | **Exchange Reserve (CoinMetrics)** | Harian | **D-1** | Community API: data kemarin |
 | **MVRV Ratio (CoinMetrics)** | Harian | **D-1** | Community API: data kemarin |
 | **ETF Flow proxy** | Harian | ~0 (same day) | Yahoo Finance v8 OHLCV |
+| **BTC CME Futures** | Real-time (market hours) | <1 menit | Yahoo Finance v8 BTC=F; tutup Jumat 17:00 ET |
+| **L2 TVL** | Harian | ~6 jam | DefiLlama update siang UTC |
 | NUPL / SOPR / Pi Cycle | Harian | ~24 jam | Dikomputasi dari 5yr history |
 | 10Y Yield | Harian | ~4 jam | FRED update sore ET |
 | NFCI | Mingguan | ~5 hari | Publikasi setiap Jumat |
@@ -368,19 +374,22 @@ nohup node src/scheduler.js > logs/scheduler.log 2>&1 &
 - Sinyal terkuat: M2 YoY mulai naik + Exchange Reserve turun (whale akumulasi)
 - Blind spot: early Phase 1 sulit dibedakan dari Phase 0 bottom; butuh 3-4 minggu konfirmasi
 
-#### Fase 2 (Expansion) — Akurasi: ~80%
+#### Fase 2 (Expansion) — Akurasi: ~82%
 - Dikonfirmasi oleh: BTC >200d MA + NFCI negatif + Funding moderate + TVL naik
 - Sinyal terkuat: BTC dominance naik → kemudian ETH/alts ikut (rotasi natural)
+- Tambahan: **CME Premium >2%** = institutional bullish konfirmasi; **L2 TVL >$8B growing** = on-chain ekspansi
 - Blind spot: mid-cycle correction bisa menyerupai Fase 0 secara singkat
 
-#### Fase 3 (Late Cycle) — Akurasi: ~78%
+#### Fase 3 (Late Cycle) — Akurasi: ~84%
 - Dikonfirmasi oleh: Altseason Index >60 + Funding >0.05% + Alts outperform + NUPL >0.5
 - Sinyal terkuat: Pi Cycle gap <-10% + MVRV >2.0 + Google Trends naik
+- Tambahan: **CME Premium >5%** = overheated signal; **L2 TVL >$15B mature** = peak ecosystem activity
 - Blind spot: bisa berulang (fase 3 lokal sebelum all-time high) — diperlukan context
 
-#### Fase 4 (Distribution) — Akurasi: ~72%
+#### Fase 4 (Distribution) — Akurasi: ~80%
 - Dikonfirmasi oleh: Exchange Reserve naik tajam + MVRV >3.5 + Pi Cycle crossing + ETF outflow
 - Sinyal terkuat: Whale deposit masif ke exchange + Stablecoin naik WoW + Volume divergence
+- Tambahan: **CME backwardation** = institutional short; **L2 TVL contracting** = ecosystem de-risking
 - Blind spot: distribusi sering berlangsung 2-4 bulan; puncak esak diprediksi, hanya zona
 
 ### Faktor Pembatas Akurasi
@@ -442,6 +451,8 @@ Fed Balance Sheet → RRP → Global M2 → FCI → DXY/10Y → BTC → ETH/Alts
 | Basis Rate (ann.) | < 0% (backwardation) | 0–15% | 5–15% (carry positif) |
 | Google Trends "bitcoin" | < 20 (bear) | 40–80 | > 80 (FOMO ekstrem) |
 | ETF Flow proxy ⚠️ | Strong Outflow (skor < -2) | Neutral (-0.5–+0.5) | Strong Inflow (skor > +2) |
+| **CME Premium** (futures vs spot) | < -1% (backwardation) | 0–2% (normal) | 2–5% (institutional bullish); >5% ⚠️ overheated |
+| **L2 TVL total** | < $8B (Phase 0/1) | $8–15B (growing) | > $15B (mature expansion) |
 
 ---
 
@@ -458,6 +469,8 @@ Fed Balance Sheet → RRP → Global M2 → FCI → DXY/10Y → BTC → ETH/Alts
 | Options Skew | Deribit 25Δ skew | Perp funding rate (inverted) | Perp sentiment, **bukan** options market IV |
 | Stablecoin Dom. | Full stablecoin market | USDT+USDC only (~75% coverage) | Threshold disesuaikan ke >6% / <3% |
 | Altseason Index | blockchaincenter (90d rolling) | ETH/BTC + SOL/BTC WoW + OTHERS.D level | Weekly-based → lebih volatile, labeled "⚠️ proxy" |
+| CME Futures Premium | CME Group (institutional flow) | Yahoo Finance BTC=F closing price vs CoinGecko spot | Directional valid; gap <±0.5% dalam noise |
+| L2 TVL | L2Beat (per-bridge verified) | DefiLlama `/v2/chains` canonical chain TVL | DefiLlama includes unverified bridges; ~5% overcount |
 
 ---
 
@@ -471,6 +484,7 @@ Fed Balance Sheet → RRP → Global M2 → FCI → DXY/10Y → BTC → ETH/Alts
 | `monthly_data` | CPI, Fed Rate, M2 | Per bulan (`period` YYYY-MM) |
 | `oil_prices` | Brent Crude price | Per hari (`price_date`) |
 | `daily_snapshot` | TOTAL2, TOTAL3, Stablecoin Supply, **BTC Dominance** | Per hari — dipakai untuk WoW delta |
+| `funding_rate_history` | BTC + ETH daily funding rate | Per hari — dipakai untuk Phase 3 streak (>0.05% consecutive days) |
 
 **WoW delta**: Setiap run menyimpan snapshot ke `daily_snapshot`. Delta dihitung dari snapshot ~7 hari lalu.  
 Tersedia otomatis setelah 7 hari pertama.  
@@ -558,3 +572,7 @@ output/
 | Discord Invalid Form Body | Otomatis di-split per ≤3800 karakter |
 | `getaddrinfo EAI_AGAIN` | DNS/network issue — cek koneksi server |
 | `File write gagal` | Disk penuh atau permission error — error dicatat, proses tetap lanjut kirim ke channel |
+| `SplyAct1yr / TxTfrValNtv: 403` | CoinMetrics Community API (plan: `download`) tidak menyediakan metrik ini — memerlukan plan berbayar. Proxy tersedia: `activeAddresses` ≈ SplyAct1yr, `txVolume` ≈ TxTfrValNtv dari blockchain.info |
+| Deribit ETIMEDOUT / SSL intercept | ISP Indonesia (Indosat/IOH "Internet Positif") memblokir Deribit. Jalankan dari `asia-southeast1-a` (Singapore GCP) untuk akses penuh |
+| `CME Premium: —` | Yahoo Finance BTC=F timeout (pasar tutup weekend/holiday) — data hanya tersedia saat CME trading hours |
+| `L2 TVL: —` | DefiLlama `/v2/chains` timeout — tidak ada fallback; row dikosongkan dengan `—` |

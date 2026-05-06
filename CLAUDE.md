@@ -274,6 +274,37 @@ When starting a new Claude session:
 4. [ ] Use Plan Mode for multi-file changes
 5. [ ] Never let Claude read package-lock.json
 
+## Deployment Environment
+
+### GCP Zone: `asia-southeast1-a` (Singapore)
+This app runs on Google Cloud Platform zone **`asia-southeast1-a` (Singapore)**. This is intentional:
+- **Binance Futures**: Fully accessible from Singapore. Zone `us-central1-a` (Iowa) gets HTTP 451 (regulatory block).
+- **Deribit**: ISP Indonesia ("Internet Positif" by Indosat/IOH) blocks Deribit with SSL intercept — GCP Singapore has full access.
+- **OKX, Bybit**: Also blocked by Indonesian ISP — fallback providers used.
+
+### Blocked APIs & Fallbacks
+
+| API | Status | Reason | Fallback |
+|-----|--------|--------|---------|
+| CoinMetrics `SplyAct1yr` | ❌ 403 | Community plan (`download`) doesn't include | blockchain.info `activeAddresses` (proxy) |
+| CoinMetrics `TxTfrValNtv` | ❌ 403 | Community plan limitation | blockchain.info `txVolume` (proxy) |
+| CoinMetrics `FlowInExNtvMiner` | ❌ 403 | Community plan limitation | No direct proxy |
+| Deribit (options skew) | ❌ ISP block | Indonesian ISP SSL intercept | Perp funding rate (inverted) as proxy |
+| Binance Futures (US zone) | ❌ HTTP 451 | Regulatory block from Iowa zone | Gate.io → Hyperliquid → CoinGecko |
+
+### CoinMetrics Community Free Tier — Available Metrics
+Only these 5 metrics are accessible without a paid plan:
+```
+SplyExNtv         # BTC on exchange (reserve)
+FlowInExNtv       # Daily inflow to exchange
+FlowOutExNtv      # Daily outflow from exchange
+CapMVRVCur        # MVRV ratio (true, market cap / realized cap)
+CapMrktCurUSD     # Market cap in USD
+```
+Do **not** add other CoinMetrics metrics without verifying free tier access first — adding blocked metrics causes the entire API call to return 403 (not just that metric).
+
+---
+
 ## Commitment to Quality
 This dashboard handles real financial data. Every change must maintain:
 - **Accuracy**: Crypto prices are exact, no rounding errors
@@ -283,16 +314,4 @@ This dashboard handles real financial data. Every change must maintain:
 - **Efficiency**: Stay within token limits (50k max per conversation)
 
 **Remember**: Users depend on this dashboard for trading decisions. Test thoroughly before deploying. **And always check token usage first!**
-```
-
-## Key Additions for Token Reduction:
-
-1. **`.claude/ignore` file** - Explicit pattern to exclude node_modules, .next, logs, lock files
-2. **Token budget guidelines** - 50k target, warning at 100k
-3. **Selective reading strategy** - What to READ vs SKIP
-4. **`/tokens` command** - Check token usage
-5. **First session checklist** - Verify ignore patterns work
-6. **Warning highlights** - ⚠️ symbols draw attention to critical rules
-
-This should reduce token usage from **potentially 150k+ tokens** (if reading node_modules) to **under 20k tokens** for most conversations. 
 

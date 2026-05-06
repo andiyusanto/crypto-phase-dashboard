@@ -794,7 +794,65 @@ export async function fetchBlockchainInfoBundle() {
     console.warn('⚠️  Miner Revenue gagal:', err.message);
   }
 
-  return { activeAddresses, minerRevenue };
+  await sleep(400);
+
+  // ── Estimated TX Volume (BTC) — NVT raw material ──────────────────────────
+  // NVT = Market Cap USD / (txVolBTC × btcPrice), computed in formatter
+  // blockchain.info unit: BTC per day (estimated output volume excluding change)
+  let txVolume = null;
+  try {
+    const vals = await getValues('estimated-transaction-volume', '14days');
+    const sorted = vals; // already sorted desc by getValues
+    if (sorted.length >= 1) {
+      const avg7d   = sorted.slice(0, 7).reduce((s, v) => s + v.y, 0) / Math.min(7, sorted.length);
+      const avg7dPrev = sorted.slice(7, 14).length >= 3
+        ? sorted.slice(7, 14).reduce((s, v) => s + v.y, 0) / sorted.slice(7, 14).length
+        : null;
+      const weekChange = avg7dPrev != null
+        ? parseFloat(((avg7d - avg7dPrev) / avg7dPrev * 100).toFixed(2)) : null;
+      txVolume = {
+        avg7dBtc:   parseFloat(avg7d.toFixed(0)),
+        weekChange,
+        source: 'blockchain.info',
+      };
+    }
+  } catch (err) {
+    console.warn('⚠️  TX Volume gagal:', err.message);
+  }
+
+  await sleep(400);
+
+  // ── Output Volume (BTC) — HODL Wave proxy ─────────────────────────────────
+  // Low output volume relative to 30d avg = fewer coins moving = HODLers active
+  let outputVolume = null;
+  try {
+    const vals = await getValues('output-volume', '14days');
+    const sorted = vals;
+    if (sorted.length >= 1) {
+      const avg7d   = sorted.slice(0, 7).reduce((s, v) => s + v.y, 0) / Math.min(7, sorted.length);
+      const avg7dPrev = sorted.slice(7, 14).length >= 3
+        ? sorted.slice(7, 14).reduce((s, v) => s + v.y, 0) / sorted.slice(7, 14).length
+        : null;
+      const weekChange = avg7dPrev != null
+        ? parseFloat(((avg7d - avg7dPrev) / avg7dPrev * 100).toFixed(2)) : null;
+      // Turun = lebih sedikit koin bergerak = HODL behavior meningkat
+      const hodlSignal = weekChange == null ? '—'
+        : weekChange < -10 ? '✅ coin velocity turun — HODLing meningkat'
+        : weekChange < -3  ? '✅ velocity slight down — akumulasi'
+        : weekChange > 10  ? '🔴 coin velocity naik tinggi — distribusi'
+        :                    '⚠️ velocity stabil';
+      outputVolume = {
+        avg7dBtc:   parseFloat(avg7d.toFixed(0)),
+        weekChange,
+        hodlSignal,
+        source: 'blockchain.info',
+      };
+    }
+  } catch (err) {
+    console.warn('⚠️  Output Volume gagal:', err.message);
+  }
+
+  return { activeAddresses, minerRevenue, txVolume, outputVolume };
 }
 
 // ── 10. LONG/SHORT RATIO ─────────────────────────────────────────────────────
@@ -1111,9 +1169,9 @@ export async function fetchBtcOnChainCoinMetrics() {
     const res = await axios.get('https://community-api.coinmetrics.io/v4/timeseries/asset-metrics', {
       params: {
         assets:          'btc',
-        metrics:         'SplyExNtv,FlowInExNtv,FlowOutExNtv,CapMVRVCur',
+        metrics:         'SplyExNtv,FlowInExNtv,FlowOutExNtv,CapMVRVCur,CapMrktCurUSD',
         frequency:       '1d',
-        limit_per_asset: 8,   // 8 days → 7d delta for trend
+        limit_per_asset: 32,  // 32 days → 7d delta + 30d MoM for realized cap growth
       },
       timeout: 12000,
     });
@@ -1121,8 +1179,9 @@ export async function fetchBtcOnChainCoinMetrics() {
     const rows = res.data?.data;
     if (!rows || rows.length < 2) throw new Error('Data tidak cukup');
 
-    const latest = rows[rows.length - 1];
-    const prev7d = rows[0];
+    const latest  = rows[rows.length - 1];
+    const prev7d  = rows.length >= 8 ? rows[rows.length - 8] : rows[0];
+    const prev30d = rows[0]; // oldest row (~32 days ago)
 
     // ── Exchange Reserve ─────────────────────────────────────────────────────
     const reserveNow  = parseFloat(latest.SplyExNtv);
@@ -1164,7 +1223,69 @@ export async function fetchBtcOnChainCoinMetrics() {
       : mvrvRaw > 1.0 ? '✅ fair value'
       :                 '✅ undervalued — capitulation';
 
+    // ── Realized Cap — derived exactly from CapMrktCurUSD / CapMVRVCur ────────
+    // MVRV is defined as Market Cap / Realized Cap, so: Realized Cap = MktCap / MVRV
+    // Both CapMrktCurUSD and CapMVRVCur are free in CoinMetrics Community API.
+    const mktCapNow  = latest.CapMrktCurUSD  != null && latest.CapMVRVCur  != null
+      ? parseFloat(latest.CapMrktCurUSD)  : null;
+    const mktCap30d  = prev30d.CapMrktCurUSD != null && prev30d.CapMVRVCur != null
+      ? parseFloat(prev30d.CapMrktCurUSD) : null;
+    const mvrv30d    = prev30d.CapMVRVCur != null ? parseFloat(prev30d.CapMVRVCur) : null;
+
+    // 7d realized cap for Phase 4 rate-of-change signal
+    const mktCap7d   = prev7d.CapMrktCurUSD != null && prev7d.CapMVRVCur != null
+      ? parseFloat(prev7d.CapMrktCurUSD) : null;
+    const mvrv7d     = prev7d.CapMVRVCur != null ? parseFloat(prev7d.CapMVRVCur) : null;
+
+    const capRealNow = mktCapNow  != null && mvrvRaw != null && mvrvRaw > 0
+      ? mktCapNow  / mvrvRaw : null;
+    const capReal30d = mktCap30d  != null && mvrv30d  != null && mvrv30d  > 0
+      ? mktCap30d  / mvrv30d : null;
+    const capReal7d  = mktCap7d   != null && mvrv7d   != null && mvrv7d   > 0
+      ? mktCap7d   / mvrv7d  : null;
+
+    const capRealBillion = capRealNow != null ? parseFloat((capRealNow / 1e9).toFixed(1)) : null;
+    const capRealGrowthMoM = capRealNow != null && capReal30d != null && capReal30d > 0
+      ? parseFloat(((capRealNow - capReal30d) / capReal30d * 100).toFixed(2))
+      : null;
+    // 7d realized cap growth — rate-of-change for Phase 4 top signal
+    const capRealGrowth7d = capRealNow != null && capReal7d != null && capReal7d > 0
+      ? parseFloat(((capRealNow - capReal7d) / capReal7d * 100).toFixed(2))
+      : null;
+    // Phase 4: sudden slowdown in realized cap growth = profit-taking stall = top signal
+    const realizedPLSignal = capRealGrowth7d == null ? '—'
+      : capRealGrowth7d > 2   ? '✅ akumulasi aktif'
+      : capRealGrowth7d > 0.5 ? '⚠️ pertumbuhan melambat — monitor Phase 4'
+      : capRealGrowth7d > 0   ? '🔴 stalling — profit-taking dominan'
+      :                         '🔴 negatif — distribusi aktif Phase 4';
+    // Market cap in billions (for NVT computation in formatter)
+    const mktCapBillion = mktCapNow != null ? parseFloat((mktCapNow / 1e9).toFixed(1)) : null;
+
+    // ── Exchange Inflow Acceleration (Phase 3 signal) ─────────────────────────
+    // Acceleration = 7d avg inflow (week1) vs prev 7d (week2) WoW %
+    // Rising acceleration = distribution pressure building = Phase 3→4 signal
+    const week1Flows   = rows.slice(-7).map(r => parseFloat(r.FlowInExNtv || 0));
+    const week2Rows    = rows.slice(-14, -7);
+    const avgFlow7d    = week1Flows.reduce((s, v) => s + v, 0) / week1Flows.length;
+    const avgFlowPrev7d = week2Rows.length >= 4
+      ? week2Rows.map(r => parseFloat(r.FlowInExNtv || 0)).reduce((s, v) => s + v, 0) / week2Rows.length
+      : null;
+    const flowAcceleration = avgFlowPrev7d != null && avgFlowPrev7d > 0
+      ? parseFloat(((avgFlow7d - avgFlowPrev7d) / avgFlowPrev7d * 100).toFixed(1)) : null;
+    const flowAccelSignal = flowAcceleration == null ? '—'
+      : flowAcceleration > 30  ? '🔴 inflow accelerating — distribusi Phase 3→4'
+      : flowAcceleration > 10  ? '⚠️ inflow meningkat — monitor'
+      : flowAcceleration < -20 ? '✅ inflow melambat — tekanan jual mereda'
+      :                          '⚠️ flat';
+
+    const capRealSignal = capRealGrowthMoM == null ? '—'
+      : capRealGrowthMoM > 5  ? '✅ akumulasi aktif (>5% MoM)'
+      : capRealGrowthMoM > 2  ? '✅ akumulasi moderat'
+      : capRealGrowthMoM > 0  ? '⚠️ pertumbuhan lambat'
+      :                         '🔴 stagnan/turun — modal keluar';
+
     console.log(`  ✓ CoinMetrics | Reserve: ${Math.round(reserveNow / 1000)}k BTC (${reserveDelta > 0 ? '+' : ''}${reserveDelta.toLocaleString()} 7d) | Flow: ${flowLabel} | MVRV: ${mvrvRaw ?? '—'} (${mvrvZone})`);
+    console.log(`  ✓ CoinMetrics | RealCap: $${capRealBillion ?? '—'}B (MoM: ${capRealGrowthMoM != null ? (capRealGrowthMoM >= 0 ? '+' : '') + capRealGrowthMoM + '%' : '—'}) | MktCap: $${mktCapBillion ?? '—'}B`);
 
     return {
       date: latest.time.split('T')[0],
@@ -1187,6 +1308,16 @@ export async function fetchBtcOnChainCoinMetrics() {
         zone:   mvrvZone,
         signal: mvrvSignal,
       },
+      realizedCap: {
+        valueBillion:  capRealBillion,
+        growthMoM:     capRealGrowthMoM,
+        growth7d:      capRealGrowth7d,
+        realizedPLSignal,
+        signal:        capRealSignal,
+      },
+      mktCapBillion,
+      flowAcceleration,  // Phase 3: WoW % change in 7d avg exchange inflow
+      flowAccelSignal,
       source: 'CoinMetrics Community API',
     };
 
@@ -1310,12 +1441,150 @@ export async function fetchBtcEtfFlow() {
   }
 }
 
+// ── BTC REALIZED VOLATILITY 30D — blockchain.info price history ───────────────
+// Proxy for Options ATM IV (Deribit DVOL blocked by ISP).
+// Realized vol and IV are highly correlated for BTC; same directional signal.
+// Annualized 30d RVol = sqrt(252) * std(log_daily_returns_last_30d) * 100
+// Zones: <30% complacency | 30-60% normal | 60-90% elevated | >90% panic
+export async function fetchDeribitIV() {
+  try {
+    const res = await axios.get(
+      'https://api.blockchain.info/charts/market-price',
+      {
+        params: { timespan: '60days', format: 'json', cors: 'true' },
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        timeout: 15000,
+      }
+    );
+    const values = res.data?.values ?? [];
+    if (values.length < 32) throw new Error('Insufficient price history for RVol');
+
+    // Sort chronological, take last 31 days for 30 returns
+    const prices = [...values].sort((a, b) => a.x - b.x).map(v => v.y).filter(p => p > 0);
+    const last31 = prices.slice(-31);
+    if (last31.length < 31) throw new Error('Not enough days for 30d RVol');
+
+    // Log daily returns
+    const logReturns = [];
+    for (let i = 1; i < last31.length; i++) {
+      logReturns.push(Math.log(last31[i] / last31[i - 1]));
+    }
+    const mean = logReturns.reduce((s, r) => s + r, 0) / logReturns.length;
+    const variance = logReturns.reduce((s, r) => s + (r - mean) ** 2, 0) / logReturns.length;
+    const rvol30d  = parseFloat((Math.sqrt(variance * 252) * 100).toFixed(1));
+
+    // 7d change: compare last 7 days vs prev 7 days for day-change proxy
+    const last8  = prices.slice(-8);
+    const prev7dPrices = last8.slice(0, 7);
+    const cur7dPrices  = last8.slice(1);
+    const rvolPrev7 = (() => {
+      const rets = [];
+      for (let i = 1; i < prev7dPrices.length; i++) rets.push(Math.log(prev7dPrices[i] / prev7dPrices[i-1]));
+      if (!rets.length) return rvol30d;
+      const m = rets.reduce((s, r) => s + r, 0) / rets.length;
+      return parseFloat((Math.sqrt(rets.reduce((s, r) => s + (r-m)**2, 0) / rets.length * 252) * 100).toFixed(1));
+    })();
+    const weekChange = parseFloat((rvol30d - rvolPrev7).toFixed(1));
+
+    const date   = new Date().toISOString().slice(0, 10);
+    const zone   = rvol30d < 30 ? 'complacency'
+      : rvol30d < 60 ? 'normal'
+      : rvol30d < 90 ? 'elevated'
+      : 'panic';
+    const signal = rvol30d < 30 ? '⚠️ complacency — vol rendah, Phase 3→4 warning'
+      : rvol30d < 60 ? '✅ normal'
+      : rvol30d < 90 ? '⚠️ elevated'
+      : '🔴 panic — capitulation signal Phase 0';
+
+    console.log(`  ✓ BTC RVol 30d | ${rvol30d}% ann | Δ7d: ${weekChange >= 0 ? '+' : ''}${weekChange} | ${zone}`);
+    return {
+      value:     rvol30d,
+      dayChange: weekChange,
+      date,
+      zone,
+      signal,
+      source: 'blockchain.info 30d RVol (proxy IV)',
+    };
+  } catch (err) {
+    console.warn(`⚠️  BTC RVol gagal: ${err.message}`);
+    return null;
+  }
+}
+
+// ── BTC CME FUTURES PREMIUM — Yahoo Finance BTC=F ────────────────────────────
+// Phase 2 indicator: institutional participation via CME regulated futures.
+// Premium = (CME futures price - spot) / spot * 100.
+// Positive = institutions expect higher price (bullish Phase 2). Negative = hedge/bearish.
+export async function fetchBtcCmePremium() {
+  try {
+    const res = await axios.get('https://query1.finance.yahoo.com/v8/finance/chart/BTC%3DF', {
+      params: { interval: '1d', range: '5d' },
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      timeout: 10000,
+    });
+    const result = res.data?.chart?.result?.[0];
+    if (!result) throw new Error('No data from Yahoo Finance BTC=F');
+
+    const closes     = result.indicators?.quote?.[0]?.close ?? [];
+    const timestamps = result.timestamp ?? [];
+    const valid      = closes.map((c, i) => ({ c, t: timestamps[i] })).filter(x => x.c != null);
+    if (!valid.length) throw new Error('No valid closes for BTC=F');
+
+    const last         = valid[valid.length - 1];
+    const futuresPrice = Math.round(last.c);
+    const date         = new Date(last.t * 1000).toISOString().split('T')[0];
+
+    console.log(`  ✓ BTC CME Futures (BTC=F): $${futuresPrice.toLocaleString()} | date: ${date}`);
+    return { futuresPrice, date, source: 'Yahoo Finance (BTC=F)' };
+  } catch (err) {
+    console.warn(`⚠️  BTC CME Premium gagal: ${err.message}`);
+    return null;
+  }
+}
+
+// ── L2 TVL BREAKDOWN — DefiLlama /v2/chains ──────────────────────────────────
+// Phase 2 indicator: L2 ecosystem activity = real on-chain expansion beyond BTC/ETH.
+// Base, Arbitrum, Optimism are the dominant L2s. Rising TVL = Phase 2/3 on-chain demand.
+export async function fetchL2TVL() {
+  const TARGETS  = ['Base', 'Arbitrum', 'OP Mainnet', 'Polygon', 'ZKsync Era'];
+  const NAME_MAP = { 'OP Mainnet': 'Optimism', 'ZKsync Era': 'zkSync' };
+
+  try {
+    const res = await axios.get('https://api.llama.fi/v2/chains', { timeout: 12000 });
+    const chains = res.data ?? [];
+
+    const found = TARGETS
+      .map(t => {
+        const chain = chains.find(c => c.name === t);
+        return chain?.tvl != null
+          ? { name: NAME_MAP[t] ?? t, tvlBillion: parseFloat((chain.tvl / 1e9).toFixed(2)) }
+          : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.tvlBillion - a.tvlBillion);
+
+    if (!found.length) throw new Error('No L2 chains found in DefiLlama response');
+
+    const totalBillion  = parseFloat(found.reduce((s, c) => s + c.tvlBillion, 0).toFixed(2));
+    const dominantChain = found[0].name;
+    const signal        = totalBillion > 15 ? '✅ L2 mature — Phase 2/3 on-chain activity tinggi'
+      : totalBillion > 8                    ? '⚠️ L2 growing — early Phase 2'
+      :                                       '🔴 L2 TVL rendah — risk-off / Phase 0/1';
+
+    console.log(`  ✓ L2 TVL | ${found.map(c => `${c.name}: $${c.tvlBillion}B`).join(' | ')} | Total: $${totalBillion}B`);
+    return { chains: found, totalBillion, dominantChain, signal, source: 'DefiLlama' };
+  } catch (err) {
+    console.warn(`⚠️  L2 TVL gagal: ${err.message}`);
+    return null;
+  }
+}
+
 // ── AGGREGATE: SEMUA DAILY DATA ───────────────────────────────────────────────
 export async function fetchAllDailyData(config = {}) {
   console.log('📊 Fetching daily data...');
   _hlCache = null; // reset cache tiap fetch
 
-  const [crypto, fearGreed, funding, dxy, gold, cmc, nuplProxy, longShortRatio, hashRate, googleTrends, coinMetrics, etfFlow] = await Promise.allSettled([
+  const [crypto, fearGreed, funding, dxy, gold, cmc, nuplProxy, longShortRatio, hashRate, googleTrends, coinMetrics, etfFlow, deribitIV, btcCmePremium, l2TVL] = await Promise.allSettled([
     fetchCryptoData(),
     fetchFearGreed(),
     fetchFundingRates(),
@@ -1328,6 +1597,9 @@ export async function fetchAllDailyData(config = {}) {
     fetchGoogleTrends(config.serpApiKey),
     fetchBtcOnChainCoinMetrics(),
     fetchBtcEtfFlow(),
+    fetchDeribitIV(),
+    fetchBtcCmePremium(),
+    fetchL2TVL(),
   ]);
 
   // Derivatives bundle: satu fetch /derivatives → OI + Basis + Skew (hindari 3x CoinGecko 429)
@@ -1368,8 +1640,13 @@ export async function fetchAllDailyData(config = {}) {
     googleTrends:    googleTrends.status    === 'fulfilled' ? googleTrends.value    : null,
     coinMetrics:     coinMetrics.status     === 'fulfilled' ? coinMetrics.value     : null,
     etfFlow:         etfFlow.status         === 'fulfilled' ? etfFlow.value         : null,
+    deribitIV:       deribitIV.status       === 'fulfilled' ? deribitIV.value       : null,
+    btcCmePremium:   btcCmePremium.status   === 'fulfilled' ? btcCmePremium.value   : null,
+    l2TVL:           l2TVL.status           === 'fulfilled' ? l2TVL.value           : null,
     activeAddresses: bcBundle.activeAddresses ?? null,
     minerRevenue:    bcBundle.minerRevenue    ?? null,
+    txVolume:        bcBundle.txVolume        ?? null,
+    outputVolume:    bcBundle.outputVolume    ?? null,
     brentOil,
     btcOI:       derivBundle.btcOI       ?? null,
     btcBasis:    derivBundle.btcBasis     ?? null,
