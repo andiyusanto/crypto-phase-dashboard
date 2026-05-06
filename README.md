@@ -270,7 +270,7 @@ nohup node src/scheduler.js > logs/scheduler.log 2>&1 &
 | War headlines — Timteng, Rusia-Ukraine, Taiwan | Google News RSS | — |
 | **NUPL proxy** | blockchain.info (5yr history, median) + CoinGecko | Tier 1 |
 | **SOPR proxy** (price ratio) | Dihitung dari 5yr price history (30d avg) | Tier 1 |
-| **Realized Price Multiple** (MVRV proxy) | current price / 5yr median price | Tier 1 |
+| **Realized Cap Growth Rate (7d)** | 7d delta CoinMetrics `CapMrktCurUSD` / realized cap proxy | Tier 1 |
 | **Stablecoin Dominance** (USDT+USDC) | CoinGecko stablecoin mcap / total mcap | Tier 1 |
 | **Long/Short Ratio** (account-based) | Binance Futures → Gate.io fallback | Tier 1 |
 | **Hash Rate** (7d avg, EH/s) | blockchain.info | Tier 1 |
@@ -374,19 +374,19 @@ nohup node src/scheduler.js > logs/scheduler.log 2>&1 &
 - Sinyal terkuat: M2 YoY mulai naik + Exchange Reserve turun (whale akumulasi)
 - Blind spot: early Phase 1 sulit dibedakan dari Phase 0 bottom; butuh 3-4 minggu konfirmasi
 
-#### Fase 2 (Expansion) — Akurasi: ~82%
+#### Fase 2 (Expansion) — Akurasi: ~80%
 - Dikonfirmasi oleh: BTC >200d MA + NFCI negatif + Funding moderate + TVL naik
 - Sinyal terkuat: BTC dominance naik → kemudian ETH/alts ikut (rotasi natural)
 - Tambahan: **CME Premium >2%** = institutional bullish konfirmasi; **L2 TVL >$8B growing** = on-chain ekspansi
 - Blind spot: mid-cycle correction bisa menyerupai Fase 0 secara singkat
 
-#### Fase 3 (Late Cycle) — Akurasi: ~84%
+#### Fase 3 (Late Cycle) — Akurasi: ~80%
 - Dikonfirmasi oleh: Altseason Index >60 + Funding >0.05% + Alts outperform + NUPL >0.5
 - Sinyal terkuat: Pi Cycle gap <-10% + MVRV >2.0 + Google Trends naik
 - Tambahan: **CME Premium >5%** = overheated signal; **L2 TVL >$15B mature** = peak ecosystem activity
 - Blind spot: bisa berulang (fase 3 lokal sebelum all-time high) — diperlukan context
 
-#### Fase 4 (Distribution) — Akurasi: ~80%
+#### Fase 4 (Distribution) — Akurasi: ~75%
 - Dikonfirmasi oleh: Exchange Reserve naik tajam + MVRV >3.5 + Pi Cycle crossing + ETF outflow
 - Sinyal terkuat: Whale deposit masif ke exchange + Stablecoin naik WoW + Volume divergence
 - Tambahan: **CME backwardation** = institutional short; **L2 TVL contracting** = ecosystem de-risking
@@ -440,7 +440,7 @@ Fed Balance Sheet → RRP → Global M2 → FCI → DXY/10Y → BTC → ETH/Alts
 | MVRV Ratio (true) | < 1.0 (capitulation) | 1.0–2.0 (fair value) | > 3.5 (distribusi zone) |
 | NUPL proxy | < 0 (capitulation) | 0–0.25 (hope) | > 0.5 (belief) |
 | SOPR proxy (price ratio) | < 0.85 (selloff tajam) | 0.95–1.05 (netral) | > 1.20 (overextended) |
-| Realized Price Multiple | < 1.0x (capitulation) | 1.0–2.0x | > 3.5x (distribusi) |
+| Realized Cap Growth Rate (7d) | < 0% (distribusi aktif Phase 4) | 0–2% (normal) | > 5% (ekspansi kuat) |
 | Pi Cycle Top gap | > 0% (crossing = top!) | -10%–0% | < -30% (aman) |
 | Long/Short Ratio | < 0.6 (shorts dominan) | 0.9–1.2 | > 1.8 (longs dominan) |
 | Hash Rate WoW | < -5% (miner capitulation) | -1%–+1% | > +1% |
@@ -462,7 +462,7 @@ Fed Balance Sheet → RRP → Global M2 → FCI → DXY/10Y → BTC → ETH/Alts
 |--------|-------------|------------|---------|
 | NUPL | Glassnode (per-UTXO) | 5yr **median** price × supply | Directionally valid; median mengurangi bias bull run |
 | SOPR | Glassnode (per-UTXO spent) | current price / 30d avg | STH price ratio — thresholds dikalibrasi ulang |
-| MVRV proxy | Glassnode (realized cap) | current / 5yr median price | Reasonable proxy untuk distribusi zone |
+| Realized Cap Growth Rate (7d) | Glassnode (rcap delta per tx) | 7d WoW delta of CoinMetrics realized cap proxy | Rate-of-change indicator; tidak setara P/L per-transaksi |
 | MVRV true | — | **CoinMetrics `CapMVRVCur`** (Market Cap / Realized Cap) | Akurat, D-1 lag |
 | Exchange Reserve | Glassnode | **CoinMetrics `SplyExNtv`** (BTC di semua exchange) | Akurat, D-1 lag |
 | ETF Flow | Farside/SoSoValue (blokir) | Yahoo Finance v8: price×volume proxy (IBIT+FBTC+ARKB+GBTC+BITB) | Directional only, **bukan dollar flow** |
@@ -515,12 +515,12 @@ output/
 
 | Provider | Keunggulan | Token Limit | Harga |
 |----------|-----------|-------------|-------|
-| 🤖 **Claude** | Reasoning terdalam, analisis fase paling konsisten | 6500 | Berbayar |
-| 🟢 **ChatGPT** | Balanced, risk management | 6500 | Berbayar |
-| ✨ **Gemini** | Paling cepat, free tier generous | 6500 | **Gratis** |
-| 🔍 **Perplexity** | Real-time web search + citations | 6500 | Berbayar |
-| ⚡ **Grok** | Reasoning kuat via OpenRouter | 6500 | Berbayar |
-| 🤖 **Qwen** | Alibaba model via OpenRouter | 6500 | **Gratis** |
+| 🤖 **Claude** | Reasoning terdalam, analisis fase paling konsisten | 7000 | Berbayar |
+| 🟢 **ChatGPT** | Balanced, risk management | 7000 | Berbayar |
+| ✨ **Gemini** | Paling cepat, free tier generous | 7000 | **Gratis** |
+| 🔍 **Perplexity** | Real-time web search + citations | 7000 | Berbayar |
+| ⚡ **Grok** | Reasoning kuat via OpenRouter | 7000 | Berbayar |
+| 🤖 **Qwen** | Alibaba model via OpenRouter | 7000 | **Gratis** |
 
 ---
 

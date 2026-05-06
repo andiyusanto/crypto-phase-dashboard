@@ -79,7 +79,7 @@ async function fetchOpenRouterWithRetry(prompt, apiKey, options = {}) {
               { role: 'user', content: `${SYSTEM_PROMPT}\n\n---\n\n${prompt}` }
             ],
             temperature: 0.3,
-            max_tokens: 6500,
+            max_tokens: 7000,
             stream: !!onChunk && attempt === 0 // only stream on first attempt for simplicity
           })
         });
@@ -156,7 +156,7 @@ async function fetchOpenRouterWithRetry(prompt, apiKey, options = {}) {
 
 // ── 1. CLAUDE (Anthropic) ─────────────────────────────────────────────────────
 export async function analyzeWithClaude(prompt, options = {}) {
-  const { apiKey, model = 'claude-sonnet-4-6', maxTokens = 6500, onChunk, silent = false } = options;
+  const { apiKey, model = 'claude-sonnet-4-6', maxTokens = 7000, onChunk, silent = false } = options;
   if (!apiKey || apiKey === 'your_anthropic_api_key_here')
     throw new Error('ANTHROPIC_API_KEY tidak diset');
 
@@ -239,7 +239,7 @@ export async function analyzeWithGemini(prompt, options = {}) {
       const gemini = genAI.getGenerativeModel({
         model: candidate,
         systemInstruction: SYSTEM_PROMPT,
-        generationConfig: { maxOutputTokens: 6500, temperature: 0.3 },
+        generationConfig: { maxOutputTokens: 7000, temperature: 0.3 },
       });
 
       if (!silent) process.stdout.write(`\n✨ Gemini (Google) menganalisis (model: ${candidate})...\n\n`);
@@ -287,7 +287,7 @@ export async function analyzeWithPerplexity(prompt, options = {}) {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model, stream: true, max_tokens: 6500, temperature: 0.2,
+      model, stream: true, max_tokens: 7000, temperature: 0.2,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user',   content: prompt },
