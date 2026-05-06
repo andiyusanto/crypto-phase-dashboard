@@ -64,8 +64,10 @@ export async function fetchCryptoData() {
     btc  = { price: Math.round(parseFloat(bn.btc.lastPrice)), change24h: parseFloat(parseFloat(bn.btc.priceChangePercent).toFixed(2)), volume24hBillion: parseFloat((parseFloat(bn.btc.quoteVolume) / 1e9).toFixed(2)) };
     eth  = { price: Math.round(parseFloat(bn.eth.lastPrice)), change24h: parseFloat(parseFloat(bn.eth.priceChangePercent).toFixed(2)) };
     sol  = { price: parseFloat(parseFloat(bn.sol.lastPrice).toFixed(2)), change24h: parseFloat(parseFloat(bn.sol.priceChangePercent).toFixed(2)) };
-    avax = { price: parseFloat(parseFloat(bn.avax.lastPrice).toFixed(2)), change24h: parseFloat(parseFloat(bn.avax.priceChangePercent).toFixed(2)) };
-    xrp  = { price: parseFloat(parseFloat(bn.xrp.lastPrice).toFixed(4)), change24h: parseFloat(parseFloat(bn.xrp.priceChangePercent).toFixed(2)) };
+    avax = bn.avax ? { price: parseFloat(parseFloat(bn.avax.lastPrice).toFixed(2)), change24h: parseFloat(parseFloat(bn.avax.priceChangePercent).toFixed(2)) } : null;
+    xrp  = bn.xrp  ? { price: parseFloat(parseFloat(bn.xrp.lastPrice).toFixed(4)),  change24h: parseFloat(parseFloat(bn.xrp.priceChangePercent).toFixed(2))  } : null;
+    if (!bn.avax) console.warn('⚠️  AVAXUSDT tidak ditemukan di Binance response');
+    if (!bn.xrp)  console.warn('⚠️  XRPUSDT tidak ditemukan di Binance response');
     console.log('  ✓ Harga via Binance');
   } else {
     console.warn('⚠️  Binance ticker gagal, fallback ke CoinGecko:', bnTickerRes.reason?.message);
@@ -97,8 +99,8 @@ export async function fetchCryptoData() {
     totalMarketCapBillion: parseFloat((global.total_market_cap?.usd / 1e9).toFixed(2)),
     ethBtcRatio:           parseFloat((eth.price / btc.price).toFixed(6)),
     solBtcRatio:           parseFloat((sol.price / btc.price).toFixed(6)),
-    avaxBtcRatio:          parseFloat((avax.price / btc.price).toFixed(8)),
-    xrpBtcRatio:           parseFloat((xrp.price / btc.price).toFixed(8)),
+    avaxBtcRatio:          avax ? parseFloat((avax.price / btc.price).toFixed(8)) : null,
+    xrpBtcRatio:           xrp  ? parseFloat((xrp.price  / btc.price).toFixed(8)) : null,
     stablecoinSupply,
   };
 }

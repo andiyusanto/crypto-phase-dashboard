@@ -202,68 +202,59 @@ export async function fetchBrentOilWeekly(apiKey) {
 export async function fetchRatioTrend() {
   try {
     // Ambil data 7 hari historis BTC, ETH, SOL, AVAX, XRP
-    const [btcHist, ethHist, solHist, avaxHist, xrpHist] = await Promise.all([
+    // allSettled: AVAX/XRP gagal tidak boleh merusak ETH/SOL yang sudah ada
+    const [btcRes, ethRes, solRes, avaxRes, xrpRes] = await Promise.allSettled([
       axios.get('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart', {
-        params: { vs_currency: 'usd', days: 7, interval: 'daily' },
+        params: { vs_currency: 'usd', days: 7, interval: 'daily' }, timeout: 12000,
       }),
       axios.get('https://api.coingecko.com/api/v3/coins/ethereum/market_chart', {
-        params: { vs_currency: 'usd', days: 7, interval: 'daily' },
+        params: { vs_currency: 'usd', days: 7, interval: 'daily' }, timeout: 12000,
       }),
       axios.get('https://api.coingecko.com/api/v3/coins/solana/market_chart', {
-        params: { vs_currency: 'usd', days: 7, interval: 'daily' },
+        params: { vs_currency: 'usd', days: 7, interval: 'daily' }, timeout: 12000,
       }),
       axios.get('https://api.coingecko.com/api/v3/coins/avalanche-2/market_chart', {
-        params: { vs_currency: 'usd', days: 7, interval: 'daily' },
+        params: { vs_currency: 'usd', days: 7, interval: 'daily' }, timeout: 12000,
       }),
       axios.get('https://api.coingecko.com/api/v3/coins/ripple/market_chart', {
-        params: { vs_currency: 'usd', days: 7, interval: 'daily' },
+        params: { vs_currency: 'usd', days: 7, interval: 'daily' }, timeout: 12000,
       }),
     ]);
 
-    const btcPrices  = btcHist.data.prices;
-    const ethPrices  = ethHist.data.prices;
-    const solPrices  = solHist.data.prices;
-    const avaxPrices = avaxHist.data.prices;
-    const xrpPrices  = xrpHist.data.prices;
+    // BTC wajib ada — tanpanya tidak bisa hitung rasio apapun
+    if (btcRes.status !== 'fulfilled') throw new Error(`BTC history gagal: ${btcRes.reason?.message}`);
 
-    // Rasio sekarang vs 7 hari lalu
-    const ethBtcNow    = ethPrices[ethPrices.length - 1][1] / btcPrices[btcPrices.length - 1][1];
-    const ethBtcPrev   = ethPrices[0][1] / btcPrices[0][1];
-    const ethBtcChange = ((ethBtcNow - ethBtcPrev) / ethBtcPrev) * 100;
+    const getPrices = (res, name) => {
+      if (res.status !== 'fulfilled') { console.warn(`⚠️  ${name} history gagal: ${res.reason?.message}`); return null; }
+      const prices = res.value.data.prices;
+      if (!prices?.length) { console.warn(`⚠️  ${name} history kosong`); return null; }
+      return prices;
+    };
 
-    const solBtcNow    = solPrices[solPrices.length - 1][1] / btcPrices[btcPrices.length - 1][1];
-    const solBtcPrev   = solPrices[0][1] / btcPrices[0][1];
-    const solBtcChange = ((solBtcNow - solBtcPrev) / solBtcPrev) * 100;
+    const btcPrices  = btcRes.value.data.prices;
+    const ethPrices  = getPrices(ethRes,  'ETH');
+    const solPrices  = getPrices(solRes,  'SOL');
+    const avaxPrices = getPrices(avaxRes, 'AVAX');
+    const xrpPrices  = getPrices(xrpRes,  'XRP');
 
-    const avaxBtcNow    = avaxPrices[avaxPrices.length - 1][1] / btcPrices[btcPrices.length - 1][1];
-    const avaxBtcPrev   = avaxPrices[0][1] / btcPrices[0][1];
-    const avaxBtcChange = ((avaxBtcNow - avaxBtcPrev) / avaxBtcPrev) * 100;
+    const calcRatio = (altPrices, decimals) => {
+      if (!altPrices) return null;
+      const now  = altPrices[altPrices.length - 1][1] / btcPrices[btcPrices.length - 1][1];
+      const prev = altPrices[0][1] / btcPrices[0][1];
+      const chg  = ((now - prev) / prev) * 100;
+      return { ratio: parseFloat(now.toFixed(decimals)), weekChange: parseFloat(chg.toFixed(2)) };
+    };
 
-    const xrpBtcNow    = xrpPrices[xrpPrices.length - 1][1] / btcPrices[btcPrices.length - 1][1];
-    const xrpBtcPrev   = xrpPrices[0][1] / btcPrices[0][1];
-    const xrpBtcChange = ((xrpBtcNow - xrpBtcPrev) / xrpBtcPrev) * 100;
+    const eth  = calcRatio(ethPrices,  6);
+    const sol  = calcRatio(solPrices,  6);
+    const avax = calcRatio(avaxPrices, 8);
+    const xrp  = calcRatio(xrpPrices,  8);
 
     return {
-      ethBtc: {
-        ratio: parseFloat(ethBtcNow.toFixed(6)),
-        weekChange: parseFloat(ethBtcChange.toFixed(2)),
-        direction: ethBtcChange > 2 ? 'breakout' : ethBtcChange < -2 ? 'turun' : 'flat',
-      },
-      solBtc: {
-        ratio: parseFloat(solBtcNow.toFixed(6)),
-        weekChange: parseFloat(solBtcChange.toFixed(2)),
-        direction: solBtcChange > 3 ? 'naik' : solBtcChange < -3 ? 'turun' : 'flat',
-      },
-      avaxBtc: {
-        ratio: parseFloat(avaxBtcNow.toFixed(8)),
-        weekChange: parseFloat(avaxBtcChange.toFixed(2)),
-        direction: avaxBtcChange > 3 ? 'naik' : avaxBtcChange < -3 ? 'turun' : 'flat',
-      },
-      xrpBtc: {
-        ratio: parseFloat(xrpBtcNow.toFixed(8)),
-        weekChange: parseFloat(xrpBtcChange.toFixed(2)),
-        direction: xrpBtcChange > 3 ? 'naik' : xrpBtcChange < -3 ? 'turun' : 'flat',
-      },
+      ethBtc:  eth  ? { ...eth,  direction: eth.weekChange  > 2 ? 'breakout' : eth.weekChange  < -2 ? 'turun' : 'flat' } : null,
+      solBtc:  sol  ? { ...sol,  direction: sol.weekChange  > 3 ? 'naik'     : sol.weekChange  < -3 ? 'turun' : 'flat' } : null,
+      avaxBtc: avax ? { ...avax, direction: avax.weekChange > 3 ? 'naik'     : avax.weekChange < -3 ? 'turun' : 'flat' } : null,
+      xrpBtc:  xrp  ? { ...xrp,  direction: xrp.weekChange  > 3 ? 'naik'     : xrp.weekChange  < -3 ? 'turun' : 'flat' } : null,
     };
   } catch (err) {
     console.error('❌ Ratio trend error:', err.message);
