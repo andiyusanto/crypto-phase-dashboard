@@ -379,62 +379,88 @@ export async function fetchBrentOilFromNews() {
   }
 }
 
-// ── 4. DXY (DOLLAR INDEX) — via Twelve Data ───────────────────────────────────
-// Symbol yang valid di Twelve Data: "DX-Y.NYB" atau "DXY"
+// ── 4. DXY (DOLLAR INDEX) — Yahoo Finance primary, Twelve Data fallback ───────
+// Yahoo's DX-Y.NYB is the real ICE Dollar Index, free, and accurate.
+// Twelve Data's DX-Y.NYB has been observed returning stale/wrong values (~84 when real DXY ~97).
+async function fetchDXYYahoo() {
+  try {
+    const res = await axios.get('https://query1.finance.yahoo.com/v8/finance/chart/DX-Y.NYB', {
+      params: { interval: '1d', range: '5d' },
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      timeout: 10000,
+    });
+    const result = res.data?.chart?.result?.[0];
+    if (!result) throw new Error('No data from Yahoo Finance DX-Y.NYB');
+
+    const closes = result.indicators?.quote?.[0]?.close ?? [];
+    const valid  = closes.filter(c => c != null);
+    if (valid.length < 2) throw new Error('Not enough DXY closes from Yahoo');
+
+    const today     = valid[valid.length - 1];
+    const yesterday = valid[valid.length - 2];
+
+    // Sanity: post-2008 DXY historically 80–115. Out-of-bound = fall through to Twelve Data.
+    if (today < 80 || today > 115) {
+      throw new Error(`Yahoo DX-Y.NYB returned anomaly ${today.toFixed(2)} (expected 80–115)`);
+    }
+
+    const change = today - yesterday;
+    console.log(`  ✓ DXY via Yahoo Finance | ${today.toFixed(2)} | Δ${change >= 0 ? '+' : ''}${change.toFixed(2)}`);
+    return {
+      value: parseFloat(today.toFixed(2)),
+      change: parseFloat(change.toFixed(2)),
+      direction: getDirection(change),
+      symbol: 'DX-Y.NYB',
+      source: 'Yahoo Finance',
+    };
+  } catch (err) {
+    console.warn(`⚠️  DXY Yahoo Finance gagal: ${err.message} — coba Twelve Data fallback`);
+    return null;
+  }
+}
+
 export async function fetchDXY(keys = {}) {
   const twelveDataKey = typeof keys === 'string' ? keys : keys.twelveData;
   const alphaVantageKey = keys.alphaVantage;
 
+  // Try Yahoo Finance first (free, no key needed, accurate)
+  const yahoo = await fetchDXYYahoo();
+  if (yahoo) return yahoo;
+
   if (!twelveDataKey || twelveDataKey === 'your_twelve_data_key_here') {
-    return { skipped: true, reason: 'TWELVE_DATA_API_KEY tidak diset' };
+    return fetchDXYAlphaVantage(alphaVantageKey);
   }
 
-  // Symbol order: DX-Y.NYB (standard ICE Dollar Index), DXY (alias).
-  // USDX/DXY:CUR removed — return inverted/different scales that produce false anomalies (e.g., 25.72).
-  const symbols = ['DX-Y.NYB', 'DXY'];
-
+  // Twelve Data fallback (note: DX-Y.NYB on Twelve Data has been observed returning wrong values)
+  const symbols = ['DXY', 'DX-Y.NYB'];
   for (const symbol of symbols) {
     try {
       const res = await axios.get('https://api.twelvedata.com/time_series', {
-        params: {
-          symbol,
-          interval: '1day',
-          outputsize: 2,
-          apikey: twelveDataKey,
-        },
+        params: { symbol, interval: '1day', outputsize: 2, apikey: twelveDataKey },
         timeout: 8000,
       });
-
-      // Twelve Data mengembalikan { status: 'error' } jika symbol salah
       if (res.data.status === 'error' || !res.data.values) continue;
-
       const values = res.data.values;
       if (values.length < 2) continue;
-
       const today = parseFloat(values[0].close);
       const yesterday = parseFloat(values[1].close);
-      
-      // DXY plausible range: 80–115 (post-2008 historical). Tighter than sanity bound 70–120
-      // to catch wrong-symbol fallback like 84.86 from EUR/USD inverse proxy that may not be DXY itself.
       if (today < 80 || today > 115) {
-        console.warn(`⚠️  DXY: Symbol "${symbol}" mengembalikan nilai anomali: ${today} (expected 80–115). Mencoba symbol lain...`);
+        console.warn(`⚠️  DXY: Twelve Data symbol "${symbol}" anomali: ${today} (expected 80–115)`);
         continue;
       }
-
       const change = today - yesterday;
-
       return {
         value: parseFloat(today.toFixed(2)),
         change: parseFloat(change.toFixed(2)),
         direction: getDirection(change),
         symbol,
+        source: 'Twelve Data',
       };
     } catch {
       continue;
     }
   }
 
-  // Fallback: ambil dari Alpha Vantage jika Twelve Data gagal semua
   return fetchDXYAlphaVantage(alphaVantageKey);
 }
 
