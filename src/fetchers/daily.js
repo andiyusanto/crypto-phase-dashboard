@@ -25,7 +25,7 @@ export async function fetchCryptoData() {
   const [cgGlobalRes, cgStableRes, bnTickerRes] = await Promise.allSettled([
     axios.get('https://api.coingecko.com/api/v3/global', { timeout: 12000 }),
     axios.get('https://api.coingecko.com/api/v3/simple/price', {
-      params: { ids: 'tether,usd-coin', vs_currencies: 'usd', include_market_cap: true },
+      params: { ids: 'tether,usd-coin,bitcoin', vs_currencies: 'usd', include_market_cap: true, include_24hr_vol: true },
       timeout: 12000,
     }),
     axios.get('https://api.binance.com/api/v3/ticker/24hr', {
@@ -42,13 +42,17 @@ export async function fetchCryptoData() {
   const global       = cgGlobalRes.value.data.data;
   const btcDominance = global.market_cap_percentage.btc;
 
-  // ── Stablecoin market caps ────────────────────────────────────────────────
+  // ── Stablecoin market caps + BTC aggregate volume ─────────────────────────
   let stablecoinSupply = { usdt: null, usdc: null, total: null };
+  let btcAggregateVol24hBillion = null;
   if (cgStableRes.status === 'fulfilled') {
     const sp = cgStableRes.value.data;
     const usdt = parseFloat((sp.tether?.['usd_market_cap']    / 1e9).toFixed(2));
     const usdc = parseFloat((sp['usd-coin']?.['usd_market_cap'] / 1e9).toFixed(2));
     stablecoinSupply = { usdt, usdc, total: parseFloat((usdt + usdc).toFixed(2)) };
+    if (sp.bitcoin?.usd_24h_vol != null) {
+      btcAggregateVol24hBillion = parseFloat((sp.bitcoin.usd_24h_vol / 1e9).toFixed(2));
+    }
   } else {
     console.warn('⚠️  Stablecoin mcap gagal:', cgStableRes.reason?.message);
   }
@@ -61,7 +65,9 @@ export async function fetchCryptoData() {
     const find    = (sym) => tickers.find(t => t.symbol === sym);
     const bn      = { btc: find('BTCUSDT'), eth: find('ETHUSDT'), sol: find('SOLUSDT'), avax: find('AVAXUSDT'), xrp: find('XRPUSDT') };
 
-    btc  = { price: Math.round(parseFloat(bn.btc.lastPrice)), change24h: parseFloat(parseFloat(bn.btc.priceChangePercent).toFixed(2)), volume24hBillion: parseFloat((parseFloat(bn.btc.quoteVolume) / 1e9).toFixed(2)) };
+    // Prefer CoinGecko aggregate volume (global) over Binance spot-only quoteVolume
+    const binanceSpotVolBn = parseFloat((parseFloat(bn.btc.quoteVolume) / 1e9).toFixed(2));
+    btc  = { price: Math.round(parseFloat(bn.btc.lastPrice)), change24h: parseFloat(parseFloat(bn.btc.priceChangePercent).toFixed(2)), volume24hBillion: btcAggregateVol24hBillion ?? binanceSpotVolBn };
     eth  = { price: Math.round(parseFloat(bn.eth.lastPrice)), change24h: parseFloat(parseFloat(bn.eth.priceChangePercent).toFixed(2)) };
     sol  = { price: parseFloat(parseFloat(bn.sol.lastPrice).toFixed(2)), change24h: parseFloat(parseFloat(bn.sol.priceChangePercent).toFixed(2)) };
     avax = bn.avax ? { price: parseFloat(parseFloat(bn.avax.lastPrice).toFixed(2)), change24h: parseFloat(parseFloat(bn.avax.priceChangePercent).toFixed(2)) } : null;
@@ -77,7 +83,7 @@ export async function fetchCryptoData() {
         timeout: 12000,
       });
       const p = fb.data;
-      btc  = { price: Math.round(p.bitcoin.usd), change24h: parseFloat(p.bitcoin.usd_24h_change.toFixed(2)), volume24hBillion: parseFloat((p.bitcoin.usd_24h_vol / 1e9).toFixed(2)) };
+      btc  = { price: Math.round(p.bitcoin.usd), change24h: parseFloat(p.bitcoin.usd_24h_change.toFixed(2)), volume24hBillion: btcAggregateVol24hBillion ?? parseFloat((p.bitcoin.usd_24h_vol / 1e9).toFixed(2)) };
       eth  = { price: Math.round(p.ethereum.usd), change24h: parseFloat(p.ethereum.usd_24h_change.toFixed(2)) };
       sol  = { price: parseFloat(p.solana.usd.toFixed(2)), change24h: parseFloat(p.solana.usd_24h_change.toFixed(2)) };
       avax = { price: parseFloat(p['avalanche-2'].usd.toFixed(2)), change24h: parseFloat(p['avalanche-2'].usd_24h_change.toFixed(2)) };
@@ -1068,7 +1074,9 @@ export async function fetchBtcDerivativesBundle(btcPriceHint = null) {
     let skewProxy = null;
     let signal    = 'data tidak tersedia';
     if (avgFunding !== null) {
-      skewProxy = parseFloat((-avgFunding * 1000).toFixed(2));
+      // Multiplier 100: typical 8h funding 0.001%-0.1% maps to skew range -10 to +30
+      // Sign flipped so positive skew = fear (negative funding), negative = greed (positive funding)
+      skewProxy = parseFloat((-avgFunding * 100).toFixed(2));
       if (skewProxy > 10)       signal = 'fear tinggi — funding negatif kuat, put premium implied (bearish/fase 4)';
       else if (skewProxy > 3)   signal = 'netral-bearish — sedikit downside concern';
       else if (skewProxy >= -3) signal = 'netral — pasar seimbang';

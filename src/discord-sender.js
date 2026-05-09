@@ -343,7 +343,7 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
     if (weekly.nfci?.value)     lines.push(`**NFCI**: ${weekly.nfci.value} (${weekly.nfci.trend})`);
     if (weekly.tvl?.tvl)        lines.push(`**DeFi TVL**: $${weekly.tvl.tvl}B (${weekly.tvl.changePercent >= 0 ? '+' : ''}${weekly.tvl.changePercent}%)`);
     if (weekly.oil?.price)      lines.push(`**Oil 7d**: $${weekly.oil.price} (${weekly.oil.weekChange >= 0 ? '+' : ''}${weekly.oil.weekChange}%)`);
-    if (weekly.msciEm?.value)   lines.push(`**MSCI EM**: ${weekly.msciEm.value} (${weekly.msciEm.direction})`);
+    if (weekly.msciEm?.value)   lines.push(`**EEM ETF (MSCI EM proxy)**: $${weekly.msciEm.value} (${weekly.msciEm.direction})`);
     if (weekly.ratioTrend?.ethBtc) lines.push(`**ETH/BTC**: ${weekly.ratioTrend.ethBtc.ratio} (${weekly.ratioTrend.ethBtc.direction})`);
     if (weekly.othersDom?.othersDominance) lines.push(`**OTHERS.D**: ${weekly.othersDom.othersDominance}%`);
     if (weekly.altseason?.value != null) lines.push(`**Altszn**: ${weekly.altseason.value} — ${weekly.altseason.signal}`);

@@ -26,13 +26,27 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
   };
 
   // ── Phase & War ───────────────────────────────────────────────────────────
+  // war.* may be an object {headline, severity, severityLabel, severityReason}
+  // or a legacy string (backwards compat from cached data).
   const faseEstimasi    = manualOverrides.faseEstimasi ?? '?';
-  const warTimteng      = (manualOverrides.warTimteng !== 'none' && manualOverrides.warTimteng)
-                        || war?.timteng || '[fetch gagal — isi manual]';
-  const warRusiaUkraine = (manualOverrides.warRusiaUkraine !== 'none' && manualOverrides.warRusiaUkraine)
-                        || war?.rusiaUkraine || '[fetch gagal — isi manual]';
-  const warTaiwan       = (manualOverrides.warTaiwan !== 'none' && manualOverrides.warTaiwan)
-                        || war?.taiwan || '[fetch gagal — isi manual]';
+  const warField = (region) => {
+    const w = war?.[region];
+    if (typeof w === 'string') return { headline: w, severity: null, severityLabel: '—' };
+    return w || { headline: '[fetch gagal — isi manual]', severity: null, severityLabel: '—' };
+  };
+  const warFmt = (override, regionKey) => {
+    if (override && override !== 'none') return { headline: override, severity: null, severityLabel: 'manual override' };
+    return warField(regionKey);
+  };
+  const warTimtengObj      = warFmt(manualOverrides.warTimteng, 'timteng');
+  const warRusiaUkraineObj = warFmt(manualOverrides.warRusiaUkraine, 'rusiaUkraine');
+  const warTaiwanObj       = warFmt(manualOverrides.warTaiwan, 'taiwan');
+  const warDisplay = (obj) => obj.severity != null
+    ? `severity ${obj.severity}/5 (${obj.severityLabel}) — ${obj.headline}`
+    : obj.headline;
+  const warTimteng      = warDisplay(warTimtengObj);
+  const warRusiaUkraine = warDisplay(warRusiaUkraineObj);
+  const warTaiwan       = warDisplay(warTaiwanObj);
 
   // ── Fed Liquidity ─────────────────────────────────────────────────────────
   const fedSrc = srcLabel(fed);
@@ -70,6 +84,16 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
     ? `- VIX: ${vx.value} | Δ${vx.dayChange >= 0 ? '+' : ''}${vx.dayChange} | zona: ${vx.zone} ${vx.signal}`
     : `- VIX: ___`;
 
+  // Surface skip reasons so AI knows WHY Layer 0 is unavailable (vs silent "—")
+  const fedSkipReasons = [
+    w?.skipped  ? `WALCL: ${w.reason}`   : null,
+    r?.skipped  ? `RRP: ${r.reason}`     : null,
+    rv?.skipped ? `WLRRAL: ${rv.reason}` : null,
+  ].filter(Boolean);
+  const fedDiagnostic = fedSkipReasons.length
+    ? `\n- ⚠️  LAYER 0 DIAGNOSTIC: Fed trifecta unavailable — ${fedSkipReasons.join('; ')}. Konsekuensi: rule "perubahan fase butuh ≥3 signal upstream konfirmasi" tidak bisa dieksekusi → downgrade confidence max ke 'sedang' atau 'rendah'.`
+    : '';
+
   const fedBlock = `- Fed Balance Sheet (WALCL): $${v(w?.totalTrillions)}T
   vs minggu lalu: ${w ? (w.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(w.weekChangeBillions) + 'B' : '—'}
 - RRP balance (RRPONTSYD): $${v(r?.balanceBillions)}B
@@ -83,7 +107,7 @@ ${hyLine}
 ${ycLine}
 ${vixLine}
 - Fed trifecta: ${v(fed?.trifectaScore)} hijau (${v(fed?.overallStatus)})
-- Phase 0 macro stress: ${v(fed?.macroStressScore)} merah → ${v(fed?.macroStressLabel)}`;
+- Phase 0 macro stress: ${v(fed?.macroStressScore)} merah → ${v(fed?.macroStressLabel)}${fedDiagnostic}`;
 
   // ── Daily ─────────────────────────────────────────────────────────────────
   const btcPrice   = v(daily?.crypto?.btc?.price);
@@ -337,11 +361,14 @@ ${vixLine}
     ? parseFloat((txVolBtc * btcPriceForNvt / 1e9).toFixed(1)) : null;
   const nvtRatio = (mktCapBillionCm != null && txVolUsdBillion != null && txVolUsdBillion > 0)
     ? parseFloat((mktCapBillionCm / txVolUsdBillion).toFixed(1)) : null;
+  // Threshold updated for modern BTC (post-2021): off-chain trading (CEX, L2, Lightning)
+  // depresses on-chain TX volume, inflating NVT vs legacy 2017-era thresholds (35/65/90).
+  // Use NVT in conjunction with MVRV — divergence (NVT high, MVRV fair) suggests off-chain shift, not real distribusi.
   const nvtSignal = nvtRatio == null ? null
-    : nvtRatio < 35 ? '✅ undervalued relative to network usage (Phase 1)'
-    : nvtRatio < 65 ? '⚠️ fair value'
-    : nvtRatio < 90 ? '🔴 overvalued'
-    :                 '🔴 sangat overvalued (Phase 3/4 distribusi)';
+    : nvtRatio < 50  ? '✅ undervalued relative to network usage (Phase 1 akumulasi)'
+    : nvtRatio < 150 ? '⚠️ fair value (modern range)'
+    : nvtRatio < 300 ? '🔴 elevated — overvalued atau on-chain TX shifting off-chain (cross-check MVRV)'
+    :                  '🔴 sangat tinggi — Phase 3/4 distribusi atau ekstrem off-chain shift';
   const nvtLine = nvtRatio != null
     ? `- NVT Signal: ${nvtRatio} | TX vol 7d avg: ${txVolBtc?.toLocaleString()} BTC/day | ${nvtSignal}`
     : null;
@@ -379,11 +406,21 @@ ${vixLine}
   const yieldDir  = v(weekly?.yield10y?.direction);
   const ethBtc     = v(weekly?.ratioTrend?.ethBtc?.ratio  ?? daily?.crypto?.ethBtcRatio);
   const solBtc     = v(weekly?.ratioTrend?.solBtc?.ratio  ?? daily?.crypto?.solBtcRatio);
-  const solBtcDir  = v(weekly?.ratioTrend?.solBtc?.direction);
   const avaxBtc    = v(weekly?.ratioTrend?.avaxBtc?.ratio ?? daily?.crypto?.avaxBtcRatio);
-  const avaxBtcDir = v(weekly?.ratioTrend?.avaxBtc?.direction);
   const xrpBtc     = v(weekly?.ratioTrend?.xrpBtc?.ratio  ?? daily?.crypto?.xrpBtcRatio);
-  const xrpBtcDir  = v(weekly?.ratioTrend?.xrpBtc?.direction);
+
+  // Direction with 24h fallback when weekly ratioTrend unavailable.
+  // Approximation: alt 24h chg − BTC 24h chg, labeled "(24h proxy)" so AI knows it's not weekly.
+  const dirFromDailyDiff = (altChg, btcChg) => {
+    if (altChg == null || btcChg == null) return null;
+    const diff = altChg - btcChg;
+    return diff > 1 ? 'naik (24h proxy)' : diff < -1 ? 'turun (24h proxy)' : 'flat (24h proxy)';
+  };
+  const btcChg24h = daily?.crypto?.btc?.change24h ?? null;
+  const ethBtcDir  = v(weekly?.ratioTrend?.ethBtc?.direction  ?? dirFromDailyDiff(daily?.crypto?.eth?.change24h,  btcChg24h));
+  const solBtcDir  = v(weekly?.ratioTrend?.solBtc?.direction  ?? dirFromDailyDiff(daily?.crypto?.sol?.change24h,  btcChg24h));
+  const avaxBtcDir = v(weekly?.ratioTrend?.avaxBtc?.direction ?? dirFromDailyDiff(daily?.crypto?.avax?.change24h, btcChg24h));
+  const xrpBtcDir  = v(weekly?.ratioTrend?.xrpBtc?.direction  ?? dirFromDailyDiff(daily?.crypto?.xrp?.change24h,  btcChg24h));
   const tvl       = v(weekly?.tvl?.tvl);
   const tvlChg    = v(weekly?.tvl?.changePercent);
   const msciEm    = v(weekly?.msciEm?.value);
@@ -400,11 +437,15 @@ ${vixLine}
       : '—');
   const btcDomDeltaStr = domDelta != null ? ` (${domDelta > 0 ? '+' : ''}${domDelta}% WoW)` : '';
 
+  // Two altseason measurements use different methodologies:
+  // - Real (blockchaincenter.net): % of top-50 alts outperforming BTC over 90 days — historical/structural
+  // - Proxy: 4-coin BTC ratio momentum (ETH/SOL/AVAX/XRP) + OTHERS.D — short-term/leading
+  // Real is primary benchmark; proxy serves as faster-moving cross-check.
   const proxy = weekly?.altseasonProxy;
   const altseasonFetched = weekly?.altseason?.value != null
-    ? `${weekly.altseason.value} — ${weekly.altseason.signal}${proxy ? ` | proxy: ${proxy.value} (${proxy.signal})` : ''}`
+    ? `${weekly.altseason.value} — ${weekly.altseason.signal} [90d, blockchaincenter]${proxy ? ` | short-term proxy: ${proxy.value} (${proxy.signal}) [4-coin BTC ratio]` : ''}`
     : proxy?.value != null
-      ? `${proxy.value} — ${proxy.signal} ⚠️ proxy (${proxy.source})`
+      ? `${proxy.value} — ${proxy.signal} ⚠️ proxy only [4-coin BTC ratio, real index unavailable]`
       : null;
   const altseasonIdx = manualOverrides.altseasonIndex ?? altseasonFetched ?? '—';
   const exchangeNetflow = manualOverrides.exchangeNetflow ?? exchangeNetflowLabel;
@@ -472,6 +513,7 @@ ATURAN PRIORITAS SIGNAL:
 - Upstream selalu lebih dipercaya dari downstream
 - Jika data tidak cukup untuk suatu indikator, sebutkan asumsi yang digunakan
 - Jangan overconfident: jika signal konflik tanpa resolusi jelas, nyatakan "inconclusive"
+- **Confidence calibration:** Jika Layer 0 (Fed trifecta WALCL/RRP/Reserves) DATA_UNAVAILABLE atau ≤1/3 hijau, downgrade max confidence ke "sedang". Jika ditambah lagi konflik antar Layer 1–3 yang tidak terselesaikan, downgrade ke "rendah". Confidence "tinggi" hanya valid jika ≥2/3 Layer 0 hijau DAN ≥70% Layer 1–3 searah.${manualOverrides.sanityAlert ? '\n\n' + manualOverrides.sanityAlert : ''}
 
 ---
 ## DEFINISI FASE
@@ -573,15 +615,14 @@ ${trendsLine}
 ### DATA MINGGUAN ${weeklySrc}
 - FCI (Chicago Fed NFCI): ${nfci} | vs minggu lalu: ${nfciPrev}
 - US 10Y Yield: ${yield10y}% | arah: ${yieldDir}
-- ETH/BTC ratio: ${ethBtc} | arah minggu ini: ${v(weekly?.ratioTrend?.ethBtc?.direction)} ${v(weekly?.ratioTrend?.ethBtc?.weekChange, '')}%
+- ETH/BTC ratio: ${ethBtc} | arah minggu ini: ${ethBtcDir} ${v(weekly?.ratioTrend?.ethBtc?.weekChange, '')}%
 - SOL/BTC ratio: ${solBtc} | arah: ${solBtcDir} ${v(weekly?.ratioTrend?.solBtc?.weekChange, '')}%
 - AVAX/BTC ratio: ${avaxBtc} | arah: ${avaxBtcDir} ${v(weekly?.ratioTrend?.avaxBtc?.weekChange, '')}%
 - XRP/BTC ratio: ${xrpBtc} | arah: ${xrpBtcDir} ${v(weekly?.ratioTrend?.xrpBtc?.weekChange, '')}%
 - BTC.D arah minggu ini: ${btcDomDir}${btcDomDeltaStr}
-- BTC exchange netflow: ${exchangeNetflow}
 - Altseason Index: ${altseasonIdx}
 - TVL DeFi (DefiLlama): $${tvl}B | vs minggu lalu: ${tvlChg}%
-- MSCI EM: ${msciEm} | arah: ${msciDir}
+- EEM ETF (MSCI EM proxy): $${msciEm} | arah: ${msciDir}
 
 ### DATA BULANAN ${monthlySrc}
 ${monthlyBlock}
@@ -639,8 +680,20 @@ Format: EKSPANSI / KONTRAKSI / MIXED — alasan ≤3 kalimat.
 ---
 
 ### 2. FASE SAAT INI
-- Fase: [0–4] — [label]
-- Confidence: tinggi / sedang / rendah
+
+**Evaluasi estimasi user:** WAJIB sebelum menentukan fase final, evaluasi estimasi fase user dengan tabel pro/con eksplisit:
+
+| Aspek | Mendukung estimasi user | Menentang estimasi user |
+|-------|------------------------|------------------------|
+| Layer 0 (Fed) | ... | ... |
+| Layer 1 (Macro) | ... | ... |
+| Layer 2 (Market struct) | ... | ... |
+| Layer 3 (On-chain/deriv) | ... | ... |
+
+Lalu putuskan: **konfirmasi**, **adjust ke fase X**, atau **inconclusive**. Jangan sekedar menerima atau menolak — tunjukkan reasoningnya dari tabel.
+
+- Fase final: [0–4] — [label]
+- Confidence: tinggi / sedang / rendah (terapkan rule kalibrasi di ATURAN PRIORITAS)
 - Signal penentu utama (2–3 poin)
 - Perubahan dari minggu lalu: Ya / Tidak
   - Jika Ya: signal apa yang trigger perubahan?
@@ -709,6 +762,8 @@ Divergence alert wajib — flag otomatis jika salah satu kondisi berikut terjadi
 - Exchange Reserve naik tajam (7d > +2%) tapi NUPL < 0.25 (whale deposit di zona fear — bisa capitulation bottom, bukan distribusi)
 - ETF Flow proxy "Strong Outflow" tapi Exchange Reserve juga turun (ETF selloff tapi whale withdrawal — konflik: retail keluar, institusi akumulasi?)
 - ETF Flow proxy "Strong Inflow" tapi Fear & Greed < 30 (ETF demand tinggi di tengah fear — bisa early accumulation dari smart money)
+- CME Premium positif (>0%) tapi Perp Basis negatif/backwardation (<0%) — institutional contango vs retail/leveraged backwardation: divergence positioning antara TradFi dan crypto-native; sering precede reversal ke arah CME view (institutional smart money)
+- CME Premium negatif (<0%) tapi Perp Basis positif (>5%) — institutional bearish/hedging tapi perp leveraged bullish: warning institutional exit duluan, retail leverage rentan unwind
 
 ---
 
@@ -1066,7 +1121,7 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
   lines.push(`  10Y    : ${weekly?.yield10y?.value ?? '—'}% (${weekly?.yield10y?.direction ?? '—'})`);
   lines.push(`  NFCI   : ${weekly?.nfci?.value ?? '—'} (${weekly?.nfci?.trend ?? '—'})`);
   lines.push(`  TVL    : $${weekly?.tvl?.tvl ?? '—'}B (${weekly?.tvl?.changePercent != null ? (weekly.tvl.changePercent >= 0 ? '+' : '') + weekly.tvl.changePercent : '—'}%)`);
-  lines.push(`  MSCI EM: ${weekly?.msciEm?.value ?? '—'} (${weekly?.msciEm?.direction ?? '—'})`);
+  lines.push(`  EEM ETF (MSCI EM proxy): $${weekly?.msciEm?.value ?? '—'} (${weekly?.msciEm?.direction ?? '—'})`);
   lines.push(`  ETH/BTC: ${weekly?.ratioTrend?.ethBtc?.ratio ?? '—'} (${weekly?.ratioTrend?.ethBtc?.direction ?? '—'})`);
   lines.push(`  SOL/BTC: ${weekly?.ratioTrend?.solBtc?.ratio ?? '—'} (${weekly?.ratioTrend?.solBtc?.direction ?? '—'})`);
   if (weekly?.altseason?.value != null)

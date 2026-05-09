@@ -61,6 +61,7 @@ import {
   saveFundingRate,   getFundingRateHistory,
 } from './db.js';
 import { formatDashboardPrompt, formatDataSummary } from './formatter.js';
+import { validateData, logAndSummarize } from './sanity-validator.js';
 import { analyzeWith, saveAnalysis } from './claude-analyst.js';
 
 import {
@@ -320,9 +321,11 @@ async function main() {
       console.log(chalk.green('✓ War Headlines'));
     }
 
-    // ── 2. GENERATE PROMPT ───────────────────────────────────────────────
+    // ── 2. SANITY CHECK + GENERATE PROMPT ─────────────────────────────────
+    const violations = validateData({ daily, weekly, monthly, fed });
+    const sanityAlert = logAndSummarize(violations);
     console.log(chalk.yellow(formatDataSummary(daily, weekly, monthly, fed)));
-    const prompt = formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrides, war);
+    const prompt = formatDashboardPrompt(daily, weekly, monthly, fed, { ...manualOverrides, sanityAlert }, war);
 
     // ── 3. SAVE FILES ────────────────────────────────────────────────────
     const ts        = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -415,7 +418,10 @@ async function main() {
         if (saveFile && analysisText) {
           try {
             const fp = saveAnalysis(analysisText, outputDir, ts, p);
-            writeFileSync(join(outputDir, 'latest_analysis.txt'), analysisText, 'utf-8');
+            // Tag generic latest_analysis.txt with provider header so user knows which provider wrote it.
+            // Avoids race condition ambiguity when running --provider=all (last writer wins, but at least labeled).
+            const taggedContent = `[Provider: ${meta.label} — ${new Date().toLocaleString('id-ID')}]\n${'─'.repeat(60)}\n\n${analysisText}`;
+            writeFileSync(join(outputDir, 'latest_analysis.txt'), taggedContent, 'utf-8');
             console.log(chalk.green(`\n  💾 Tersimpan: ${fp}`));
           } catch (err) {
             console.error(chalk.red(`  ✗ File save gagal: ${err.message}`));

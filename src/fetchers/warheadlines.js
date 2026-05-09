@@ -42,6 +42,42 @@ function formatHeadlines(headlines, fallback = 'none') {
   return extra ? `${main} [+${headlines.length - 1}: ${extra.slice(0, 100)}...]` : main;
 }
 
+// ── Severity scoring ─────────────────────────────────────────────────────────
+// Score 1–5 based on keyword density in combined headlines.
+// Escalation keywords add +1 each (capped at +3); de-escalation subtracts up to -2.
+// Default 3 (sedang) with no signals.
+const ESCALATION_KEYWORDS = [
+  'missile', 'strike', 'attack', 'killed', 'bombed', 'bombing', 'invasion',
+  'offensive', 'casualties', 'airstrike', 'shelling', 'assault', 'escalate',
+  'escalation', 'mobilize', 'deploy', 'incursion', 'breached',
+];
+const DEESCALATION_KEYWORDS = [
+  'ceasefire', 'peace', 'agreement', 'truce', 'withdraw', 'withdrawal',
+  'talks', 'negotiate', 'negotiation', 'diplomatic', 'pause',
+];
+
+function scoreSeverity(headlines) {
+  if (!headlines || !headlines.length) return { severity: 1, label: 'rendah', reason: 'no recent headlines' };
+  const text = headlines.map(h => (h.title || '').toLowerCase()).join(' ');
+  const escHits = ESCALATION_KEYWORDS.filter(kw => text.includes(kw));
+  const deescHits = DEESCALATION_KEYWORDS.filter(kw => text.includes(kw));
+  // Cap escalation contribution at +3, de-escalation at -2; baseline 3
+  const escScore = Math.min(escHits.length, 3);
+  const deescScore = Math.min(deescHits.length, 2);
+  const raw = 3 + escScore - deescScore;
+  const severity = Math.max(1, Math.min(5, raw));
+  const label = severity <= 1 ? 'rendah'
+              : severity === 2 ? 'rendah-sedang'
+              : severity === 3 ? 'sedang'
+              : severity === 4 ? 'tinggi'
+              : 'kritis';
+  const reason = [
+    escHits.length ? `escalation: ${escHits.slice(0, 3).join(', ')}` : null,
+    deescHits.length ? `de-escalation: ${deescHits.slice(0, 2).join(', ')}` : null,
+  ].filter(Boolean).join(' | ') || 'baseline';
+  return { severity, label, reason };
+}
+
 // ── 1. MIDDLE EAST ────────────────────────────────────────────────────────────
 // Query: berita Timur Tengah 24 jam terakhir dari sumber terpercaya
 export async function fetchMiddleEastNews() {
@@ -65,12 +101,14 @@ export async function fetchMiddleEastNews() {
       warKeywords.some(kw => h.title.toLowerCase().includes(kw.toLowerCase()))
     );
 
-    const result = formatHeadlines(filtered.length ? filtered : headlines);
-    console.log(`  ✓ Timteng headline: ${result.slice(0, 80)}...`);
-    return result;
+    const used = filtered.length ? filtered : headlines;
+    const headline = formatHeadlines(used);
+    const sev = scoreSeverity(used);
+    console.log(`  ✓ Timteng headline: severity ${sev.severity}/5 (${sev.label}) — ${headline.slice(0, 60)}...`);
+    return { headline, severity: sev.severity, severityLabel: sev.label, severityReason: sev.reason };
   } catch (err) {
     console.warn(`⚠️  Middle East news error: ${err.message}`);
-    return '[fetch gagal — isi manual]';
+    return { headline: '[fetch gagal — isi manual]', severity: null, severityLabel: '—', severityReason: 'fetch error' };
   }
 }
 
@@ -89,12 +127,14 @@ export async function fetchUkraineNews() {
       warKeywords.some(kw => h.title.toLowerCase().includes(kw.toLowerCase()))
     );
 
-    const result = formatHeadlines(filtered.length ? filtered : headlines);
-    console.log(`  ✓ Rusia-Ukraine headline: ${result.slice(0, 80)}...`);
-    return result;
+    const used = filtered.length ? filtered : headlines;
+    const headline = formatHeadlines(used);
+    const sev = scoreSeverity(used);
+    console.log(`  ✓ Rusia-Ukraine headline: severity ${sev.severity}/5 (${sev.label}) — ${headline.slice(0, 60)}...`);
+    return { headline, severity: sev.severity, severityLabel: sev.label, severityReason: sev.reason };
   } catch (err) {
     console.warn(`⚠️  Ukraine news error: ${err.message}`);
-    return '[fetch gagal — isi manual]';
+    return { headline: '[fetch gagal — isi manual]', severity: null, severityLabel: '—', severityReason: 'fetch error' };
   }
 }
 
@@ -114,15 +154,16 @@ export async function fetchTaiwanNews() {
     );
 
     // Taiwan lebih tenang — 48h window, ambil status terbaru
-    const result = filtered.length
-      ? formatHeadlines(filtered)
+    const used = filtered.length ? filtered : [];
+    const headline = used.length
+      ? formatHeadlines(used)
       : 'Tidak ada eskalasi signifikan dalam 48 jam terakhir';
-
-    console.log(`  ✓ Taiwan headline: ${result.slice(0, 80)}...`);
-    return result;
+    const sev = scoreSeverity(used);
+    console.log(`  ✓ Taiwan headline: severity ${sev.severity}/5 (${sev.label}) — ${headline.slice(0, 60)}...`);
+    return { headline, severity: sev.severity, severityLabel: sev.label, severityReason: sev.reason };
   } catch (err) {
     console.warn(`⚠️  Taiwan news error: ${err.message}`);
-    return '[fetch gagal — isi manual]';
+    return { headline: '[fetch gagal — isi manual]', severity: null, severityLabel: '—', severityReason: 'fetch error' };
   }
 }
 
@@ -137,10 +178,11 @@ export async function fetchAllWarHeadlines() {
     fetchTaiwanNews(),
   ]);
 
+  const fallback = { headline: '[fetch gagal]', severity: null, severityLabel: '—', severityReason: 'fetch error' };
   return {
-    timteng:      timteng.value      ?? '[fetch gagal]',
-    rusiaUkraine: rusiaUkraine.value ?? '[fetch gagal]',
-    taiwan:       taiwan.value       ?? '[fetch gagal]',
+    timteng:      timteng.value      ?? fallback,
+    rusiaUkraine: rusiaUkraine.value ?? fallback,
+    taiwan:       taiwan.value       ?? fallback,
     fetchedAt: new Date().toISOString(),
     source: 'Google News RSS (Reuters/AP/BBC via GNews)',
   };

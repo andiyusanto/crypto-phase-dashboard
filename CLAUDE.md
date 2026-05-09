@@ -305,6 +305,58 @@ Do **not** add other CoinMetrics metrics without verifying free tier access firs
 
 ---
 
+## Review Continuation Rule
+
+When reviewing the same artifact (report, prompt, output file) **for the second time or more**, do NOT scan top-to-bottom looking for new issues. Instead:
+
+1. **Open the prior review's findings first** and walk through them line-by-line.
+2. **For each prior finding, classify the current state** as one of:
+   - ✅ **FIXED** — issue resolved
+   - 🟡 **PARTIAL** — value changed but underlying problem persists (e.g., scale bug still present with different number)
+   - 🔴 **REGRESSED** — got worse (e.g., from "wrong number" to "DATA_UNAVAILABLE")
+   - ⏳ **PENDING** — cannot evaluate yet
+3. **Only after** the prior-findings table is complete, list new issues not seen before.
+
+**Why:** A value changing (e.g., MSCI EM `55.47` → `67.94`) is NOT proof the bug is fixed — it may be the same scale bug with a different rendering. Treat moved values as suspect until cross-checked against ground truth, not as evidence of a fix.
+
+**Trap to avoid:** Skipping verification steps that require tool calls (e.g., `ls output/`, reading a fetcher) in favor of prose-only flagging. If the verification is cheap (≤3 tool calls) and the cost of being wrong is real (broken production data, wasted API spend), do the verification.
+
+---
+
+## Sanity Bounds for Core Indicators
+
+Auto-flag any value outside these ranges as a **scale/unit bug** (not a market anomaly) and verify the fetcher source field before trusting downstream analysis:
+
+| Indikator | Plausible range | Action jika di luar |
+|-----------|-----------------|---------------------|
+| DXY | 70–120 | flag salah skala — cek field (level vs %change) |
+| MSCI EM (EEM ETF proxy) | $25–$80 | this project uses EEM ETF via Twelve Data, NOT the MSCI EM index — value ~50–70 is normal, not a scale bug. Rename label to "EEM (MSCI EM proxy)" in prompts to avoid AI confusion |
+| BTC vol 24h (global aggregate) | $10B–$80B | flag salah skala — likely single-exchange, not aggregate |
+| ISM PMI (Mfg/Svc) | 35–65 | flag salah skala — value > 100 means wrong series |
+| Fed Reserves (WLRRAL) | $2.5T–$5T | flag desimal hilang — `$0.3T` indicates unit mismatch |
+| Fed Balance Sheet (WALCL) | $6T–$9T | flag salah unit |
+| US 10Y Yield | 0.5%–7% | flag salah unit (raw vs %) |
+| CPI YoY | -2%–15% | flag salah skala |
+| Fed Funds Rate | 0%–8% | flag salah skala |
+| BTC price | $10K–$300K | flag salah unit/source |
+| Gold (XAU) | $1500–$8000 | flag if outside (2026 context) |
+| Oil Brent | $30–$200 | flag if outside |
+| Funding rate (8h) | -1%–+1% | flag salah skala (raw decimal vs %) |
+| Stablecoin total supply | $50B–$500B | flag salah unit |
+| TVL DeFi total | $30B–$300B | flag salah unit |
+| BTC Dominance | 35%–75% | flag salah skala |
+| Fear & Greed | 0–100 | flag if outside (out-of-bound = bug) |
+| Perp Sentiment Proxy (this project's formula) | -10 to +30 | flag formula bug — out-of-scale value indicates non-normalized output |
+| BTC Hash Rate (7d avg) | 400–1200 EH/s | flag salah unit (TH/s vs EH/s) atau stale data |
+| BTC TX Volume (on-chain, daily) | 50,000–500,000 BTC/day | flag denominator/source — modern BTC has off-chain shift, but on-chain still in this range |
+| BTC Coin Velocity (output volume) | 200,000–2,000,000 BTC/day | flag salah unit; output volume is larger than tx value due to multi-output txs |
+
+**Why:** A scale-bug indicator silently feeds wrong data into the AI prompt. The AI cannot detect it (no ground truth), uses it to classify market phase, and produces wrong allocation recommendations. Real cost: trading decisions based on garbage input. Catching scale bugs at the data layer is the cheapest checkpoint in the pipeline.
+
+**Update this table** whenever a fetcher is added or a real-world plausible range shifts (e.g., new ATH for BTC).
+
+---
+
 ## Commitment to Quality
 This dashboard handles real financial data. Every change must maintain:
 - **Accuracy**: Crypto prices are exact, no rounding errors

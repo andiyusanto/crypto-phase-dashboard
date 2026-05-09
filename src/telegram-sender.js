@@ -325,7 +325,7 @@ export function formatFetchSummaryForTelegram(daily, weekly, monthly, fed) {
       if (weekly.oil?.price)
         lines.push(`Oil 7d: $${weekly.oil.price} (${weekly.oil.weekChange >= 0 ? '+' : ''}${weekly.oil.weekChange}%)`);
       if (weekly.msciEm?.value)
-        lines.push(`MSCI EM: ${weekly.msciEm.value} (${weekly.msciEm.direction})`);
+        lines.push(`EEM ETF (MSCI EM proxy): $${weekly.msciEm.value} (${weekly.msciEm.direction})`);
       if (weekly.othersDom?.othersDominance)
         lines.push(`OTHERS.D: ${weekly.othersDom.othersDominance}%`);
       if (weekly.ratioTrend?.ethBtc)
