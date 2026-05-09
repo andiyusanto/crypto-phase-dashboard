@@ -192,7 +192,11 @@ export async function fetchBrentOilWeekly(apiKey) {
     console.log(`  ✓ Brent Oil weekly via OilPriceAPI | $${price} | 7d: ${weekChange}%`);
     return { price: parseFloat(price.toFixed(2)), weekChange, direction, source: 'OilPriceAPI' };
   } catch (err) {
-    console.error(`❌ OilPriceAPI weekly error: ${err.message}`);
+    if (err.response?.status === 402) {
+      console.warn(`  ⚠️  OilPriceAPI weekly: paid tier required (HTTP 402) — skip`);
+    } else {
+      console.error(`❌ OilPriceAPI weekly error: ${err.message}`);
+    }
     return null;
   }
 }
@@ -201,25 +205,20 @@ export async function fetchBrentOilWeekly(apiKey) {
 // Diambil dari CoinGecko (sudah ada di daily, tapi weekly perlu trend 7 hari)
 export async function fetchRatioTrend() {
   try {
-    // Ambil data 7 hari historis BTC, ETH, SOL, AVAX, XRP
-    // allSettled: AVAX/XRP gagal tidak boleh merusak ETH/SOL yang sudah ada
-    const [btcRes, ethRes, solRes, avaxRes, xrpRes] = await Promise.allSettled([
-      axios.get('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart', {
-        params: { vs_currency: 'usd', days: 7, interval: 'daily' }, timeout: 12000,
-      }),
-      axios.get('https://api.coingecko.com/api/v3/coins/ethereum/market_chart', {
-        params: { vs_currency: 'usd', days: 7, interval: 'daily' }, timeout: 12000,
-      }),
-      axios.get('https://api.coingecko.com/api/v3/coins/solana/market_chart', {
-        params: { vs_currency: 'usd', days: 7, interval: 'daily' }, timeout: 12000,
-      }),
-      axios.get('https://api.coingecko.com/api/v3/coins/avalanche-2/market_chart', {
-        params: { vs_currency: 'usd', days: 7, interval: 'daily' }, timeout: 12000,
-      }),
-      axios.get('https://api.coingecko.com/api/v3/coins/ripple/market_chart', {
-        params: { vs_currency: 'usd', days: 7, interval: 'daily' }, timeout: 12000,
-      }),
-    ]);
+    // Ambil data 7 hari historis sequentially dengan delay untuk hindari CoinGecko 429.
+    // Free tier: ~10-30 calls/min — 5 calls back-to-back sering trigger rate limit.
+    // Sequential + 600ms delay = 5 calls dalam ~3s, masih dalam limit aman.
+    const fetchCoin = (id) => axios.get(`https://api.coingecko.com/api/v3/coins/${id}/market_chart`, {
+      params: { vs_currency: 'usd', days: 7, interval: 'daily' }, timeout: 12000,
+    }).then(r => ({ status: 'fulfilled', value: r }))
+      .catch(e => ({ status: 'rejected', reason: e }));
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+    const btcRes  = await fetchCoin('bitcoin');     await wait(600);
+    const ethRes  = await fetchCoin('ethereum');    await wait(600);
+    const solRes  = await fetchCoin('solana');      await wait(600);
+    const avaxRes = await fetchCoin('avalanche-2'); await wait(600);
+    const xrpRes  = await fetchCoin('ripple');
 
     // BTC wajib ada — tanpanya tidak bisa hitung rasio apapun
     if (btcRes.status !== 'fulfilled') throw new Error(`BTC history gagal: ${btcRes.reason?.message}`);

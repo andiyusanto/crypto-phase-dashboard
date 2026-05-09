@@ -154,7 +154,7 @@ export function formatFetchSummaryForTelegram(daily, weekly, monthly, fed) {
     if (fed.rrp?.balanceBillions != null)
       lines.push(`RRP  : $${fed.rrp.balanceBillions}B | trend: ${fed.rrp.trend} ${fed.rrp.signal}`);
     if (fed.reserves?.totalTrillions != null)
-      lines.push(`WLRRAL: $${fed.reserves.totalTrillions}T ${fed.reserves.signal}`);
+      lines.push(`WRESBAL: $${fed.reserves.totalTrillions}T ${fed.reserves.signal}`);
     lines.push(`Score: *${fed.trifectaScore}* → ${fed.overallStatus}`);
     lines.push('', `📉 *PHASE 0 MACRO STRESS*`);
     if (fed.tga?.balanceBillions != null)

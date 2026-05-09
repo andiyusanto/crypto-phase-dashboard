@@ -182,7 +182,7 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
     const lines = [];
     if (w?.totalTrillions  != null) lines.push(`**WALCL**: $${w.totalTrillions}T (${w.weekChangeBillions >= 0 ? '+' : ''}${w.weekChangeBillions}B) ${w.signal}`);
     if (r?.balanceBillions != null) lines.push(`**RRP**: $${r.balanceBillions}B · trend: ${r.trend} ${r.signal}`);
-    if (rv?.totalTrillions != null) lines.push(`**WLRRAL**: $${rv.totalTrillions}T ${rv.signal}`);
+    if (rv?.totalTrillions != null) lines.push(`**WRESBAL**: $${rv.totalTrillions}T ${rv.signal}`);
     lines.push(`**Trifecta**: ${fed.trifectaScore} → ${fed.overallStatus}`);
     if (lines.length) fields.push({ name: '🏦 Fed Liquidity Trifecta', value: lines.join('\n'), inline: false });
 

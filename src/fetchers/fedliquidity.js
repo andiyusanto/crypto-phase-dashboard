@@ -1,7 +1,7 @@
 // ============================================
 // FED LIQUIDITY LAYER FETCHER
 // Update setiap Kamis (data FRED dirilis ~Kamis sore)
-// WALCL + RRP + WLRRAL = "Fed Trifecta"
+// WALCL + RRP + WRESBAL = "Fed Trifecta"
 // ============================================
 
 import axios from 'axios';
@@ -130,7 +130,7 @@ export async function fetchRRP(fredApiKey) {
   }
 }
 
-// ── 3. RESERVE BALANCES (WLRRAL) ──────────────────────────────────────────────
+// ── 3. RESERVE BALANCES (WRESBAL) ──────────────────────────────────────────────
 // Reserve Balances with Federal Reserve Banks — weekly
 export async function fetchReserveBalances(fredApiKey) {
   if (!fredApiKey || fredApiKey === 'your_fred_api_key_here') {
@@ -140,23 +140,23 @@ export async function fetchReserveBalances(fredApiKey) {
   try {
     const [obsRes, infoRes] = await Promise.all([
       axios.get('https://api.stlouisfed.org/fred/series/observations', {
-        params: { series_id: 'WLRRAL', api_key: fredApiKey, file_type: 'json',
+        params: { series_id: 'WRESBAL', api_key: fredApiKey, file_type: 'json',
                   sort_order: 'desc', limit: 3 },
         timeout: 10000,
       }),
       axios.get('https://api.stlouisfed.org/fred/series', {
-        params: { series_id: 'WLRRAL', api_key: fredApiKey, file_type: 'json' },
+        params: { series_id: 'WRESBAL', api_key: fredApiKey, file_type: 'json' },
         timeout: 10000,
       }),
     ]);
 
     const obs = obsRes.data.observations.filter(o => o.value !== '.' && o.value !== null);
-    if (obs.length < 2) throw new Error('Data WLRRAL kurang');
+    if (obs.length < 2) throw new Error('Data WRESBAL kurang');
 
     const rawLatest   = parseFloat(obs[0].value);
     const rawPrevWeek = parseFloat(obs[1].value);
     const units = infoRes.data?.seriess?.[0]?.units || '';
-    console.log(`  ℹ️  WLRRAL units: "${units}" | raw latest: ${rawLatest}`);
+    console.log(`  ℹ️  WRESBAL units: "${units}" | raw latest: ${rawLatest}`);
 
     let toTrillions, toBillions;
     if (units.toLowerCase().includes('million') || rawLatest > 1_000_000) {
@@ -182,7 +182,7 @@ export async function fetchReserveBalances(fredApiKey) {
       signal:    changeBillions > 10 ? '✅' : changeBillions < -10 ? '🔴' : '⚠️',
     };
   } catch (err) {
-    console.error('❌ FRED WLRRAL error:', err.message);
+    console.error('❌ FRED WRESBAL error:', err.message);
     return null;
   }
 }
@@ -353,7 +353,7 @@ export async function fetchAllFedLiquidity(fredApiKey) {
 
   if (walcl.status    === 'rejected') console.error('  WALCL rejected:',     walcl.reason);
   if (rrp.status      === 'rejected') console.error('  RRP rejected:',       rrp.reason);
-  if (reserves.status === 'rejected') console.error('  WLRRAL rejected:',    reserves.reason);
+  if (reserves.status === 'rejected') console.error('  WRESBAL rejected:',    reserves.reason);
   if (tga.status      === 'rejected') console.error('  TGA rejected:',       tga.reason);
   if (hySpread.status === 'rejected') console.error('  HY Spread rejected:', hySpread.reason);
   if (yieldCurve.status === 'rejected') console.error('  Yield Curve rejected:', yieldCurve.reason);
@@ -367,7 +367,7 @@ export async function fetchAllFedLiquidity(fredApiKey) {
   const yc  = yieldCurve.value ?? null;
   const vx  = vix.value        ?? null;
 
-  // Trifecta: hanya hitung dari WALCL/RRP/WLRRAL (existing)
+  // Trifecta: hanya hitung dari WALCL/RRP/WRESBAL (existing)
   const available  = [w, r, rv].filter(x => x !== null && x !== undefined && !x.skipped);
   const signals    = available.map(x => x.signal).filter(Boolean);
   const greenCount = signals.filter(s => s === '✅').length;

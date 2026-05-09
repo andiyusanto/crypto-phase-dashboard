@@ -283,7 +283,13 @@ export async function fetchBrentOilHyperliquid(apiKey) {
       source: 'OilPriceAPI (BRENT_CRUDE_USD)',
     };
   } catch (err) {
-    console.error(`❌ OilPriceAPI error: ${err.message}`);
+    // 402 = paid tier required (free tier exhausted/expired) — common, downgrade ke warn.
+    // 401/403 = auth fail. Other errors = real problem.
+    if (err.response?.status === 402) {
+      console.warn(`  ⚠️  OilPriceAPI: paid tier required (HTTP 402) — pakai Google News RSS fallback`);
+    } else {
+      console.error(`❌ OilPriceAPI error: ${err.message}`);
+    }
     return null;
   }
 }
@@ -383,8 +389,9 @@ export async function fetchDXY(keys = {}) {
     return { skipped: true, reason: 'TWELVE_DATA_API_KEY tidak diset' };
   }
 
-  // Coba beberapa symbol yang mungkin valid — prioritizing DX-Y.NYB (standard) dan DXY
-  const symbols = ['DX-Y.NYB', 'DXY', 'USDX', 'DXY:CUR'];
+  // Symbol order: DX-Y.NYB (standard ICE Dollar Index), DXY (alias).
+  // USDX/DXY:CUR removed — return inverted/different scales that produce false anomalies (e.g., 25.72).
+  const symbols = ['DX-Y.NYB', 'DXY'];
 
   for (const symbol of symbols) {
     try {
@@ -407,10 +414,10 @@ export async function fetchDXY(keys = {}) {
       const today = parseFloat(values[0].close);
       const yesterday = parseFloat(values[1].close);
       
-      // Validasi range: DXY seharusnya 80-120 range (historis). 
-      // Jika angka terlalu jauh (seperti 25.67), kemungkinan ticker salah.
-      if (today < 70 || today > 130) {
-        console.warn(`⚠️  DXY: Symbol "${symbol}" mengembalikan nilai anomali: ${today}. Mencoba symbol lain...`);
+      // DXY plausible range: 80–115 (post-2008 historical). Tighter than sanity bound 70–120
+      // to catch wrong-symbol fallback like 84.86 from EUR/USD inverse proxy that may not be DXY itself.
+      if (today < 80 || today > 115) {
+        console.warn(`⚠️  DXY: Symbol "${symbol}" mengembalikan nilai anomali: ${today} (expected 80–115). Mencoba symbol lain...`);
         continue;
       }
 

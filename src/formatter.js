@@ -88,7 +88,7 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
   const fedSkipReasons = [
     w?.skipped  ? `WALCL: ${w.reason}`   : null,
     r?.skipped  ? `RRP: ${r.reason}`     : null,
-    rv?.skipped ? `WLRRAL: ${rv.reason}` : null,
+    rv?.skipped ? `WRESBAL: ${rv.reason}` : null,
   ].filter(Boolean);
   const fedDiagnostic = fedSkipReasons.length
     ? `\n- ⚠️  LAYER 0 DIAGNOSTIC: Fed trifecta unavailable — ${fedSkipReasons.join('; ')}. Konsekuensi: rule "perubahan fase butuh ≥3 signal upstream konfirmasi" tidak bisa dieksekusi → downgrade confidence max ke 'sedang' atau 'rendah'.`
@@ -99,7 +99,7 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
 - RRP balance (RRPONTSYD): $${v(r?.balanceBillions)}B
   vs minggu lalu: ${r ? (r.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(r.weekChangeBillions) + 'B' : '—'}
   trend: ${v(r?.trend)}
-- Reserve balances (WLRRAL): $${v(rv?.totalTrillions)}T
+- Reserve balances (WRESBAL): $${v(rv?.totalTrillions)}T
   vs minggu lalu: ${rv ? (rv.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(rv.weekChangeBillions) + 'B' : '—'}
 ${pmiLine}
 ${tgaLine}
@@ -161,8 +161,11 @@ ${vixLine}
     ? `- BTC perp premium (basis proxy, annualized): ${basis.annualizedPct}% | raw: ${basis.basisPct}% | signal: ${basis.signal} [${basis.source}, ${basis.exchangeCount} exchanges]`
     : `- BTC perp premium / basis: ___`;
 
+  const deribitOiStr = skew?.deribitOiBtc != null && skew?.deribitOiUsdBillion != null
+    ? `${skew.deribitOiBtc.toLocaleString()} BTC ($${skew.deribitOiUsdBillion}B)`
+    : '— (Deribit blocked dari server zone ini)';
   const skewLine = skew
-    ? `- Perp sentiment proxy (funding-based, NOT options skew): ${skew.skewProxy != null ? (skew.skewProxy > 0 ? '+' : '') + skew.skewProxy : '—'} | avg funding 8h: ${skew.avgFunding8h != null ? skew.avgFunding8h + '%' : '—'} | Deribit OI: ${skew.deribitOiBtc}BTC ($${skew.deribitOiUsdBillion}B) | signal: ${skew.signal}`
+    ? `- Perp sentiment proxy (funding-based, NOT options skew): ${skew.skewProxy != null ? (skew.skewProxy > 0 ? '+' : '') + skew.skewProxy : '—'} | avg funding 8h: ${skew.avgFunding8h != null ? skew.avgFunding8h + '%' : '—'} | Deribit OI: ${deribitOiStr} | signal: ${skew.signal}`
     : `- Perp sentiment proxy (funding-based): ___`;
 
   const total2Raw = daily?.cmc?.total2 ?? null;
@@ -427,14 +430,28 @@ ${vixLine}
   const msciDir   = v(weekly?.msciEm?.direction);
   const totalStable = v(daily?.crypto?.stablecoinSupply?.total);
 
-  // Auto-compute BTC.D direction from 7-day snapshot delta (direct, not ETH/BTC proxy)
+  // BTC.D direction: prefer 7-day snapshot delta. Fallback: 24h proxy from BTC outperformance vs alts.
   const prevDom   = daily?._prevWeek?.btc_dominance ?? null;
   const currDom   = daily?.crypto?.btcDominance ?? null;
   const domDelta  = (prevDom != null && currDom != null) ? parseFloat((currDom - prevDom).toFixed(2)) : null;
+  // 24h proxy: avg alt outperformance vs BTC. If BTC > alt avg, BTC.D rising.
+  const btcDomDirFromDaily = (() => {
+    const btcChg = daily?.crypto?.btc?.change24h;
+    const alts = [
+      daily?.crypto?.eth?.change24h,
+      daily?.crypto?.sol?.change24h,
+      daily?.crypto?.avax?.change24h,
+      daily?.crypto?.xrp?.change24h,
+    ].filter(x => x != null);
+    if (btcChg == null || alts.length === 0) return null;
+    const altAvg = alts.reduce((s, x) => s + x, 0) / alts.length;
+    const diff = btcChg - altAvg;
+    return diff > 0.5 ? 'naik (24h proxy)' : diff < -0.5 ? 'turun (24h proxy)' : 'flat (24h proxy)';
+  })();
   const btcDomDir = manualOverrides.btcDominanceDirection
     ?? (domDelta != null
       ? (domDelta > 0.3 ? 'naik' : domDelta < -0.3 ? 'turun' : 'flat')
-      : '—');
+      : btcDomDirFromDaily ?? '—');
   const btcDomDeltaStr = domDelta != null ? ` (${domDelta > 0 ? '+' : ''}${domDelta}% WoW)` : '';
 
   // Two altseason measurements use different methodologies:
@@ -881,9 +898,9 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
     lines.push(`  RRP     : ___`);
 
   if (rv_s?.totalTrillions != null)
-    lines.push(`  WLRRAL  : $${rv_s.totalTrillions}T (${(rv_s.weekChangeBillions ?? 0) >= 0 ? '+' : ''}${rv_s.weekChangeBillions ?? '?'}B)`);
+    lines.push(`  WRESBAL  : $${rv_s.totalTrillions}T (${(rv_s.weekChangeBillions ?? 0) >= 0 ? '+' : ''}${rv_s.weekChangeBillions ?? '?'}B)`);
   else
-    lines.push(`  WLRRAL  : ___`);
+    lines.push(`  WRESBAL  : ___`);
 
   if (p_s) {
     const mfg = p_s.manufacturing?.value ?? '—';
