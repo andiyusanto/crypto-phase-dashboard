@@ -41,7 +41,7 @@ async function fetchAvailableModels(apiKey) {
 }
 
 export async function analyze(prompt, options = {}) {
-  const { apiKey, model = null, maxTokens = 7000, onChunk = null, silent = false } = options;
+  const { apiKey, model = null, maxTokens = 8000, onChunk = null, silent = false } = options;
 
   if (!apiKey || apiKey === 'your_gemini_api_key_here') {
     throw new Error('GEMINI_API_KEY tidak diset di .env');

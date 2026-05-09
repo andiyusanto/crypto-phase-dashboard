@@ -18,7 +18,7 @@ export async function analyze(prompt, options = {}) {
   const {
     apiKey,
     model     = 'claude-sonnet-4-5',
-    maxTokens = 7000,
+    maxTokens = 8000,
     onChunk   = null,
     silent    = false,
   } = options;
