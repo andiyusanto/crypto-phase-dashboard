@@ -28,7 +28,7 @@ export async function analyze(prompt, options = {}) {
     // - llama-3.1-sonar-large-128k-online  (lebih cerdas, ada web search) ← default
     // - llama-3.1-sonar-huge-128k-online   (paling cerdas, mahal)
     model     = 'llama-3.1-sonar-large-128k-online',
-    maxTokens = 8000,
+    maxTokens = 9500,
     onChunk   = null,
     silent    = false,
   } = options;

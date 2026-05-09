@@ -18,7 +18,7 @@ export async function analyze(prompt, options = {}) {
   const {
     apiKey,
     model     = 'gpt-4o',
-    maxTokens = 8000,
+    maxTokens = 9500,
     onChunk   = null,
     silent    = false,
   } = options;
