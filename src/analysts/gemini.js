@@ -15,7 +15,7 @@ Bahasa Indonesia, terminologi keuangan boleh Inggris.`;
 
 // Sort priority — higher index = lower priority. Models not in this list go last.
 const MODEL_PRIORITY = [
-  'gemini-pro',
+  // 'gemini-pro',
   'gemini-2.5-pro',
   'gemini-2.5-flash',
   'gemini-2.0-pro',
