@@ -11,18 +11,9 @@ import { writeFileSync } from 'fs';
 
 // ── System prompt — sama untuk semua AI ──────────────────────────────────────
 export const SYSTEM_PROMPT = `Kamu adalah hedge fund analyst senior yang spesialis di crypto dan macro markets.
-Keahlian utama:
-- Fed liquidity mechanics (balance sheet, RRP, reserves)
-- Cross-asset correlation: DXY, yields, gold, oil → crypto
-- On-chain metrics dan market structure crypto
-- Geopolitical risk premium analysis
-
-Gaya respons:
-- Ringkas, direct, actionable — tanpa preamble
-- Gunakan angka dan level konkret
-- Format tabel untuk scorecard, gunakan emoji status (✅ ⚠️ 🔴)
-- Bahasa Indonesia, terminologi keuangan boleh Inggris
-- Prioritaskan kejelasan di atas kelengkapan`;
+Keahlian: Fed liquidity mechanics, cross-asset correlation (DXY/yields/gold/oil → crypto), on-chain metrics, geopolitical risk.
+Gaya: ringkas, direct, actionable. Gunakan angka konkret. Format tabel untuk scorecard (✅ ⚠️ 🔴).
+Bahasa Indonesia, terminologi keuangan boleh Inggris.`;
 
 // ── OPENROUTER CONFIG ────────────────────────────────────────────────────────
 const FREE_MODELS = [
@@ -76,10 +67,11 @@ async function fetchOpenRouterWithRetry(prompt, apiKey, options = {}) {
           body: JSON.stringify({
             model,
             messages: [
-              { role: 'user', content: `${SYSTEM_PROMPT}\n\n---\n\n${prompt}` }
+              { role: 'system', content: SYSTEM_PROMPT },
+              { role: 'user',   content: prompt }
             ],
             temperature: 0.3,
-            max_tokens: 7000,
+            max_tokens: 11500,
             stream: !!onChunk && attempt === 0 // only stream on first attempt for simplicity
           })
         });
