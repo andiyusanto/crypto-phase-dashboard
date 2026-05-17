@@ -87,17 +87,35 @@ function convertMarkdown(text) {
 }
 
 // ── Kirim satu payload ke Discord webhook ─────────────────────────────────────
-async function sendPayload(webhookUrl, payload) {
-  const res = await axios.post(webhookUrl, payload, {
-    headers: { 'Content-Type': 'application/json' },
-    timeout: 15000,
-  });
+// Retry untuk transient 429 (rate limit, hormati Retry-After) dan 5xx.
+async function sendPayload(webhookUrl, payload, maxRetries = 3) {
+  let lastErr;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const res = await axios.post(webhookUrl, payload, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 15000,
+      });
+      if (res.status !== 200 && res.status !== 204) {
+        throw new Error(`Discord webhook error: HTTP ${res.status}`);
+      }
+      return res;
+    } catch (err) {
+      lastErr = err;
+      const status = err.response?.status;
+      const transient = status === 429 || status === 502 || status === 503 || status === 504 || !status;
+      if (!transient || attempt === maxRetries - 1) throw err;
 
-  // Discord mengembalikan 204 No Content untuk success
-  if (res.status !== 200 && res.status !== 204) {
-    throw new Error(`Discord webhook error: HTTP ${res.status}`);
+      // Discord 429 punya Retry-After (detik atau ms tergantung body)
+      const retryAfter = err.response?.headers?.['retry-after'];
+      const wait = retryAfter
+        ? Math.min(parseFloat(retryAfter) * 1000, 15000)
+        : Math.min(2000 * Math.pow(2, attempt), 15000);
+      console.warn(`  ⚠️  Discord HTTP ${status ?? 'network'}, retry in ${wait}ms (attempt ${attempt + 2}/${maxRetries})`);
+      await sleep(wait);
+    }
   }
-  return res;
+  throw lastErr;
 }
 
 // ── Kirim teks panjang sebagai beberapa embed ─────────────────────────────────

@@ -324,8 +324,19 @@ async function main() {
     // ── 2. SANITY CHECK + GENERATE PROMPT ─────────────────────────────────
     const violations = validateData({ daily, weekly, monthly, fed });
     const sanityAlert = logAndSummarize(violations);
-    console.log(chalk.yellow(formatDataSummary(daily, weekly, monthly, fed)));
-    const prompt = formatDashboardPrompt(daily, weekly, monthly, fed, { ...manualOverrides, sanityAlert }, war);
+    try {
+      console.log(chalk.yellow(formatDataSummary(daily, weekly, monthly, fed)));
+    } catch (sumErr) {
+      console.warn(chalk.yellow(`⚠️  Data summary print gagal: ${sumErr.message} — lanjut ke prompt`));
+    }
+    let prompt;
+    try {
+      prompt = formatDashboardPrompt(daily, weekly, monthly, fed, { ...manualOverrides, sanityAlert }, war);
+    } catch (fmtErr) {
+      console.error(chalk.red(`\n❌ Prompt formatter crash: ${fmtErr.message}`));
+      console.error(chalk.red('   Field structure berubah / inner field null. Run abort sebelum kirim ke AI.'));
+      throw fmtErr;
+    }
 
     // ── 3. SAVE FILES ────────────────────────────────────────────────────
     const ts        = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);

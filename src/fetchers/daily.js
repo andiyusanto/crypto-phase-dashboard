@@ -294,6 +294,51 @@ export async function fetchBrentOilHyperliquid(apiKey) {
   }
 }
 
+// ── 3c. BRENT OIL — Yahoo Finance BZ=F (primary, free, no API key) ───────────
+// BZ=F = ICE Brent Crude Front-Month Futures on Yahoo Finance.
+// Same endpoint pattern as fetchDXYYahoo — free, reliable, intraday-fresh.
+export async function fetchBrentOilYahoo() {
+  try {
+    const res = await axios.get('https://query1.finance.yahoo.com/v8/finance/chart/BZ=F', {
+      params: { interval: '1d', range: '10d' },
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      timeout: 10000,
+    });
+    const result = res.data?.chart?.result?.[0];
+    if (!result) throw new Error('No data from Yahoo Finance BZ=F');
+
+    const closes = result.indicators?.quote?.[0]?.close ?? [];
+    const valid  = closes.filter(c => c != null);
+    if (valid.length < 2) throw new Error('Not enough Brent closes from Yahoo');
+
+    const today     = valid[valid.length - 1];
+    const yesterday = valid[valid.length - 2];
+    const weekAgo   = valid[Math.max(0, valid.length - 6)];
+
+    // Sanity: Brent historically $30–$150 in modern era. Out-of-bound = fall through.
+    if (today < 30 || today > 150) {
+      throw new Error(`Yahoo BZ=F returned anomaly $${today.toFixed(2)} (expected 30–150)`);
+    }
+
+    const change      = today - yesterday;
+    const weekChange  = weekAgo > 0 ? parseFloat(((today - weekAgo) / weekAgo * 100).toFixed(2)) : null;
+
+    console.log(`  ✓ Brent Oil via Yahoo Finance BZ=F | $${today.toFixed(2)} | Δ${change >= 0 ? '+' : ''}${change.toFixed(2)} | 7d: ${weekChange ?? '—'}%`);
+    return {
+      price: parseFloat(today.toFixed(2)),
+      change: parseFloat(change.toFixed(2)),
+      direction: getDirection(change),
+      weekChange,
+      updatedAt: new Date().toISOString().slice(0, 10),
+      symbol: 'BZ=F',
+      source: 'Yahoo Finance',
+    };
+  } catch (err) {
+    console.warn(`⚠️  Brent Oil Yahoo Finance gagal: ${err.message} — coba fallback`);
+    return null;
+  }
+}
+
 // ── 3d. BRENT OIL — Fallback via Google News RSS ─────────────────────────────
 // Parses Brent spot price from news headlines when OilPriceAPI is unavailable.
 // Scoring system prefers direct spot-price headlines over analyst targets/forecasts.
@@ -1661,17 +1706,21 @@ export async function fetchAllDailyData(config = {}) {
   // Blockchain.info bundle: sequential (active addresses + miner revenue)
   const bcBundle = await fetchBlockchainInfoBundle().catch(() => ({}));
 
-  // Brent Oil: OilPriceAPI → Google News RSS → null (SQLite cache handled in index.js)
-  let brentOil = null;
-  try {
-    brentOil = await fetchBrentOilHyperliquid(config.oilPriceApiKey);
-    if (!brentOil || brentOil.skipped) {
-      console.log('  ⚠️  OilPriceAPI tidak tersedia — mencoba Google News RSS...');
-      brentOil = await fetchBrentOilFromNews();
+  // Brent Oil: Yahoo Finance BZ=F → OilPriceAPI → Google News RSS → null
+  // Yahoo is primary (free, accurate, intraday-fresh); OilPriceAPI 2nd (often 402 paid-tier);
+  // News RSS last resort (can pick up stale headlines, see fetchBrentOilFromNews caveats).
+  let brentOil = await fetchBrentOilYahoo().catch(() => null);
+  if (!brentOil) {
+    try {
+      brentOil = await fetchBrentOilHyperliquid(config.oilPriceApiKey);
+      if (!brentOil || brentOil.skipped) {
+        console.log('  ⚠️  OilPriceAPI tidak tersedia — mencoba Google News RSS...');
+        brentOil = await fetchBrentOilFromNews();
+      }
+    } catch (e) {
+      console.warn('⚠️  Brent Oil OilPriceAPI error:', e.message);
+      brentOil = await fetchBrentOilFromNews().catch(() => null);
     }
-  } catch (e) {
-    console.warn('⚠️  Brent Oil OilPriceAPI error:', e.message);
-    brentOil = await fetchBrentOilFromNews().catch(() => null);
   }
 
   return {

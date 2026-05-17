@@ -210,7 +210,7 @@ async function listGeminiModels(apiKey) {
 }
 
 export async function analyzeWithGemini(prompt, options = {}) {
-  const { apiKey, model = null, onChunk, silent = false } = options;
+  const { apiKey, model = null, maxTokens = 24000, onChunk, silent = false } = options;
   if (!apiKey || apiKey === 'your_gemini_api_key_here')
     throw new Error('GEMINI_API_KEY tidak diset');
 
@@ -231,7 +231,7 @@ export async function analyzeWithGemini(prompt, options = {}) {
       const gemini = genAI.getGenerativeModel({
         model: candidate,
         systemInstruction: SYSTEM_PROMPT,
-        generationConfig: { maxOutputTokens: 7000, temperature: 0.3 },
+        generationConfig: { maxOutputTokens: maxTokens, temperature: 0.3 },
       });
 
       if (!silent) process.stdout.write(`\n✨ Gemini (Google) menganalisis (model: ${candidate})...\n\n`);
@@ -269,7 +269,7 @@ export async function analyzeWithGemini(prompt, options = {}) {
 
 // ── 4. PERPLEXITY (Sonar) ─────────────────────────────────────────────────────
 export async function analyzeWithPerplexity(prompt, options = {}) {
-  const { apiKey, model = 'sonar-pro', onChunk, silent = false } = options;
+  const { apiKey, model = 'sonar-pro', maxTokens = 11500, onChunk, silent = false } = options;
   if (!apiKey || apiKey === 'your_perplexity_api_key_here')
     throw new Error('PERPLEXITY_API_KEY tidak diset');
 
@@ -279,7 +279,7 @@ export async function analyzeWithPerplexity(prompt, options = {}) {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model, stream: true, max_tokens: 7000, temperature: 0.2,
+      model, stream: true, max_tokens: maxTokens, temperature: 0.2,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user',   content: prompt },
