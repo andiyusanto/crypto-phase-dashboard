@@ -37,6 +37,20 @@ db.exec(`
   )
 `);
 
+// Per-indicator storage — each Fed indicator gets its own row keyed by
+// (indicator_name, observation_date). Enables field-level cache fallback
+// when only some FRED endpoints fail in a given fetch cycle.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS fed_indicators (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    indicator TEXT NOT NULL,
+    observation_date TEXT NOT NULL,
+    data TEXT NOT NULL,
+    fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(indicator, observation_date)
+  )
+`);
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS weekly_data (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,6 +113,8 @@ migrate('ALTER TABLE daily_snapshot ADD COLUMN btc_dominance REAL');
 // ── UNIQUE INDEXES ────────────────────────────────────────────────────────────
 migrate('CREATE UNIQUE INDEX IF NOT EXISTS idx_pmi_released_month   ON pmi_data(released_month)   WHERE released_month IS NOT NULL');
 migrate('CREATE UNIQUE INDEX IF NOT EXISTS idx_fed_snapshot_date    ON fed_liquidity(snapshot_date) WHERE snapshot_date IS NOT NULL');
+migrate('CREATE UNIQUE INDEX IF NOT EXISTS idx_fed_indicator_date   ON fed_indicators(indicator, observation_date)');
+migrate('CREATE INDEX        IF NOT EXISTS idx_fed_indicator_latest ON fed_indicators(indicator, observation_date DESC)');
 migrate('CREATE UNIQUE INDEX IF NOT EXISTS idx_weekly_fetch_date    ON weekly_data(fetch_date)     WHERE fetch_date IS NOT NULL');
 migrate('CREATE UNIQUE INDEX IF NOT EXISTS idx_monthly_period       ON monthly_data(period)        WHERE period IS NOT NULL');
 
@@ -152,6 +168,11 @@ export const getLatestPMI = () => {
 
 // ── FED LIQUIDITY ─────────────────────────────────────────────────────────────
 
+// Indicator field names that get their own row in fed_indicators table.
+// Trifecta/macro-stress aggregates are recomputed from these, not stored.
+// Single source of truth — imported by index.js & fedliquidity.js to avoid drift.
+export const FED_INDICATOR_FIELDS = ['walcl', 'rrp', 'reserves', 'tga', 'hySpread', 'yieldCurve', 'vix'];
+
 export const saveFedData = (data) => {
   if (!data || data.skipped) return;
 
@@ -161,6 +182,31 @@ export const saveFedData = (data) => {
   db.prepare('INSERT OR REPLACE INTO fed_liquidity (snapshot_date, data, fetched_at) VALUES (?, ?, ?)')
     .run(snapshotDate, JSON.stringify(data), new Date().toISOString());
   console.log(`  ✓ Fed data saved to SQLite (${snapshotDate})`);
+
+  // Also write per-indicator rows so field-level cache fallback works.
+  saveFedIndicators(data);
+};
+
+// Write each Fed indicator to its own row keyed by (indicator, observation_date).
+// Skips null/skipped fields — only persists what was actually fetched successfully.
+export const saveFedIndicators = (data) => {
+  if (!data || data.skipped) return;
+
+  const fetchedAt = new Date().toISOString();
+  const today     = fetchedAt.slice(0, 10);
+  const stmt = db.prepare(
+    'INSERT OR REPLACE INTO fed_indicators (indicator, observation_date, data, fetched_at) VALUES (?, ?, ?, ?)'
+  );
+
+  let count = 0;
+  for (const key of FED_INDICATOR_FIELDS) {
+    const field = data[key];
+    if (!field || field.skipped) continue;
+    const obsDate = field.date ?? today;
+    stmt.run(key, obsDate, JSON.stringify(field), fetchedAt);
+    count++;
+  }
+  if (count > 0) console.log(`  ✓ Fed indicators saved per-field: ${count} of ${FED_INDICATOR_FIELDS.length}`);
 };
 
 export const getLatestFedData = () => {
@@ -168,6 +214,30 @@ export const getLatestFedData = () => {
   if (!row) return null;
   const parsed = JSON.parse(row.data);
   return { ...parsed, _fromCache: true, _cachedAt: row.fetched_at };
+};
+
+// Return the most-recent row per indicator, regardless of fetch cycle.
+// Result shape: { walcl: {...,_fromCache:true,_cachedAt:..}, rrp: {...}, ... }
+// Missing indicators are absent from the result object.
+export const getLatestFedIndicators = () => {
+  const rows = db.prepare(`
+    SELECT i.indicator, i.observation_date, i.data, i.fetched_at
+    FROM fed_indicators i
+    INNER JOIN (
+      SELECT indicator, MAX(observation_date) AS max_date
+      FROM fed_indicators
+      GROUP BY indicator
+    ) latest ON i.indicator = latest.indicator AND i.observation_date = latest.max_date
+  `).all();
+
+  const result = {};
+  for (const row of rows) {
+    try {
+      const parsed = JSON.parse(row.data);
+      result[row.indicator] = { ...parsed, _fromCache: true, _cachedAt: row.fetched_at };
+    } catch (_) { /* skip malformed row */ }
+  }
+  return result;
 };
 
 // ── WEEKLY DATA ───────────────────────────────────────────────────────────────

@@ -59,6 +59,19 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
   const yc = fed?.yieldCurve;
   const vx = fed?.vix;
 
+  // Freshness tag — show obs date + flag cache/stale so AI knows publish recency.
+  // Stale threshold: >10 hari from today (FRED normally lags ~3-5 hari; >10d = suspect).
+  const TODAY = new Date();
+  const fedTag = (field) => {
+    if (!field || field.skipped) return '';
+    const date = field.date;
+    if (!date) return field._fromCache ? ' ⚠️ cache' : '';
+    const ageDays = Math.floor((TODAY - new Date(date)) / 86400000);
+    const cacheMark = field._fromCache ? ' ⚠️ cache' : '';
+    const staleMark = ageDays > 10 ? ` ⚠️ stale ${ageDays}d` : '';
+    return ` (obs ${date}${cacheMark}${staleMark})`;
+  };
+
   const pmiMonth = p?.releasedMonth ?? null;
   const pmiLabel = pmiMonth
     ? (() => {
@@ -72,16 +85,16 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
     : `- ISM PMI: ___`;
 
   const tgaLine = tg
-    ? `- TGA (WTREGEN): $${tg.balanceBillions}B | Δ${tg.weekChangeBillions >= 0 ? '+' : ''}${tg.weekChangeBillions}B | trend: ${tg.trend} ${tg.signal}`
+    ? `- TGA (WTREGEN)${fedTag(tg)}: $${tg.balanceBillions}B | Δ${tg.weekChangeBillions >= 0 ? '+' : ''}${tg.weekChangeBillions}B | trend: ${tg.trend} ${tg.signal}`
     : `- TGA (WTREGEN): ___`;
   const hyLine = hy
-    ? `- HY Credit Spread (BAMLH0A0HYM2): ${hy.spreadPct}% | Δ${hy.dayChange >= 0 ? '+' : ''}${hy.dayChange}% | zona: ${hy.zone} ${hy.signal}`
+    ? `- HY Credit Spread (BAMLH0A0HYM2)${fedTag(hy)}: ${hy.spreadPct}% | Δ${hy.dayChange >= 0 ? '+' : ''}${hy.dayChange}% | zona: ${hy.zone} ${hy.signal}`
     : `- HY Credit Spread: ___`;
   const ycLine = yc
-    ? `- Yield Curve (10Y-2Y): spread ${yc.spread >= 0 ? '+' : ''}${yc.spread}% | 2Y: ${yc.yield2Y}% | 10Y: ${yc.yield10Y}% | ${yc.zone} ${yc.signal}`
+    ? `- Yield Curve (10Y-2Y)${fedTag(yc)}: spread ${yc.spread >= 0 ? '+' : ''}${yc.spread}% | 2Y: ${yc.yield2Y}% | 10Y: ${yc.yield10Y}% | ${yc.zone} ${yc.signal}`
     : `- Yield Curve (10Y-2Y): ___`;
   const vixLine = vx
-    ? `- VIX: ${vx.value} | Δ${vx.dayChange >= 0 ? '+' : ''}${vx.dayChange} | zona: ${vx.zone} ${vx.signal}`
+    ? `- VIX${fedTag(vx)}: ${vx.value} | Δ${vx.dayChange >= 0 ? '+' : ''}${vx.dayChange} | zona: ${vx.zone} ${vx.signal}`
     : `- VIX: ___`;
 
   // Surface skip reasons so AI knows WHY Layer 0 is unavailable (vs silent "—")
@@ -94,12 +107,12 @@ export function formatDashboardPrompt(daily, weekly, monthly, fed, manualOverrid
     ? `\n- ⚠️  LAYER 0 DIAGNOSTIC: Fed trifecta unavailable — ${fedSkipReasons.join('; ')}. Konsekuensi: rule "perubahan fase butuh ≥3 signal upstream konfirmasi" tidak bisa dieksekusi → downgrade confidence max ke 'sedang' atau 'rendah'.`
     : '';
 
-  const fedBlock = `- Fed Balance Sheet (WALCL): $${v(w?.totalTrillions)}T
+  const fedBlock = `- Fed Balance Sheet (WALCL)${fedTag(w)}: $${v(w?.totalTrillions)}T
   vs minggu lalu: ${w ? (w.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(w.weekChangeBillions) + 'B' : '—'}
-- RRP balance (RRPONTSYD): $${v(r?.balanceBillions)}B
+- RRP balance (RRPONTSYD)${fedTag(r)}: $${v(r?.balanceBillions)}B
   vs minggu lalu: ${r ? (r.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(r.weekChangeBillions) + 'B' : '—'}
   trend: ${v(r?.trend)}
-- Reserve balances (WRESBAL): $${v(rv?.totalTrillions)}T
+- Reserve balances (WRESBAL)${fedTag(rv)}: $${v(rv?.totalTrillions)}T
   vs minggu lalu: ${rv ? (rv.weekChangeBillions > 0 ? 'naik' : 'turun') + ' $' + Math.abs(rv.weekChangeBillions) + 'B' : '—'}
 ${pmiLine}
 ${tgaLine}
@@ -530,7 +543,13 @@ ATURAN PRIORITAS SIGNAL:
 - Upstream selalu lebih dipercaya dari downstream
 - Jika data tidak cukup untuk suatu indikator, sebutkan asumsi yang digunakan
 - Jangan overconfident: jika signal konflik tanpa resolusi jelas, nyatakan "inconclusive"
-- **Confidence calibration:** Jika Layer 0 (Fed trifecta WALCL/RRP/Reserves) DATA_UNAVAILABLE atau ≤1/3 hijau, downgrade max confidence ke "sedang". Jika ditambah lagi konflik antar Layer 1–3 yang tidak terselesaikan, downgrade ke "rendah". Confidence "tinggi" hanya valid jika ≥2/3 Layer 0 hijau DAN ≥70% Layer 1–3 searah.${manualOverrides.sanityAlert ? '\n\n' + manualOverrides.sanityAlert : ''}
+- **Confidence calibration:** Jika Layer 0 (Fed trifecta WALCL/RRP/Reserves) DATA_UNAVAILABLE atau ≤1/3 hijau, downgrade max confidence ke "sedang". Jika ditambah lagi konflik antar Layer 1–3 yang tidak terselesaikan, downgrade ke "rendah". Confidence "tinggi" hanya valid jika ≥2/3 Layer 0 hijau DAN ≥70% Layer 1–3 searah.
+- **Data freshness (Layer 0):** Setiap indikator Fed punya label \`(obs YYYY-MM-DD)\` = tanggal observasi FRED. FRED update Kamis, lag normal 3–7 hari. Aturan:
+  - Indikator dengan marker \`⚠️ cache\` = fresh fetch gagal, pakai cache last-known-good. Treat as "asumsi belum berubah dari obs date".
+  - Indikator dengan marker \`⚠️ stale Nd\` (N > 10 hari dari hari ini) = data kemungkinan tidak mencerminkan kondisi market terkini.
+  - Jika ≥1 indikator Layer 0 punya \`⚠️ cache\` ATAU \`⚠️ stale\`, downgrade max confidence ke "sedang".
+  - Jika ≥2 indikator Layer 0 punya marker tersebut, downgrade ke "rendah" + flag eksplisit di output: "Layer 0 partially stale, fase classification probabilistic".
+  - Cek juga konsistensi tanggal — kalau semua Fed indikator > 14 hari old, bisa jadi indikasi FRED API broken / API key expired (cek operasional sebelum trust analysis).${manualOverrides.sanityAlert ? '\n\n' + manualOverrides.sanityAlert : ''}
 
 ---
 ## DEFINISI FASE

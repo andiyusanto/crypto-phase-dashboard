@@ -359,15 +359,32 @@ export async function fetchAllFedLiquidity(fredApiKey) {
   if (yieldCurve.status === 'rejected') console.error('  Yield Curve rejected:', yieldCurve.reason);
   if (vix.status      === 'rejected') console.error('  VIX rejected:',       vix.reason);
 
-  const w   = walcl.value      ?? null;
-  const r   = rrp.value        ?? null;
-  const rv  = reserves.value   ?? null;
-  const tg  = tga.value        ?? null;
-  const hy  = hySpread.value   ?? null;
-  const yc  = yieldCurve.value ?? null;
-  const vx  = vix.value        ?? null;
+  const fields = {
+    walcl:      walcl.value      ?? null,
+    rrp:        rrp.value        ?? null,
+    reserves:   reserves.value   ?? null,
+    tga:        tga.value        ?? null,
+    hySpread:   hySpread.value   ?? null,
+    yieldCurve: yieldCurve.value ?? null,
+    vix:        vix.value        ?? null,
+  };
 
-  // Trifecta: hanya hitung dari WALCL/RRP/WRESBAL (existing)
+  return { ...fields, ...computeFedAggregates(fields) };
+}
+
+// ── AGGREGATE COMPUTATION (extracted so it can be re-run post-merge) ─────────
+// Dipisah dari `fetchAllFedLiquidity` supaya index.js bisa re-compute trifecta &
+// macro-stress setelah merge per-field cache (mis. WRESBAL fresh + WALCL cache).
+export function computeFedAggregates(fed) {
+  const w  = fed?.walcl;
+  const r  = fed?.rrp;
+  const rv = fed?.reserves;
+  const tg = fed?.tga;
+  const hy = fed?.hySpread;
+  const yc = fed?.yieldCurve;
+  const vx = fed?.vix;
+
+  // Trifecta: hanya hitung dari WALCL/RRP/WRESBAL
   const available  = [w, r, rv].filter(x => x !== null && x !== undefined && !x.skipped);
   const signals    = available.map(x => x.signal).filter(Boolean);
   const greenCount = signals.filter(s => s === '✅').length;
@@ -381,23 +398,16 @@ export async function fetchAllFedLiquidity(fredApiKey) {
 
   // Phase 0 macro stress score (TGA refill + HY spread elevated + curve inverted + VIX panic)
   const stressSignals = [tg, hy, yc, vx].filter(x => x !== null && x !== undefined && !x.skipped);
-  const stressRed = stressSignals.filter(x => x.signal === '🔴').length;
+  const stressRed   = stressSignals.filter(x => x.signal === '🔴').length;
   const stressTotal = stressSignals.length;
   const macroStressLabel =
-    stressTotal === 0    ? 'NO_DATA' :
-    stressRed   >= 3     ? 'KRITIS' :
-    stressRed   >= 2     ? 'TINGGI' :
-    stressRed   === 1    ? 'MODERAT' : 'RENDAH';
+    stressTotal === 0  ? 'NO_DATA' :
+    stressRed   >= 3   ? 'KRITIS' :
+    stressRed   >= 2   ? 'TINGGI' :
+    stressRed   === 1  ? 'MODERAT' : 'RENDAH';
 
   return {
-    walcl:    w,
-    rrp:      r,
-    reserves: rv,
-    tga:      tg,
-    hySpread: hy,
-    yieldCurve: yc,
-    vix:      vx,
-    trifectaScore:  `${greenCount}/${total}`,
+    trifectaScore:    `${greenCount}/${total}`,
     greenCount,
     overallStatus,
     macroStressScore: `${stressRed}/${stressTotal}`,

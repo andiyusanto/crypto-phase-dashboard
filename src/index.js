@@ -49,11 +49,12 @@ import { fileURLToPath } from 'url';
 import { fetchAllDailyData }    from './fetchers/daily.js';
 import { fetchAllWeeklyData }   from './fetchers/weekly.js';
 import { fetchAllMonthlyData }  from './fetchers/monthly.js';
-import { fetchAllFedLiquidity } from './fetchers/fedliquidity.js';
+import { fetchAllFedLiquidity, computeFedAggregates } from './fetchers/fedliquidity.js';
 import { fetchRealtimePMI }    from './fetchers/pmi.js';
 import { fetchAllWarHeadlines } from './fetchers/warheadlines.js';
 import {
-  saveFedData,       getLatestFedData,
+  saveFedData,       getLatestFedData,  getLatestFedIndicators,
+  FED_INDICATOR_FIELDS,
   saveWeeklyData,    getLatestWeeklyData,
   saveMonthlyData,   getLatestMonthlyData,
   saveOilPrice,      getLatestOilPrice,
@@ -279,12 +280,37 @@ async function main() {
       fed = await fetchAllFedLiquidity(config.fredApiKey);
 
       if (fed && !fed.skipped) {
-        saveFedData(fed);
+        // Field-level merge: kalau salah satu FRED endpoint gagal di run ini,
+        // fill dari per-indicator cache (last-known-good). Trifecta direkalkulasi
+        // setelah merge supaya score mencerminkan data merged (fresh + cache).
+        const cachedFields = getLatestFedIndicators();
+        let mergedCount = 0;
+        for (const key of FED_INDICATOR_FIELDS) {
+          if ((fed[key] == null || fed[key]?.skipped) && cachedFields[key]) {
+            fed[key] = { ...cachedFields[key], _fromCache: true };
+            mergedCount++;
+            console.log(chalk.yellow(`  ↩ Fed.${key}: fresh fetch gagal — pakai cache (${cachedFields[key]._cachedAt?.slice(0, 10)})`));
+          }
+        }
+        if (mergedCount > 0) {
+          // Recompute trifecta + macro-stress dengan data merged
+          Object.assign(fed, computeFedAggregates(fed));
+        }
+        saveFedData(fed);  // also writes per-indicator rows via saveFedIndicators
       } else {
-        const cached = getLatestFedData();
-        if (cached) {
-          console.log(chalk.yellow(`⚠️  Fed data skipped/empty — using cached data from ${cached._cachedAt}`));
-          fed = cached;
+        // Full fallback: kalau seluruh fed null/skipped, build dari per-indicator cache.
+        // Prefer per-indicator cache over snapshot blob — datanya lebih granular & up-to-date per field.
+        const cachedFields = getLatestFedIndicators();
+        const hasAnyCached = Object.values(cachedFields).some(v => v);
+        if (hasAnyCached) {
+          console.log(chalk.yellow(`⚠️  Fed fetch full-fail — rebuild dari per-indicator cache (${Object.keys(cachedFields).length} indikator)`));
+          fed = { ...cachedFields, ...computeFedAggregates(cachedFields), _fromCache: true };
+        } else {
+          const cached = getLatestFedData();
+          if (cached) {
+            console.log(chalk.yellow(`⚠️  Fed data skipped/empty — using snapshot cache dari ${cached._cachedAt}`));
+            fed = cached;
+          }
         }
       }
 

@@ -479,7 +479,8 @@ Fed Balance Sheet → RRP → Global M2 → FCI → DXY/10Y → BTC → ETH/Alts
 
 | Tabel | Data | Dedup logic |
 |-------|------|-------------|
-| `fed_liquidity` | WALCL + RRP + WRESBAL + TGA + HY OAS + Yield Curve + VIX snapshot | Per tanggal observasi FRED (update setiap Kamis) |
+| `fed_liquidity` | WALCL + RRP + WRESBAL + TGA + HY OAS + Yield Curve + VIX snapshot (whole-blob, legacy) | Per tanggal observasi FRED (update setiap Kamis) |
+| `fed_indicators` | **Per-indicator rows**: 1 row per (indicator, observation_date). Field-level cache fallback — kalau satu FRED endpoint gagal di run ini, fill dari cache last-known-good tanpa kontaminasi field lain. | Unique key (indicator, observation_date) |
 | `pmi_data` | ISM Manufacturing + Services PMI | Per bulan (`released_month` YYYY-MM) |
 | `weekly_data` | 10Y yield, NFCI, altseason, netflow, TVL, ratio trend | Per hari (`fetch_date`) |
 | `monthly_data` | CPI, Fed Rate, M2 | Per bulan (`period` YYYY-MM) |
@@ -600,6 +601,7 @@ Daftar fitur reliability yang sudah aktif di runtime:
 - **WRESBAL** (total reserve balances ~$3T) menggantikan WLRRAL (required only ~$0.3T) — bug data Fed Reserves yang sebelumnya silent fed value salah ke AI prompt.
 - **Sequential CoinGecko fetches** dengan 600ms delay untuk hindari 429 rate limit.
 - **SQLite cache fallback** untuk Fed/Weekly/Monthly/Oil — kalau fetch gagal, prompt tetap pakai data terakhir yang valid.
+- **Per-indicator Fed cache** (table `fed_indicators`): tiap indikator FRED disimpan terpisah dengan key (indicator, observation_date). Kalau hanya WRESBAL (atau indikator manapun) yang gagal fetch di run ini, field-level merge fill dari cache last-known-good tanpa ganggu field lain — trifecta direkalkulasi dari data merged.
 
 ### Output Quality
 - **Token limits dinaikkan & dikalibrasi per provider** (Claude 17500, Gemini 24000, OpenRouter providers 11500) — tidak lagi terpotong di tengah scorecard.
