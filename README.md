@@ -14,7 +14,7 @@ Setiap AI provider, Telegram, dan Discord **sepenuhnya independen** — menjalan
 │  CoinGecko · Binance · Hyperliquid · DefiLlama · FRED · OilPriceAPI          │
 │  alternative.me · Google News RSS · Twelve Data · blockchain.info            │
 │  CoinMetrics Community API · blockchaincenter · Gate.io · SerpAPI            │
-│  Yahoo Finance v8 (ETF flow proxy + CME futures BTC=F)                       │
+│  Yahoo Finance v8 (DXY DX-Y.NYB + Brent BZ=F + ETF flow + CME BTC=F)         │
 └──────────────────────────────┬───────────────────────────────────────────────┘
                                │
               ┌────────────────┼───────────────────┐
@@ -285,7 +285,7 @@ nohup node src/scheduler.js > logs/scheduler.log 2>&1 &
 
 | Variabel | Data | Tier |
 |----------|------|------|
-| `FRED_API_KEY` | 10Y Yield, NFCI, CPI, Fed Rate, Global M2 (US+CN+JP+EZ), WALCL, RRP, WLRRAL | — |
+| `FRED_API_KEY` | 10Y Yield, NFCI, CPI, Fed Rate, Global M2 (US+CN+JP+EZ), WALCL, RRP, **WRESBAL** | — |
 | `TWELVE_DATA_API_KEY` | DXY, Gold (XAU/USD), MSCI EM | — |
 | `OIL_PRICE_API_KEY` | Brent Crude Oil (terkini + 7d change) | — |
 | `COINMARKETCAP_API_KEY` | TOTAL2, TOTAL3, OTHERS.D | — |
@@ -308,7 +308,7 @@ nohup node src/scheduler.js > logs/scheduler.log 2>&1 &
 
 | Layer | Indikator | Fase Target | Kontribusi |
 |-------|-----------|-------------|-----------|
-| **L0 — Fed Liquidity** | WALCL, RRP, WLRRAL | 0→1, 1→2 | ★★★★★ |
+| **L0 — Fed Liquidity** | WALCL, RRP, WRESBAL | 0→1, 1→2 | ★★★★★ |
 | **L0 — Fed Liquidity** | Global M2 YoY | 0→1, 1→2 | ★★★★☆ |
 | **L1 — Macro** | NFCI, 10Y Yield | 1→2, 2→3 | ★★★★☆ |
 | **L1 — Macro** | DXY direction | 0→1, 3→4 | ★★★☆☆ |
@@ -354,13 +354,14 @@ nohup node src/scheduler.js > logs/scheduler.log 2>&1 &
 | 10Y Yield | Harian | ~4 jam | FRED update sore ET |
 | NFCI | Mingguan | ~5 hari | Publikasi setiap Jumat |
 | Fed Balance Sheet (WALCL) | Mingguan | ~5 hari | Update Kamis 16:30 ET |
-| RRP, WLRRAL | Mingguan | ~5 hari | Update Kamis 16:30 ET |
+| RRP, WRESBAL | Mingguan | ~5 hari | Update Kamis 16:30 ET (WRESBAL = total reserve balances; sebelumnya WLRRAL/required-only) |
 | Global M2 | Mingguan | ~2 minggu | FRED lag inherent |
 | CPI | Bulanan | ~3 minggu | Rilis pertama bulan berikutnya |
 | ISM PMI | Bulanan | ~1 hari | Rilis hari kerja pertama bulan ini |
-| DXY / Gold | Real-time (market hours) | <1 menit | TwelveData |
+| Gold | Real-time (market hours) | <1 menit | TwelveData |
 | Google Trends | Mingguan | ~12 jam | SerpAPI + in-memory cache 12 jam |
-| Brent Oil | Harian | ~24 jam | OilPriceAPI → Google News RSS fallback |
+| Brent Oil | Real-time (market hours) | <15 menit | **Yahoo Finance BZ=F (primary)** → OilPriceAPI → Google News RSS |
+| DXY | Real-time (market hours) | <15 menit | **Yahoo Finance DX-Y.NYB (primary)** → Twelve Data → Alpha Vantage |
 
 ### Akurasi per Fase — Detail
 
@@ -478,7 +479,7 @@ Fed Balance Sheet → RRP → Global M2 → FCI → DXY/10Y → BTC → ETH/Alts
 
 | Tabel | Data | Dedup logic |
 |-------|------|-------------|
-| `fed_liquidity` | WALCL + RRP + WLRRAL snapshot | Per tanggal observasi FRED (update setiap Kamis) |
+| `fed_liquidity` | WALCL + RRP + WRESBAL + TGA + HY OAS + Yield Curve + VIX snapshot | Per tanggal observasi FRED (update setiap Kamis) |
 | `pmi_data` | ISM Manufacturing + Services PMI | Per bulan (`released_month` YYYY-MM) |
 | `weekly_data` | 10Y yield, NFCI, altseason, netflow, TVL, ratio trend | Per hari (`fetch_date`) |
 | `monthly_data` | CPI, Fed Rate, M2 | Per bulan (`period` YYYY-MM) |
@@ -513,14 +514,16 @@ output/
 
 ## Perbandingan AI
 
-| Provider | Keunggulan | Token Limit | Harga |
-|----------|-----------|-------------|-------|
-| 🤖 **Claude** | Reasoning terdalam, analisis fase paling konsisten | 7000 | Berbayar |
-| 🟢 **ChatGPT** | Balanced, risk management | 7000 | Berbayar |
-| ✨ **Gemini** | Paling cepat, free tier generous | 7000 | **Gratis** |
-| 🔍 **Perplexity** | Real-time web search + citations | 7000 | Berbayar |
-| ⚡ **Grok** | Reasoning kuat via OpenRouter | 7000 | Berbayar |
-| 🤖 **Qwen** | Alibaba model via OpenRouter | 7000 | **Gratis** |
+| Provider | Keunggulan | Token Limit (output) | Harga |
+|----------|-----------|----------------------|-------|
+| 🤖 **Claude** | Reasoning terdalam, analisis fase paling konsisten | 17500 | Berbayar |
+| 🟢 **ChatGPT** | Balanced, risk management (via OpenRouter) | 11500 | Berbayar |
+| ✨ **Gemini** | Paling cepat, free tier generous, output paling panjang | 24000 | **Gratis** |
+| 🔍 **Perplexity** | Real-time web search + citations | 11500 | Berbayar |
+| ⚡ **Grok** | Reasoning kuat via OpenRouter | 11500 | Berbayar |
+| 🤖 **Qwen** | Alibaba model via OpenRouter | 11500 | **Gratis** |
+
+> Token limits dikalibrasi per provider berdasarkan tokenizer behavior dan kelengkapan scorecard (~40+ indikator). Gemini dialokasikan paling besar karena tokenizer-nya lebih boros untuk Bahasa Indonesia + emoji + tabel.
 
 ---
 
@@ -576,3 +579,40 @@ output/
 | Deribit ETIMEDOUT / SSL intercept | ISP Indonesia (Indosat/IOH "Internet Positif") memblokir Deribit. Jalankan dari `asia-southeast1-a` (Singapore GCP) untuk akses penuh |
 | `CME Premium: —` | Yahoo Finance BTC=F timeout (pasar tutup weekend/holiday) — data hanya tersedia saat CME trading hours |
 | `L2 TVL: —` | DefiLlama `/v2/chains` timeout — tidak ada fallback; row dikosongkan dengan `—` |
+
+---
+
+## Reliability & Recent Improvements
+
+Daftar fitur reliability yang sudah aktif di runtime:
+
+### Retry & Fallback
+- **Telegram sender** retry 3× dengan exponential backoff untuk HTTP 429/502/503/504/network errors; respect `Retry-After` header. Parse-error fallback ke plain text otomatis.
+- **Discord sender** retry 3× untuk HTTP 429/5xx/network; respect `Retry-After`. Chunk dikirim sequential dengan rate-limit delay.
+- **Channel error isolation**: kegagalan Telegram tidak block Discord (dan sebaliknya). Kegagalan kirim prompt tidak kill run AI berikutnya.
+- **AI provider isolation**: error satu provider (timeout, quota, 503) di-catch per-provider; provider lain tetap jalan.
+- **Gemini model fallback**: gemini-2.5-pro → flash → 2.0-pro/flash/lite → 1.5-* berurutan jika quota/unavailable.
+- **OpenRouter (ChatGPT/Grok/Qwen)** retry dengan exponential backoff + model fallback list untuk free-tier yang sering 429.
+
+### Data Integrity
+- **Sanity validator** ([sanity-validator.js](src/sanity-validator.js)) cek 20+ indikator vs plausible bounds (DXY 70-120, Fed Reserves $2.5-5T, dll). Out-of-bound = warning + sanity alert di-inject ke prompt AI.
+- **Yahoo Finance primary** untuk DXY (`DX-Y.NYB`) dan Brent (`BZ=F`) — gratis, akurat, real-time. Twelve Data sebelumnya pernah return DXY salah (~$84 vs real ~$97); Yahoo verified accurate.
+- **WRESBAL** (total reserve balances ~$3T) menggantikan WLRRAL (required only ~$0.3T) — bug data Fed Reserves yang sebelumnya silent fed value salah ke AI prompt.
+- **Sequential CoinGecko fetches** dengan 600ms delay untuk hindari 429 rate limit.
+- **SQLite cache fallback** untuk Fed/Weekly/Monthly/Oil — kalau fetch gagal, prompt tetap pakai data terakhir yang valid.
+
+### Output Quality
+- **Token limits dinaikkan & dikalibrasi per provider** (Claude 17500, Gemini 24000, OpenRouter providers 11500) — tidak lagi terpotong di tengah scorecard.
+- **System prompt seragam** di semua provider — output ChatGPT/Grok/Qwen sekarang punya kelengkapan scorecard setara Claude/Gemini.
+- **Prompt formatter wrapped in try/catch** — kalau struktur data tak terduga bikin formatter crash, log jelas sebelum abort (sebelumnya silent fatal exit).
+- **Formatter null-safety** untuk inner field access di NUPL/Pi Cycle/L2 TVL.
+
+### Phase Classification Aids
+- **Modern NVT thresholds** (< 50 undervalued, < 150 fair, < 300 elevated, > 300 distribusi) — sebelumnya legacy thresholds bikin AI salah sinyal "distribusi" untuk NVT 250-300.
+- **24h proxy fallback** untuk ratio direction (ETH/BTC, SOL/BTC) saat weekly data unavailable.
+- **War headline severity scoring** (1-5 + label) dengan escalation/de-escalation keyword detection.
+- **Layer 0 confidence calibration rule** — confidence AI di-downgrade otomatis kalau Fed data unavailable.
+
+### Architecture Notes
+- **Active dispatcher**: [src/claude-analyst.js](src/claude-analyst.js) (meski namanya "claude-", router semua provider).
+- **Dead code di [src/_unused/](src/_unused/)** — `analyst-router.js` dan `analysts/{claude,gemini,openai,perplexity}.js` tidak diimpor di runtime. Jangan edit file di sini untuk efek production.

@@ -357,6 +357,64 @@ Auto-flag any value outside these ranges as a **scale/unit bug** (not a market a
 
 ---
 
+## Active Runtime Path — JANGAN edit file yang tidak diimpor
+
+Sebelum mengedit AI analyst, fetcher, atau sender, **wajib verifikasi file ada di runtime path**:
+
+```bash
+grep -rn "from './<filename>" src/
+```
+
+Kalau tidak ada hasil dari file yang diimpor oleh `src/index.js` (langsung atau transitive), edit-mu tidak akan jalan di production. Konvensi project ini:
+
+- **AI dispatcher aktif**: `src/claude-analyst.js` (meski namanya "claude-", router semua provider — Claude, ChatGPT, Gemini, Perplexity, Grok, Qwen)
+- **Dead code parking**: `src/_unused/` — JANGAN edit; pindahkan ke runtime path dulu kalau memang mau dipakai. Penjelasan ada di [`src/_unused/README.md`](src/_unused/README.md).
+- **Fetcher orchestrator**: `src/fetchers/{daily,weekly,monthly,fedliquidity}.js` → `fetchAll*()` functions
+- **Sender entry points**: `src/{telegram,discord}-sender.js`
+- **Formatter**: `src/formatter.js` → `formatDashboardPrompt()` (prompt utama yang dikirim ke AI)
+
+Kalau ragu, baca `src/index.js` import block (sekitar line 49-78) untuk daftar lengkap modul yang dipakai runtime.
+
+**Trap yang sudah terjadi:** mengedit `src/analysts/{claude,gemini,openai,perplexity}.js` untuk bump `maxTokens` — file-file itu **dead code**, edit-nya ZERO efek. Production token limit ada di `src/claude-analyst.js`. Jangan ulangi.
+
+---
+
+## Post-Fix Verification untuk Data Fetcher
+
+Setelah refactor fetcher (baru, ganti source, ganti parsing), **wajib live-test** untuk konfirmasi value masuk akal sebelum claim "done":
+
+```bash
+curl -s "<endpoint>" | jq '<extract>'
+# bandingkan dengan ground truth — TradingView, FRED website, CoinGecko UI, dll
+```
+
+Cross-check terhadap **Sanity Bounds table** di atas. Kalau hasil di luar bounds, jangan commit — investigasi dulu. **"Code compiles" ≠ "data benar".**
+
+Trap yang sudah terjadi:
+- DXY $84 dari Twelve Data berbulan-bulan (real ~$97) — tidak ketahuan karena tidak pernah cross-check ke TradingView
+- Brent $126 dari Google News RSS (real ~$109) — stale headline 2022 yang lolos filter
+- Fed Reserves $0.323T dari WLRRAL (real WRESBAL ~$3T) — series ID salah, silent feed wrong number ke AI prompt
+
+Semua kasus di atas: silent bug yang baru ketahuan setelah ada ground-truth comparison. Lakukan verification step ini sebagai default, bukan as-needed.
+
+---
+
+## README Sync Trigger
+
+Update `README.md` bersamaan dengan perubahan kode kalau menyentuh:
+
+- **Source data primer/fallback** (mis. ganti Yahoo → Twelve Data sebagai primary)
+- **FRED series ID** atau API endpoint utama
+- **AI provider list, model default, atau token limit default**
+- **Command/flag baru** di `src/index.js` arg parser
+- **Skema SQLite cache** (tabel baru, kolom baru yang dipakai untuk WoW delta)
+
+Sisanya **tidak perlu**: bug fix internal, refactor non-API, retry logic, null guards. Improvement minor sudah ter-cover oleh section "Reliability & Recent Improvements" di README.
+
+Rule of thumb: kalau user baru perlu tahu perubahan ini untuk run/setup/troubleshoot, update README. Kalau hanya internal robustness, skip.
+
+---
+
 ## Commitment to Quality
 This dashboard handles real financial data. Every change must maintain:
 - **Accuracy**: Crypto prices are exact, no rounding errors
