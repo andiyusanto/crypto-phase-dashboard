@@ -77,18 +77,33 @@ async function sendOne(botToken, chatId, text, options = {}) {
     disable_notification: options.silent ?? false,
   };
 
-  // Jika mode HTML, tidak perlu escape
-  // Jika Markdown, karakter tertentu bisa bermasalah — fallback ke plain text jika error
+  // Retry helper untuk transient 5xx / network / 429
+  const postWithRetry = async (body, maxRetries = 3) => {
+    let lastErr;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const res = await axios.post(url, body, { timeout: 10000 });
+        return res.data;
+      } catch (err) {
+        lastErr = err;
+        const status = err.response?.status;
+        const transient = status === 503 || status === 502 || status === 504 || status === 429 || !status;
+        if (!transient || attempt === maxRetries - 1) throw err;
+        const wait = Math.min(2000 * Math.pow(2, attempt), 15000);
+        console.warn(`  ⚠️  Telegram HTTP ${status ?? 'network'}, retry in ${wait}ms (attempt ${attempt + 2}/${maxRetries})`);
+        await sleep(wait);
+      }
+    }
+    throw lastErr;
+  };
+
   try {
-    const res = await axios.post(url, payload, { timeout: 10000 });
-    return res.data;
+    return await postWithRetry(payload);
   } catch (err) {
     if (err.response?.data?.description?.includes('parse')) {
-      // Fallback: kirim ulang tanpa parse_mode (plain text)
       console.warn('  ⚠️  Telegram parse error, retry as plain text');
       const plainPayload = { ...payload, parse_mode: undefined };
-      const res2 = await axios.post(url, plainPayload, { timeout: 10000 });
-      return res2.data;
+      return await postWithRetry(plainPayload);
     }
     throw err;
   }

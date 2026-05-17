@@ -354,25 +354,33 @@ async function main() {
       console.log(chalk.cyan('\n📋 Mengirim prompt ke channel...'));
       if (doTelegram || !doDiscord) {
         if (hasTelegram()) {
-          await sendPromptToTelegram(prompt, {
-            botToken: config.telegramBotToken,
-            chatId:   config.telegramChatId,
-            label:    'Prompt',
-          });
-          console.log(chalk.green('  ✓ Prompt → Telegram'));
+          try {
+            await sendPromptToTelegram(prompt, {
+              botToken: config.telegramBotToken,
+              chatId:   config.telegramChatId,
+              label:    'Prompt',
+            });
+            console.log(chalk.green('  ✓ Prompt → Telegram'));
+          } catch (err) {
+            console.error(chalk.red(`  ✗ Prompt Telegram gagal: ${err.message}`));
+          }
         } else {
           console.log(chalk.red('  ✗ Telegram: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID belum diset'));
         }
       }
       if (doDiscord) {
         if (hasDiscord()) {
-          await sendToDiscord(prompt, {
-            webhookUrl: config.discordWebhookUrl,
-            title: '📋 Prompt Analisis',
-            color: 0x5865F2,
-            label: 'Prompt',
-          });
-          console.log(chalk.green('  ✓ Prompt → Discord'));
+          try {
+            await sendToDiscord(prompt, {
+              webhookUrl: config.discordWebhookUrl,
+              title: '📋 Prompt Analisis',
+              color: 0x5865F2,
+              label: 'Prompt',
+            });
+            console.log(chalk.green('  ✓ Prompt → Discord'));
+          } catch (err) {
+            console.error(chalk.red(`  ✗ Prompt Discord gagal: ${err.message}`));
+          }
         } else {
           console.log(chalk.red('  ✗ Discord: DISCORD_WEBHOOK_URL belum diset'));
         }
