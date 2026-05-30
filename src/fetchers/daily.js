@@ -1152,13 +1152,16 @@ export async function fetchBtcDerivativesBundle(btcPriceHint = null) {
     let skewProxy = null;
     let signal    = 'data tidak tersedia';
     if (avgFunding !== null) {
-      // Multiplier 100: typical 8h funding 0.001%-0.1% maps to skew range -10 to +30
-      // Sign flipped so positive skew = fear (negative funding), negative = greed (positive funding)
+      // Multiplier 100: typical 8h funding -0.3% to +0.3% maps to skew range +30 to -30
+      // Sign flipped so positive skew = fear (negative funding), negative skew = greed (positive funding)
       skewProxy = parseFloat((-avgFunding * 100).toFixed(2));
-      if (skewProxy > 10)       signal = 'fear tinggi — funding negatif kuat, put premium implied (bearish/fase 4)';
-      else if (skewProxy > 3)   signal = 'netral-bearish — sedikit downside concern';
-      else if (skewProxy >= -3) signal = 'netral — pasar seimbang';
-      else                      signal = 'call premium — greed / fase 3 signal';
+      if      (skewProxy > 20)   signal = 'fear ekstrem — funding sangat negatif, Phase 4 capitulation / oversold (longs liquidated, shorts paying)';
+      else if (skewProxy > 10)   signal = 'fear tinggi — funding negatif kuat, put premium implied (bearish/fase 4)';
+      else if (skewProxy > 3)    signal = 'netral-bearish — sedikit downside concern';
+      else if (skewProxy >= -3)  signal = 'netral — pasar seimbang';
+      else if (skewProxy >= -10) signal = 'call premium — greed / fase 3 signal (longs dominan)';
+      else if (skewProxy >= -20) signal = 'greed tinggi — leveraged longs pile-up, Phase 3 late warning';
+      else                       signal = 'overleveraged ekstrem — squeeze risk tinggi, Phase 3→4 transition imminent';
     }
 
     // Deribit OI dari CoinGecko exchange endpoint (panggil terpisah, bukan /derivatives)

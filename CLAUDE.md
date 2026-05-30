@@ -346,7 +346,7 @@ Auto-flag any value outside these ranges as a **scale/unit bug** (not a market a
 | TVL DeFi total | $30B–$300B | flag salah unit |
 | BTC Dominance | 35%–75% | flag salah skala |
 | Fear & Greed | 0–100 | flag if outside (out-of-bound = bug) |
-| Perp Sentiment Proxy (this project's formula) | -10 to +30 | flag formula bug — out-of-scale value indicates non-normalized output |
+| Perp Sentiment Proxy (this project's formula `-avgFunding × 100`) | -30 to +30 | symmetric range — -10 to -30 normal during Phase 3 late (leveraged longs accumulate), +10 to +30 during Phase 4 capitulation. Outside ±30 = check funding rate raw for exchange outlier or unit mismatch |
 | BTC Hash Rate (7d avg) | 400–1200 EH/s | flag salah unit (TH/s vs EH/s) atau stale data |
 | BTC TX Volume (on-chain, daily) | 50,000–500,000 BTC/day | flag denominator/source — modern BTC has off-chain shift, but on-chain still in this range |
 | BTC Coin Velocity (output volume) | 200,000–2,000,000 BTC/day | flag salah unit; output volume is larger than tx value due to multi-output txs |

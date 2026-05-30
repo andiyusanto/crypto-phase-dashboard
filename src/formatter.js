@@ -594,7 +594,7 @@ Perubahan fase hanya valid jika ≥3 signal upstream konfirmasi.
 | Pi Cycle Top gap | > 0% (crossing = top signal) | -10% s/d 0% (bahaya) | < -30% (aman) |
 | OI BTC (all exchanges) | Kontraksi tajam | $15–30B | Ekspansi >$30B |
 | Basis Rate 3M (ann.) | < 0% (backwardation) | 0–15% | 5–15% (carry positif) |
-| Perp Sentiment Proxy (funding-based) | > 10 (fear/shorts dominan) | -3 s/d +10 | < -3 (greed/longs dominan) |
+| Perp Sentiment Proxy (funding-based) | > +20 fear ekstrem Phase 4, > +10 fear, > +3 netral-bearish | -3 s/d +3 netral | < -3 greed, < -10 greed tinggi Phase 3 late, < -20 overleveraged Phase 3→4 |
 | Google Trends "bitcoin" | > 80 (FOMO ekstrem) | 40–80 | < 20 (bear/capitulation) |
 | BTC RVol 30d (proxy IV) | < 30% (complacency, Phase 3→4) | 30–60% normal | > 90% panic (Phase 0) |
 | Exchange Inflow Acceleration WoW | > +30% (distribusi Phase 3→4) | -20–+10% flat | < -20% tekanan mereda |
@@ -771,7 +771,7 @@ Lalu putuskan: **konfirmasi**, **adjust ke fase X**, atau **inconclusive**. Jang
 | Stablecoin Dom. (USDT+USDC) | ${stableDomPct != null ? stableDomPct + '%' : '—'} | >6% risk-off, <3% risk-on | | ${stableWoW != null ? (stableWoW > 0 ? '+' : '') + stableWoW + '% WoW' : '—'} |
 | OI BTC | $${oi?.totalBillion ?? '—'}B | ekspansi >$30B, kontraksi <$15B | | ${oi?.trend ?? '—'} |
 | Perp Premium (ann.) | ${basis?.annualizedPct ?? '—'}% | >15% overleveraged, <0% backwardation | | |
-| Perp Sentiment Proxy | ${skew?.skewProxy != null ? (skew.skewProxy > 0 ? '+' : '') + skew.skewProxy : '—'} | >10 fear/shorts, <-3 greed/longs | | |
+| Perp Sentiment Proxy | ${skew?.skewProxy != null ? (skew.skewProxy > 0 ? '+' : '') + skew.skewProxy : '—'} | range valid -30 s/d +30 · >+10 fear, <-10 greed tinggi, <-20 overleveraged | | |
 | Google Trends "bitcoin" | ${gt ? gt.currentValue + '/100' + (gt._fromCache ? ' 💾' : '') : '—'} | >80 FOMO ekstrem, <20 bear | | ${gt?.trend ?? '—'} |
 
 Status: ✅ bullish / ⚠️ netral / 🔴 bearish
