@@ -208,11 +208,26 @@ export async function fetchRatioTrend() {
     // Ambil data 7 hari historis sequentially dengan delay untuk hindari CoinGecko 429.
     // Free tier: ~10-30 calls/min — 5 calls back-to-back sering trigger rate limit.
     // Sequential + 600ms delay = 5 calls dalam ~3s, masih dalam limit aman.
-    const fetchCoin = (id) => axios.get(`https://api.coingecko.com/api/v3/coins/${id}/market_chart`, {
-      params: { vs_currency: 'usd', days: 7, interval: 'daily' }, timeout: 12000,
-    }).then(r => ({ status: 'fulfilled', value: r }))
-      .catch(e => ({ status: 'rejected', reason: e }));
     const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    // 1× retry on 429: CoinGecko free tier sometimes 429s on first call even within budget.
+    const fetchCoin = async (id) => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const r = await axios.get(`https://api.coingecko.com/api/v3/coins/${id}/market_chart`, {
+            params: { vs_currency: 'usd', days: 7, interval: 'daily' }, timeout: 12000,
+          });
+          return { status: 'fulfilled', value: r };
+        } catch (e) {
+          const status = e.response?.status;
+          if ((status === 429 || status === 503) && attempt === 0) {
+            console.warn(`  ⚠️  ${id} rate-limited, retry in 3s`);
+            await wait(3000);
+            continue;
+          }
+          return { status: 'rejected', reason: e };
+        }
+      }
+    };
 
     const btcRes  = await fetchCoin('bitcoin');     await wait(600);
     const ethRes  = await fetchCoin('ethereum');    await wait(600);
@@ -303,8 +318,23 @@ export async function fetchMSCIEM(apiKey) {
 // = 100% - BTC.D - ETH.D - dominasi top coins lainnya
 // CoinGecko /global sudah punya breakdown market_cap_percentage per coin
 export async function fetchOthersDominance() {
+  // Retry on 429: CoinGecko free tier is bursty. Linear backoff (no exp = stay under timeout).
+  const fetchGlobal = async (attempt = 0) => {
+    try {
+      return await axios.get('https://api.coingecko.com/api/v3/global', { timeout: 8000 });
+    } catch (err) {
+      const status = err.response?.status;
+      if ((status === 429 || status === 503) && attempt < 2) {
+        const wait = (attempt + 1) * 2000;
+        console.warn(`  ⚠️  OTHERS.D rate-limited (${status}), retry in ${wait}ms`);
+        await new Promise(r => setTimeout(r, wait));
+        return fetchGlobal(attempt + 1);
+      }
+      throw err;
+    }
+  };
   try {
-    const res = await axios.get('https://api.coingecko.com/api/v3/global', { timeout: 8000 });
+    const res = await fetchGlobal();
     const pct = res.data.data.market_cap_percentage;
 
     // Top coins yang biasanya dilaporkan

@@ -179,6 +179,30 @@ export async function sendToDiscord(text, options = {}) {
   return { success: true, chunks: total };
 }
 
+// Discord embed field value limit is 1024 chars. Splits long line arrays into
+// multiple fields, appending "(2)", "(3)", … to subsequent chunks so users see
+// continuation. Preserves line boundaries.
+const DISCORD_FIELD_LIMIT = 1024;
+function pushFieldChunks(fields, name, lines, inline = false) {
+  if (!lines.length) return;
+  const chunks = [];
+  let buf = '';
+  for (const line of lines) {
+    const candidate = buf ? buf + '\n' + line : line;
+    if (candidate.length > DISCORD_FIELD_LIMIT) {
+      if (buf) chunks.push(buf);
+      // Single line longer than limit → hard truncate (rare).
+      buf = line.length > DISCORD_FIELD_LIMIT ? line.slice(0, DISCORD_FIELD_LIMIT - 1) + '…' : line;
+    } else {
+      buf = candidate;
+    }
+  }
+  if (buf) chunks.push(buf);
+  chunks.forEach((value, i) => {
+    fields.push({ name: i === 0 ? name : `${name} (${i + 1})`, value, inline });
+  });
+}
+
 // ── Format data summary untuk Discord (rich embed) ───────────────────────────
 export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
   const ts  = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
@@ -202,7 +226,7 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
     if (r?.balanceBillions != null) lines.push(`**RRP**: $${r.balanceBillions}B · trend: ${r.trend} ${r.signal}`);
     if (rv?.totalTrillions != null) lines.push(`**WRESBAL**: $${rv.totalTrillions}T ${rv.signal}`);
     lines.push(`**Trifecta**: ${fed.trifectaScore} → ${fed.overallStatus}`);
-    if (lines.length) fields.push({ name: '🏦 Fed Liquidity Trifecta', value: lines.join('\n'), inline: false });
+    pushFieldChunks(fields, '🏦 Fed Liquidity Trifecta', lines, false);
 
     const stress = [];
     if (tg?.balanceBillions != null) stress.push(`**TGA**: $${tg.balanceBillions}B (Δ${tg.weekChangeBillions >= 0 ? '+' : ''}${tg.weekChangeBillions}B · ${tg.trend}) ${tg.signal}`);
@@ -210,7 +234,7 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
     if (yc?.spread != null)          stress.push(`**Yield Curve**: ${yc.spread >= 0 ? '+' : ''}${yc.spread}% · ${yc.zone} ${yc.signal}`);
     if (vx?.value != null)           stress.push(`**VIX**: ${vx.value} · ${vx.zone} ${vx.signal}`);
     if (fed.macroStressScore)        stress.push(`**Stress Score**: ${fed.macroStressScore} merah → ${fed.macroStressLabel}`);
-    if (stress.length) fields.push({ name: '📉 Phase 0 Macro Stress', value: stress.join('\n'), inline: false });
+    pushFieldChunks(fields, '📉 Phase 0 Macro Stress', stress, false);
   }
 
   // WoW helper
@@ -230,7 +254,7 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
     if (c.btcDominance)     lines.push(`**BTC.D**: ${c.btcDominance}%`);
     if (daily.fearGreed?.value) lines.push(`**F&G**: ${daily.fearGreed.value} — ${daily.fearGreed.label}`);
     if (daily.funding?.btc != null) lines.push(`**Funding**: BTC ${daily.funding.btc}% · ETH ${daily.funding.eth}% _(${daily.funding.source || ''})_`);
-    if (lines.length) fields.push({ name: '💹 Daily', value: lines.join('\n'), inline: true });
+    pushFieldChunks(fields, '💹 Daily', lines, true);
   }
 
   // Daily macro
@@ -250,7 +274,7 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
         ? ` · Dom: ${(c.stablecoinSupply.total / c.totalMarketCapBillion * 100).toFixed(2)}%` : '';
       lines.push(`**Stable**: $${c.stablecoinSupply.total}B${dom}${wowStr(c.stablecoinSupply.total, prevWeek?.stablecoin_billion)}`);
     }
-    if (lines.length) fields.push({ name: '🌍 Macro', value: lines.join('\n'), inline: true });
+    pushFieldChunks(fields, '🌍 Macro', lines, true);
   }
 
   // On-chain & Derivatives
@@ -351,7 +375,7 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
       lines.push(`**OI BTC**: $${oi.totalBillion}B (${oi.trend})`);
     if (basis)
       lines.push(`**Basis**: ${basis.annualizedPct}% ann.`);
-    if (lines.length) fields.push({ name: '⛓ On-Chain & Derivatif', value: lines.join('\n'), inline: false });
+    pushFieldChunks(fields, '⛓ On-Chain & Derivatif', lines, false);
   }
 
   // Weekly
@@ -365,7 +389,7 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
     if (weekly.ratioTrend?.ethBtc) lines.push(`**ETH/BTC**: ${weekly.ratioTrend.ethBtc.ratio} (${weekly.ratioTrend.ethBtc.direction})`);
     if (weekly.othersDom?.othersDominance) lines.push(`**OTHERS.D**: ${weekly.othersDom.othersDominance}%`);
     if (weekly.altseason?.value != null) lines.push(`**Altszn**: ${weekly.altseason.value} — ${weekly.altseason.signal}`);
-    if (lines.length) fields.push({ name: '📅 Weekly', value: lines.join('\n'), inline: false });
+    pushFieldChunks(fields, '📅 Weekly', lines, false);
   }
 
   // Monthly
@@ -375,7 +399,7 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
     if (!monthly.pmi?.skipped && monthly.pmi?.value != null)     lines.push(`**PMI**: ${monthly.pmi.value} (${monthly.pmi.condition})`);
     if (!monthly.fedRate?.skipped) lines.push(`**Fed Rate**: ${monthly.fedRate.label}`);
     if (monthly.m2?.globalTrillions) lines.push(`**Global M2**: $${monthly.m2.globalTrillions}T · YoY ${monthly.m2.globalYoY}%`);
-    if (lines.length) fields.push({ name: '📆 Monthly', value: lines.join('\n'), inline: false });
+    pushFieldChunks(fields, '📆 Monthly', lines, false);
   }
 
   return {

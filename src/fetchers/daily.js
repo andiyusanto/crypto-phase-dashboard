@@ -557,53 +557,83 @@ async function fetchDXYAlphaVantage(apiKey) {
   }
 }
 
-// ── 5. GOLD (XAUUSD) — via Twelve Data ────────────────────────────────────────
-export async function fetchGold(apiKey) {
-  if (!apiKey || apiKey === 'your_twelve_data_key_here') {
-    return { skipped: true, reason: 'TWELVE_DATA_API_KEY tidak diset' };
-  }
+// ── 5a. GOLD — Yahoo Finance GC=F (primary, free, no API key) ────────────────
+// GC=F = COMEX Gold Front-Month Futures. Tracks spot XAU/USD closely (<0.5% basis).
+export async function fetchGoldYahoo() {
+  try {
+    const res = await axios.get('https://query1.finance.yahoo.com/v8/finance/chart/GC=F', {
+      params: { interval: '1d', range: '5d' },
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      timeout: 10000,
+    });
+    const result = res.data?.chart?.result?.[0];
+    if (!result) throw new Error('No data from Yahoo Finance GC=F');
 
-  // Twelve Data: XAU/USD adalah symbol yang valid untuk gold spot
-  const symbols = ['XAU/USD', 'XAUUSD'];
+    const closes = result.indicators?.quote?.[0]?.close ?? [];
+    const valid  = closes.filter(c => c != null);
+    if (valid.length < 2) throw new Error('Not enough Gold closes from Yahoo');
 
-  for (const symbol of symbols) {
-    try {
-      const res = await axios.get('https://api.twelvedata.com/time_series', {
-        params: {
-          symbol,
-          interval: '1day',
-          outputsize: 2,
-          apikey: apiKey,
-        },
-        timeout: 8000,
-      });
+    const today     = valid[valid.length - 1];
+    const yesterday = valid[valid.length - 2];
 
-      if (res.data.status === 'error' || !res.data.values) {
-        console.warn(`⚠️  Gold symbol "${symbol}" gagal: ${res.data.message || 'no values'}`);
-        continue;
-      }
-
-      const values = res.data.values;
-      if (values.length < 2) continue;
-
-      const today = parseFloat(values[0].close);
-      const yesterday = parseFloat(values[1].close);
-      const changePercent = ((today - yesterday) / yesterday) * 100;
-
-      return {
-        price: Math.round(today),
-        change24h: parseFloat(changePercent.toFixed(2)),
-        direction: getDirection(changePercent),
-        symbol,
-      };
-    } catch (err) {
-      console.warn(`⚠️  Gold "${symbol}" error: ${err.message}`);
-      continue;
+    // Sanity: gold modern era $1,500–$8,000. Out-of-bound = fall through.
+    if (today < 1500 || today > 8000) {
+      throw new Error(`Yahoo GC=F returned anomaly $${today.toFixed(2)} (expected 1500–8000)`);
     }
+
+    const changePercent = ((today - yesterday) / yesterday) * 100;
+    console.log(`  ✓ Gold via Yahoo Finance GC=F | $${today.toFixed(2)} | ${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`);
+    return {
+      price: Math.round(today),
+      change24h: parseFloat(changePercent.toFixed(2)),
+      direction: getDirection(changePercent),
+      symbol: 'GC=F',
+      source: 'Yahoo Finance',
+    };
+  } catch (err) {
+    console.warn(`⚠️  Gold Yahoo Finance gagal: ${err.message} — coba fallback Twelve Data`);
+    return null;
+  }
+}
+
+// ── 5b. GOLD — Twelve Data XAU/USD fallback ──────────────────────────────────
+export async function fetchGold(apiKey) {
+  // Primary: Yahoo Finance GC=F (free, no key)
+  const yahoo = await fetchGoldYahoo();
+  if (yahoo) return yahoo;
+
+  // Fallback: Twelve Data (requires key)
+  if (!apiKey || apiKey === 'your_twelve_data_key_here') {
+    return { skipped: true, reason: 'Yahoo gagal & TWELVE_DATA_API_KEY tidak diset' };
   }
 
-  console.error('❌ Gold: semua symbol gagal di Twelve Data');
-  return null;
+  try {
+    const res = await axios.get('https://api.twelvedata.com/time_series', {
+      params: { symbol: 'XAU/USD', interval: '1day', outputsize: 2, apikey: apiKey },
+      timeout: 15000,
+    });
+
+    if (res.data.status === 'error' || !res.data.values || res.data.values.length < 2) {
+      console.error(`❌ Gold Twelve Data fallback gagal: ${res.data.message || 'no values'}`);
+      return null;
+    }
+
+    const today = parseFloat(res.data.values[0].close);
+    const yesterday = parseFloat(res.data.values[1].close);
+    const changePercent = ((today - yesterday) / yesterday) * 100;
+
+    console.log(`  ✓ Gold via Twelve Data XAU/USD | $${today.toFixed(2)} | ${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`);
+    return {
+      price: Math.round(today),
+      change24h: parseFloat(changePercent.toFixed(2)),
+      direction: getDirection(changePercent),
+      symbol: 'XAU/USD',
+      source: 'Twelve Data',
+    };
+  } catch (err) {
+    console.error(`❌ Gold Twelve Data fallback error: ${err.message}`);
+    return null;
+  }
 }
 
 // ── 6. COINMARKETCAP GLOBAL METRICS ──────────────────────────────────────────

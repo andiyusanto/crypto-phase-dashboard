@@ -16,23 +16,11 @@ Gaya: ringkas, direct, actionable. Gunakan angka konkret. Format tabel untuk sco
 Bahasa Indonesia, terminologi keuangan boleh Inggris.`;
 
 // ── OPENROUTER CONFIG ────────────────────────────────────────────────────────
+// Only verified-available OpenRouter free models. Dead models (qwen-2.5-32b-instruct:free,
+// gemma-4-*) cause HTTP 400 — keep this list lean and tested.
 const FREE_MODELS = [
-  'qwen/qwen3-next-80b-a3b-instruct:free',
-  'qwen/qwen3-coder:free',
-  // 'google/gemma-3n-e2b-it:free',
-  // 'google/gemma-3n-e4b-it:free',
-  // 'google/gemma-3-4b-it:free',
-  // 'google/gemma-3-12b-it:free',
-  // 'google/gemma-3-27b-it:free',
-  // 'meta-llama/llama-3.3-70b-instruct:free',
-  // 'meta-llama/llama-3.2-3b-instruct:free',
-  // 'nousresearch/hermes-3-llama-3.1-405b:free',
-  'qwen/qwen3-next-80b-a3b-instruct:free', // Preferred
-  'qwen/qwen-2.5-32b-instruct:free',       // Great for crypto
-  // 'meta-llama/llama-3.1-8b-instruct:free', // Generous quota
-  // 'google/gemma-2-9b-it:free'              // Reliable fallback
-  'google/gemma-4-26b-a4b-it:free',
-  'google/gemma-4-31b-it:free',  
+  'qwen/qwen3-next-80b-a3b-instruct:free', // Primary — strong reasoning
+  'qwen/qwen3-coder:free',                 // Fallback — handles long context well
 ];
 
 // ── HELPER: OpenRouter Fetch with Retry & Fallback ──────────────────────────
@@ -71,7 +59,9 @@ async function fetchOpenRouterWithRetry(prompt, apiKey, options = {}) {
               { role: 'user',   content: prompt }
             ],
             temperature: 0.3,
-            max_tokens: 11500,
+            // 11000 ceiling: leaves headroom for free-tier credit caps (OpenRouter
+            // sometimes affords ~11445 tokens; 11500 was triggering HTTP 402).
+            max_tokens: 11000,
             stream: !!onChunk && attempt === 0 // only stream on first attempt for simplicity
           })
         });
