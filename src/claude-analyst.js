@@ -15,6 +15,31 @@ Keahlian: Fed liquidity mechanics, cross-asset correlation (DXY/yields/gold/oil 
 Gaya: ringkas, direct, actionable. Gunakan angka konkret. Format tabel untuk scorecard (✅ ⚠️ 🔴).
 Bahasa Indonesia, terminologi keuangan boleh Inggris.`;
 
+// Wraps fetch() with two independent timeouts:
+//   • connectMs — abort if response headers never arrive (hung server)
+//   • idleMs    — abort if no body bytes arrive for this long (stalled stream)
+// Both default to safe values for AI APIs that legitimately stream for minutes.
+async function fetchWithTimeout(url, opts = {}, { connectMs = 90000 } = {}) {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(new Error(`fetch timeout ${connectMs}ms: ${url}`)), connectMs);
+  try {
+    return await fetch(url, { ...opts, signal: ac.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Reads a ReadableStream with idle-timeout: if no chunk arrives within idleMs,
+// rejects with TimeoutError so the caller can move on instead of hanging forever.
+async function readWithIdleTimeout(reader, idleMs = 60000) {
+  return await Promise.race([
+    reader.read(),
+    new Promise((_, rej) =>
+      setTimeout(() => rej(new Error(`stream idle ${idleMs}ms — no data`)), idleMs)
+    ),
+  ]);
+}
+
 // ── OPENROUTER CONFIG ────────────────────────────────────────────────────────
 // Only verified-available OpenRouter free models. Dead models (qwen-2.5-32b-instruct:free,
 // gemma-4-*) cause HTTP 400 — keep this list lean and tested.
@@ -44,7 +69,7 @@ async function fetchOpenRouterWithRetry(prompt, apiKey, options = {}) {
       try {
         if (!silent) console.log(`🔄 Trying OpenRouter: ${model} (attempt ${attempt + 1})...`);
         
-        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        const res = await fetchWithTimeout('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${apiKey}`,
@@ -89,11 +114,11 @@ async function fetchOpenRouterWithRetry(prompt, apiKey, options = {}) {
           let fullText = '';
           
           while (true) {
-            const { done, value } = await reader.read();
+            const { done, value } = await readWithIdleTimeout(reader);
             if (done) break;
             const chunk = decoder.decode(value);
             const lines = chunk.split('\n').filter(line => line.trim() !== '');
-            
+
             for (const line of lines) {
               if (line.startsWith('data: ')) {
                 const data = line.slice(6);
@@ -184,7 +209,7 @@ const GEMINI_PREFERRED_MODELS = [
 
 async function listGeminiModels(apiKey) {
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=100`);
+    const res = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=100`, {}, { connectMs: 15000 });
     if (!res.ok) return null;
     const data = await res.json();
     const models = (data.models || [])
@@ -289,7 +314,7 @@ export async function analyzeWithPerplexity(prompt, options = {}) {
 
   if (!silent) process.stdout.write('\n🔍 Perplexity Sonar menganalisis...\n\n');
 
-  const response = await fetch('https://api.perplexity.ai/chat/completions', {
+  const response = await fetchWithTimeout('https://api.perplexity.ai/chat/completions', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -311,7 +336,7 @@ export async function analyzeWithPerplexity(prompt, options = {}) {
   let buf = '';
 
   while (true) {
-    const { done, value } = await reader.read();
+    const { done, value } = await readWithIdleTimeout(reader);
     if (done) break;
     buf += decoder.decode(value, { stream: true });
     const lines = buf.split('\n');

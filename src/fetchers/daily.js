@@ -114,7 +114,7 @@ export async function fetchCryptoData() {
 // ── 2. FEAR & GREED INDEX ─────────────────────────────────────────────────────
 export async function fetchFearGreed() {
   try {
-    const res = await axios.get('https://api.alternative.me/fng/?limit=2');
+    const res = await axios.get('https://api.alternative.me/fng/?limit=2', { timeout: 8000 });
     const data = res.data.data;
 
     const today = data[0];
