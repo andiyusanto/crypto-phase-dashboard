@@ -42,6 +42,19 @@
 
 import 'dotenv/config';
 import chalk from 'chalk';
+
+// Safety net: SDK background promises (Gemini stream parser, fetch readers)
+// can reject AFTER our try/catch returns, triggering an unhandledRejection
+// that exits the process with code 1. Log and continue instead — the AI that
+// fired the rejection has already been handled/skipped by its caller.
+process.on('unhandledRejection', (reason) => {
+  const msg = reason?.message ?? String(reason);
+  console.warn(`⚠️  unhandledRejection (suppressed, run continues): ${msg.slice(0, 200)}`);
+});
+process.on('uncaughtException', (err) => {
+  console.warn(`⚠️  uncaughtException (suppressed, run continues): ${err.message?.slice(0, 200)}`);
+});
+
 import { writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';

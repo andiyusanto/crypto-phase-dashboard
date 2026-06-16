@@ -226,17 +226,39 @@ export async function analyzeWithGemini(prompt, options = {}) {
 
       if (!silent) process.stdout.write(`\n✨ Gemini (Google) menganalisis (model: ${candidate})...\n\n`);
 
-      let full = '';
-      const result = await gemini.generateContentStream(prompt);
-      for await (const chunk of result.stream) {
-        const t = chunk.text();
-        if (t) {
-          full += t;
-          if (onChunk) onChunk(t); else if (!silent) process.stdout.write(t);
+      // Streaming path. Wrapped so SDK's internal "Failed to parse stream"
+      // controller.error() — which surfaces as unhandledRejection and crashes
+      // the Node process — is converted into a catchable rejection here.
+      const streamResult = await new Promise((resolve, reject) => {
+        (async () => {
+          try {
+            let full = '';
+            const result = await gemini.generateContentStream(prompt);
+            for await (const chunk of result.stream) {
+              const t = chunk.text();
+              if (t) {
+                full += t;
+                if (onChunk) onChunk(t); else if (!silent) process.stdout.write(t);
+              }
+            }
+            resolve(full);
+          } catch (e) { reject(e); }
+        })().catch(reject);
+      }).catch(async (streamErr) => {
+        const msg = streamErr?.message ?? '';
+        // SDK stream parse failure → fall back to non-streaming on same model.
+        if (msg.includes('Failed to parse stream') || msg.includes('parse stream')) {
+          if (!silent) process.stderr.write(`⚠️  Gemini stream parse failed on ${candidate}, falling back to non-streaming...\n`);
+          const nonStream = await gemini.generateContent(prompt);
+          const text = nonStream.response?.text?.() ?? '';
+          if (onChunk) onChunk(text); else if (!silent) process.stdout.write(text);
+          return text;
         }
-      }
+        throw streamErr;
+      });
+
       if (!silent) process.stdout.write('\n');
-      return full;
+      return streamResult;
 
     } catch (err) {
       const msg = err?.message ?? '';
@@ -244,8 +266,10 @@ export async function analyzeWithGemini(prompt, options = {}) {
                             msg.includes('not supported') || msg.includes('deprecated');
       const isQuotaExceeded = msg.includes('429') || msg.includes('quota') ||
                               msg.includes('Too Many Requests');
-      if (isUnavailable || isQuotaExceeded) {
-        const reason = isQuotaExceeded ? 'quota exceeded' : 'unavailable';
+      const isTransient = msg.includes('503') || msg.includes('Service Unavailable') ||
+                          msg.includes('parse stream');
+      if (isUnavailable || isQuotaExceeded || isTransient) {
+        const reason = isQuotaExceeded ? 'quota exceeded' : isTransient ? 'transient/parse error' : 'unavailable';
         if (!silent) process.stderr.write(`⚠️  Gemini model ${candidate} ${reason}, trying next...\n`);
         lastError = err;
         continue;
