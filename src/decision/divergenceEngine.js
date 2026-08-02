@@ -78,14 +78,14 @@ const RULES = [
     id: 'oi-up-basis-negative',
     description: 'OI naik tapi Basis Rate negatif (leverage naik di tengah backwardation → sinyal divergen berbahaya)',
     indicatorsInvolved: ['Open Interest BTC ($B)', 'Basis Rate (annualized %)'],
-    evaluate: (i) => {
-      const oi = i.derivatives('Open Interest BTC ($B)'), b = i.derivatives('Basis Rate (annualized %)');
-      if (!oi || !b || b.rawValue == null) return notEvaluable('OI atau Basis Rate tidak tersedia run ini');
-      // Approximation: OI's level-based signal (✅ = >$30B "ekspansi") stands in
-      // for a true WoW% "naik" — we don't have OI's rate-of-change, only level.
-      const r = evaluated(oi.signal === '✅' && b.rawValue < 0, true);
-      return r;
-    },
+    // Downgraded from "approximate" to not-evaluable after review: OI's
+    // level-based signal (✅ = >$30B absolute level) is not a reliable stand-in
+    // for "naik" (a rate-of-change concept) — OI can sit above $30B while
+    // actually declining (false positive) or rise from a low base while staying
+    // below $30B (false negative). Unlike the Exchange Reserve rules below,
+    // there's no absolute-level threshold anywhere in this project that's
+    // actually equivalent to the WoW change this rule asks for.
+    evaluate: () => notEvaluable('OI hanya punya sinyal level absolut ($30B threshold), bukan WoW% — tidak reliable sebagai proxy "naik"'),
   },
   {
     id: 'longshort-high-feargreed-low',
@@ -136,8 +136,12 @@ const RULES = [
     evaluate: (i) => {
       const mr = i.onchain('Miner Revenue ($M/day)'), hr = i.onchain('Hash Rate (EH/s, 7d avg)');
       if (!mr || !hr) return notEvaluable('Miner Revenue atau Hash Rate tidak tersedia run ini');
-      // "Stabil" approximated as Hash Rate's own neutral band (-1%..+1%, its ⚠️ signal).
-      return evaluated(mr.signal === '🔴' && hr.signal === '⚠️', true);
+      // Not actually an approximation on review: Miner Revenue's 🔴 signal is
+      // computed from exactly the -20% WoW threshold this rule asks for, and
+      // Hash Rate's ⚠️ (-1%..+1% WoW) is a faithful operationalization of
+      // "stabil" — both sides use real WoW% thresholds, not a level-based
+      // stand-in. Previously flagged `approximate: true` too cautiously.
+      return evaluated(mr.signal === '🔴' && hr.signal === '⚠️');
     },
   },
   {
@@ -197,9 +201,13 @@ const RULES = [
     evaluate: (i) => {
       const er = i.onchain('BTC Exchange Reserve (k BTC)'), mv = i.onchain('MVRV Ratio (true)');
       if (!er || !mv || mv.rawValue == null) return notEvaluable('Exchange Reserve atau MVRV tidak tersedia run ini');
-      // Reuses the fetcher's own reserve-change signal (✅/⚠️/🔴) as the -2%
-      // threshold proxy — not a new interpretation, the existing CoinMetrics
-      // wrapper's own classification.
+      // Reuses the fetcher's own reserve-change signal (✅ = decline/akumulasi,
+      // 🔴 = rise/distribusi, per formatter.js's own reference table: <-2% ✅,
+      // >+2% 🔴) as the -2% threshold proxy. Caveat, reviewed but not resolved:
+      // the exact numeric threshold the underlying CoinMetrics fetcher itself
+      // uses to set this signal was never independently verified against this
+      // specific -2%/+2% figure — only inferred from formatter.js's table, not
+      // read from the fetcher's own source. Kept as `approximate` for that reason.
       return evaluated(er.signal === '✅' && mv.rawValue > 3.5, true);
     },
   },
@@ -210,6 +218,9 @@ const RULES = [
     evaluate: (i) => {
       const er = i.onchain('BTC Exchange Reserve (k BTC)'), n = i.onchain('NUPL proxy');
       if (!er || !n || n.rawValue == null) return notEvaluable('Exchange Reserve atau NUPL proxy tidak tersedia run ini');
+      // Same caveat as reserve-down-sharp-mvrv-high above: -2%/+2% threshold
+      // inferred from formatter.js's table, not independently verified against
+      // the fetcher's own source.
       return evaluated(er.signal === '🔴' && n.rawValue < 0.25, true);
     },
   },
@@ -222,7 +233,13 @@ const RULES = [
       if (!etf || !er || etf.rawValue == null) return notEvaluable('ETF Flow proxy atau Exchange Reserve tidak tersedia run ini');
       // "Strong Outflow" threshold (score < -2) quoted from formatter.js's own
       // THRESHOLD REFERENSI table for ETF Flow proxy.
-      return evaluated(etf.rawValue < -2 && er.signal === '🔴', true);
+      // BUG FIX (found on review): this rule needs "Exchange Reserve juga
+      // turun" (declining) — same direction as reserve-down-sharp-mvrv-high
+      // above, which correctly uses ✅ for decline. This previously used 🔴,
+      // which reserve-up-sharp-nupl-low (a few rules up) uses for RISING —
+      // the same real-world condition (reserve declining) was being checked
+      // against opposite signal values in two different rules.
+      return evaluated(etf.rawValue < -2 && er.signal === '✅', true);
     },
   },
   {
