@@ -46,6 +46,9 @@ async function main() {
   console.log(`  failBackTo: ${decision.failBackTo ?? '(none)'}`);
   console.log(`  blockedByDivergence: ${decision.blockedByDivergence.join(', ') || '(none)'}`);
   console.log(`  geopoliticalFlag: ${decision.geopoliticalFlag.join(', ') || '(none)'}`);
+  console.log('  candidates (near-miss/other matches):');
+  if (!decision.candidates.length) console.log('    (none)');
+  for (const c of decision.candidates) console.log(`    ${c.stateId.padEnd(24)} strength=${c.matchStrength} (${c.satisfiedCount}/${c.availableCount})`);
 
   console.log('\n=== TIMELINE PROJECTION ===');
   const timeline = projectTimeline(decision);

@@ -69,6 +69,7 @@ const STATES = [
     // original 180-540d guess. Source: CryptoRank/CoinGecko Research bear-market
     // duration analysis.
     heuristicDurationDays: { min: 350, max: 420 },
+    allowOneMiss: true, // see evaluateState() — loosened from strict-AND on review
     expectedNext: ['Liquidity Stabilization'],
     checks: [
       { name: 'Fed Trifecta kontraksi', evaluate: (p) => p.macro?.liquidity?.overallStatus === 'DATA_UNAVAILABLE' ? null : p.macro.liquidity.overallStatus === 'KONTRAKSI' },
@@ -85,6 +86,7 @@ const STATES = [
     // average 7.8 months (~234d) in. Source: AInvest bear-market-bottom timing
     // analysis.
     heuristicDurationDays: { min: 60, max: 240 },
+    allowOneMiss: true,
     expectedNext: ['BTC Leadership'], failBackTo: 'Liquidity Contraction',
     checks: [
       { name: 'Fed Trifecta stop memburuk', evaluate: (p) => p.macro?.liquidity?.overallStatus === 'DATA_UNAVAILABLE' ? null : p.macro.liquidity.overallStatus !== 'KONTRAKSI' },
@@ -99,6 +101,7 @@ const STATES = [
     // sourced; this state's share of the externally-grounded 2-8 month
     // altseason total.
     heuristicDurationDays: { min: 14, max: 60 },
+    allowOneMiss: true,
     expectedNext: ['ETH Leadership', 'Large Cap Rotation', 'Distribution'],
     checks: [
       { name: 'BTC 24h naik', evaluate: (p, i) => { const px = i.crypto('BTC Price Change 24h (%)'); return px?.rawValue == null ? null : px.rawValue > 0; } },
@@ -174,6 +177,7 @@ const STATES = [
     // Paired with High Beta Rotation above against the "peak phase" 4-8 week
     // (28-56d) source — see that state's comment. Historically short-lived.
     heuristicDurationDays: { min: 7, max: 21 },
+    allowOneMiss: true,
     expectedNext: ['Distribution'], failBackTo: 'High Beta Rotation',
     checks: [
       { name: 'Google Trends ekstrem', evaluate: (p, i) => { const t = i.crypto('Google Trends "bitcoin"'); return t?.rawValue == null ? null : t.rawValue > 80; } },
@@ -189,6 +193,7 @@ const STATES = [
     // 90d to 120d to better cover "some months" rather than tightened, since
     // the source itself doesn't support more precision than that.
     heuristicDurationDays: { min: 14, max: 120 },
+    allowOneMiss: true,
     expectedNext: ['Liquidity Contraction'], // closes the cycle
     checks: [
       { name: 'Exchange Reserve distribusi', evaluate: (p, i) => { const er = i.onchain('BTC Exchange Reserve (k BTC)'); return er ? er.signal === '🔴' : null; } },
@@ -206,11 +211,25 @@ function evaluateState(state, providersOutput) {
 
   let matched;
   if (state.minSatisfiedOfFirstN) {
-    // e.g. Large Cap Rotation: "≥2 of the first 3 ratio checks", not strict AND
+    // e.g. Large Cap Rotation: "≥2 of the first 3 ratio checks", not strict AND —
+    // Step 5's own explicit language, kept as its own special case rather than
+    // forced to fit the general allowOneMiss rule below (2/3 = 66.7%, which a
+    // blind ratio formula shared with 4-check states would NOT reproduce
+    // consistently — reviewed and deliberately kept state-specific).
     const { n, min } = state.minSatisfiedOfFirstN;
     const firstN = results.slice(0, n).filter(r => r.result === true).length;
     const rest = results.slice(n).filter(r => r.result !== false); // remaining checks must not be false (true or unavailable OK)
     matched = firstN >= min && rest.every(r => r.result !== false);
+  } else if (state.allowOneMiss) {
+    // Loosened from strict-AND on review: with ≥3 available checks, tolerate
+    // exactly one disagreeing — "available - 1" required satisfied. Below 3
+    // available, this collapses back to strict-AND (a "majority" of 1-2 isn't
+    // meaningfully looser and would just be permissive for no good reason).
+    // This single rule deliberately produces 3-of-4 for the four states with 4
+    // checks AND 2-of-3 for Distribution's 3 checks — the same "allow one
+    // miss" principle, not two separately-tuned numbers.
+    const required = available.length >= 3 ? available.length - 1 : available.length;
+    matched = available.length > 0 && satisfied.length >= required;
   } else {
     matched = available.length > 0 && satisfied.length === available.length;
   }
@@ -224,6 +243,11 @@ function evaluateState(state, providersOutput) {
     unavailable: results.filter(r => r.result === null).map(r => r.name),
     details: results,
     confidenceCeiling: state.confidenceCeiling ?? null,
+    // Near-miss: didn't match, but had real evidence (≥2 available) and most of
+    // it agreed — useful for Decision Engine even when nothing fully matched,
+    // instead of "no-match" being a total dead end.
+    nearMiss: !matched && available.length >= 2 && (satisfied.length / available.length) >= 0.5,
+    matchStrength: available.length > 0 ? parseFloat((satisfied.length / available.length).toFixed(2)) : null,
   };
 }
 
@@ -263,12 +287,23 @@ export function determineState(providersOutput, divergenceResult, confidence, pr
     resolvedState = matches[0].stateId;
     resolution = 'matched';
   } else if (matches.length > 1) {
-    // Multiple states matched simultaneously — prefer whichever is
-    // `previousState`'s own expected-next state (cycle continuity), else the
-    // one with the most available (non-null) checks (most-informed match).
+    // Multiple states matched simultaneously — prefer, in order:
+    // 1. `previousState`'s own expected-next state (cycle continuity)
+    // 2. Highest match strength (satisfied/available ratio) — a clean 2/2
+    //    match is stronger evidence than a 2/3 match that only passed because
+    //    allowOneMiss tolerated one disagreement, REGARDLESS of which one had
+    //    more total checks available. Fixed on review: the previous version
+    //    sorted by availableCount alone, which live-tested into picking a
+    //    weaker (66.7%) match over a cleaner (100%) one just because it had
+    //    one more available check — available breadth was ranked above match
+    //    quality, backwards from what "which state are we more confidently in"
+    //    should mean.
+    // 3. Available count as a final tiebreak only when strength ties.
     const prevExpected = STATES.find(s => s.id === previousState)?.expectedNext ?? [];
     const preferred = matches.find(m => prevExpected.includes(m.stateId));
-    resolvedState = preferred?.stateId ?? matches.sort((a, b) => b.availableCount - a.availableCount)[0].stateId;
+    resolvedState = preferred?.stateId ?? matches.sort((a, b) =>
+      (b.matchStrength - a.matchStrength) || (b.availableCount - a.availableCount)
+    )[0].stateId;
     resolution = 'multiple-matched-disambiguated';
   } else {
     resolvedState = previousState ?? 'UNKNOWN';
@@ -293,6 +328,18 @@ export function determineState(providersOutput, divergenceResult, confidence, pr
   }
   if (blocked || severity5.length > 0) stateConfidence = rank[stateConfidence] > rank['sedang'] ? 'sedang' : stateConfidence;
 
+  // Candidates: every near-miss state, ranked by match strength — surfaced
+  // regardless of resolution outcome, so a "no-match-insufficient-data" result
+  // isn't a dead end for Step 8 Phase 3 / Step 9's consumers. Added on review:
+  // loosening the match threshold alone doesn't help when a state's checks are
+  // mostly UNAVAILABLE (not false) — this gives visibility into "closest
+  // candidates" even when literally nothing has enough available evidence to
+  // match under any threshold.
+  const candidates = evaluations
+    .filter(e => e.stateId !== resolvedState && (e.matched || e.nearMiss))
+    .sort((a, b) => (b.matchStrength ?? 0) - (a.matchStrength ?? 0))
+    .map(e => ({ stateId: e.stateId, matchStrength: e.matchStrength, satisfiedCount: e.satisfiedCount, availableCount: e.availableCount }));
+
   return {
     state: resolvedState,
     legacyPhase: stateDef?.legacyPhase ?? null,
@@ -303,6 +350,7 @@ export function determineState(providersOutput, divergenceResult, confidence, pr
     failBackTo: stateDef?.failBackTo ?? null,
     evaluation, // the matched state's own check breakdown (satisfied/available/unavailable)
     allEvaluations: evaluations, // every state's check breakdown, for explainability
+    candidates, // other states that matched or came close, ranked — never empty just because resolvedState is UNKNOWN
     blockedByDivergence: blocked ? highSeverityFired.map(d => d.id) : [],
     // Renamed from `geopoliticalOverride` on review: this no longer changes
     // `state` (see fix above), it only flags manual-review + caps confidence —
