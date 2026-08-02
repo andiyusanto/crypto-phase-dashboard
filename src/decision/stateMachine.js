@@ -74,7 +74,12 @@ const STATES = [
     checks: [
       { name: 'Fed Trifecta kontraksi', evaluate: (p) => p.macro?.liquidity?.overallStatus === 'DATA_UNAVAILABLE' ? null : p.macro.liquidity.overallStatus === 'KONTRAKSI' },
       { name: 'VIX panic', evaluate: (p, i) => { const v = i.macro('VIX'); return v ? v.signal === '🔴' : null; } },
-      { name: 'BTC 24h turun', evaluate: (p, i) => { const px = i.crypto('BTC Price Change 24h (%)'); return px?.rawValue == null ? null : px.rawValue < 0; } },
+      // Replaced "BTC 24h turun" on Step 8 Phase 2 review point 3: a 1-day
+      // snapshot was structurally mismatched for a state spanning up to ~420
+      // days. BTC vs 200d MA is a genuine multi-month trend signal, not a
+      // single point — a sustained bear market means price is well below its
+      // own 200-day average, not just "red today".
+      { name: 'BTC jauh di bawah 200d MA', evaluate: (p, i) => { const ma = i.onchain('BTC vs 200d MA (%)'); return ma?.rawValue == null ? null : ma.rawValue < -20; } },
       { name: 'Fear & Greed ekstrem takut', evaluate: (p, i) => { const g = i.crypto('Fear & Greed Index'); return g?.rawValue == null ? null : g.rawValue < 25; } },
     ],
   },
@@ -92,7 +97,13 @@ const STATES = [
       { name: 'Fed Trifecta stop memburuk', evaluate: (p) => p.macro?.liquidity?.overallStatus === 'DATA_UNAVAILABLE' ? null : p.macro.liquidity.overallStatus !== 'KONTRAKSI' },
       { name: 'MVRV di zona rendah', evaluate: (p, i) => { const mv = i.onchain('MVRV Ratio (true)'); return mv?.rawValue == null ? null : mv.rawValue < 1.5; } },
       { name: 'Exchange Reserve akumulasi', evaluate: (p, i) => { const er = i.onchain('BTC Exchange Reserve (k BTC)'); return er ? er.signal === '✅' : null; } },
-      { name: 'BTC 24h higher-low (proxy)', evaluate: (p, i) => { const px = i.crypto('BTC Price Change 24h (%)'); return px?.rawValue == null ? null : px.rawValue >= 0; } },
+      // Replaced "BTC 24h higher-low (proxy)" on Step 8 Phase 2 review point 3
+      // — "higher low" is inherently a multi-point pattern (needs ≥2 troughs to
+      // compare), structurally impossible to detect from one snapshot, not just
+      // a weak proxy for it. BTC vs 200d MA "recovering but still negative"
+      // (-30% to 0%) is an honest fit for "stabilizing" instead: no longer in
+      // freefall, not yet a confirmed uptrend either.
+      { name: 'BTC vs 200d MA membaik (belum uptrend)', evaluate: (p, i) => { const ma = i.onchain('BTC vs 200d MA (%)'); return ma?.rawValue == null ? null : (ma.rawValue >= -30 && ma.rawValue < 0); } },
     ],
   },
   {
@@ -104,7 +115,9 @@ const STATES = [
     allowOneMiss: true,
     expectedNext: ['ETH Leadership', 'Large Cap Rotation', 'Distribution'],
     checks: [
-      { name: 'BTC 24h naik', evaluate: (p, i) => { const px = i.crypto('BTC Price Change 24h (%)'); return px?.rawValue == null ? null : px.rawValue > 0; } },
+      // Replaced "BTC 24h naik" on Step 8 Phase 2 review point 3 — WoW% is a
+      // better timescale match for a 14-60 day state than a single-day snapshot.
+      { name: 'BTC naik WoW', evaluate: (p, i) => { const px = i.crypto('BTC Price WoW (%)'); return px?.rawValue == null ? null : px.rawValue > 0; } },
       { name: 'BTC Dominance naik WoW', evaluate: (p, i) => { const d = i.crypto('BTC Dominance WoW (pts)'); return d?.rawValue == null ? null : d.rawValue > 0; } },
       { name: 'Fed ekspansi', evaluate: (p) => p.macro?.liquidity?.overallStatus === 'DATA_UNAVAILABLE' ? null : p.macro.liquidity.overallStatus === 'EKSPANSI' },
       { name: 'MVRV menuju fair value', evaluate: (p, i) => { const mv = i.onchain('MVRV Ratio (true)'); return mv?.rawValue == null ? null : (mv.rawValue >= 1.0 && mv.rawValue <= 2.0); } },

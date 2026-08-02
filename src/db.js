@@ -109,6 +109,12 @@ migrate('ALTER TABLE fed_liquidity  ADD COLUMN snapshot_date TEXT');
 migrate('ALTER TABLE weekly_data    ADD COLUMN fetch_date TEXT');
 migrate('ALTER TABLE monthly_data   ADD COLUMN period TEXT');
 migrate('ALTER TABLE daily_snapshot ADD COLUMN btc_dominance REAL');
+// Step 8 Phase 2 review, point 3: BTC price itself was never persisted here,
+// so the state machine had no way to compute a genuine WoW% price change —
+// every "trend" check leaned on a single 24h snapshot regardless of how long
+// the state it was checking actually spans (up to ~420 days for Liquidity
+// Contraction). Same pattern as total2_trillion/btc_dominance above.
+migrate('ALTER TABLE daily_snapshot ADD COLUMN btc_price REAL');
 
 // ── UNIQUE INDEXES ────────────────────────────────────────────────────────────
 migrate('CREATE UNIQUE INDEX IF NOT EXISTS idx_pmi_released_month   ON pmi_data(released_month)   WHERE released_month IS NOT NULL');
@@ -327,18 +333,22 @@ export const getLatestOilPrice = () => {
 // ── DAILY SNAPSHOT (CMC metrics for WoW delta) ───────────────────────────────
 
 export const saveDailySnapshot = (daily) => {
-  const cmc    = daily?.cmc;
-  const total2 = cmc?.total2 ?? null;
-  const total3 = cmc?.total3 ?? null;
-  const stable = daily?.crypto?.stablecoinSupply?.total ?? null;
-  const btcDom = daily?.crypto?.btcDominance ?? null;
-  if (total2 == null && total3 == null && stable == null && btcDom == null) return;
+  const cmc     = daily?.cmc;
+  const total2  = cmc?.total2 ?? null;
+  const total3  = cmc?.total3 ?? null;
+  const stable  = daily?.crypto?.stablecoinSupply?.total ?? null;
+  const btcDom  = daily?.crypto?.btcDominance ?? null;
+  // Added Step 8 Phase 2 review point 3: state machine had no genuine BTC
+  // price WoW% — every trend check leaned on a single 24h snapshot regardless
+  // of state duration (up to ~420 days for Liquidity Contraction).
+  const btcPrice = daily?.crypto?.btc?.price ?? null;
+  if (total2 == null && total3 == null && stable == null && btcDom == null && btcPrice == null) return;
 
   const date = new Date().toISOString().slice(0, 10);
   db.prepare(`
-    INSERT OR REPLACE INTO daily_snapshot (snapshot_date, total2_trillion, total3_billion, stablecoin_billion, btc_dominance)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(date, total2, total3, stable, btcDom);
+    INSERT OR REPLACE INTO daily_snapshot (snapshot_date, total2_trillion, total3_billion, stablecoin_billion, btc_dominance, btc_price)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(date, total2, total3, stable, btcDom, btcPrice);
 };
 
 // Returns snapshot from ~7 days ago (closest row between 6–8 days back)

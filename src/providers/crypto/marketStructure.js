@@ -61,6 +61,18 @@ export async function fetchCryptoMarketStructureIndicators(config = {}, cryptoRa
     ? parseFloat((btcDomRaw - btcDomPrevWeek).toFixed(2))
     : null;
 
+  // Step 8 Phase 2 review point 3: BTC price itself had no WoW% — every
+  // state-machine trend check leaned on a 24h snapshot regardless of how long
+  // the state being checked actually spans. Same prevWeek/db.js pattern as
+  // TOTAL2 WoW and BTC Dominance WoW above; requires db.js's saveDailySnapshot
+  // (called from the live production pipeline, not this provider layer) to
+  // have started persisting `btc_price` — see that function's own comment.
+  const btcPriceRaw = cryptoRaw?.btc?.price ?? null;
+  const btcPricePrevWeek = prevWeek?.btc_price ?? null;
+  const btcPriceWoWPct = (btcPriceRaw != null && btcPricePrevWeek != null && btcPricePrevWeek > 0)
+    ? parseFloat(((btcPriceRaw - btcPricePrevWeek) / btcPricePrevWeek * 100).toFixed(2))
+    : null;
+
   const indicators = [
     makeIndicator({
       name: 'TOTAL2', category: 'crypto',
@@ -162,6 +174,19 @@ export async function fetchCryptoMarketStructureIndicators(config = {}, cryptoRa
         provider: 'derived (current vs 7d-ago daily_snapshot)',
         skipped: btcDomWoWDelta == null,
         skipReason: btcDomWoWDelta == null ? 'no 7d-ago snapshot available yet, or BTC Dominance unavailable this run' : null,
+      }),
+    }),
+    makeIndicator({
+      // No established bullish/bearish band in formatter.js for a bare price
+      // WoW% — exists for the State Machine's trend checks (Step 8 Phase 2
+      // review point 3), a proper multi-day figure instead of a 24h snapshot.
+      name: 'BTC Price WoW (%)', category: 'crypto',
+      measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
+      rawValue: btcPriceWoWPct, signal: null, bounds: null,
+      source: makeDataSource({
+        provider: 'derived (current vs 7d-ago daily_snapshot)',
+        skipped: btcPriceWoWPct == null,
+        skipReason: btcPriceWoWPct == null ? 'no 7d-ago snapshot available yet, or BTC price unavailable this run' : null,
       }),
     }),
   ];
