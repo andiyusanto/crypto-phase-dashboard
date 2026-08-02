@@ -196,7 +196,13 @@ const STATES = [
       { name: 'Google Trends ekstrem', evaluate: (p, i) => { const t = i.crypto('Google Trends "bitcoin"'); return t?.rawValue == null ? null : t.rawValue > 80; } },
       { name: 'Fear & Greed ekstrem greed', evaluate: (p, i) => { const g = i.crypto('Fear & Greed Index'); return g?.rawValue == null ? null : g.rawValue > 75; } },
       { name: 'Funding Streak ≥7 hari', evaluate: (p, i) => { const s = i.derivatives('Funding Rate Streak (days > 0.05%)'); return s?.rawValue == null ? null : s.rawValue >= 7; } },
-      { name: 'Perp Sentiment ekstrem', evaluate: (p, i) => { const ps = i.derivatives('Perp Sentiment Proxy'); return ps?.rawValue == null ? null : Math.abs(ps.rawValue) > 20; } },
+      // BUG FIX (found on review, verified against CLAUDE.md's exact table
+      // text): -10 to -30 is documented as "Phase 3 late (leveraged longs
+      // accumulate)" — euphoria/mania, matching this state. +10 to +30 is
+      // documented as "Phase 4 capitulation" — FEAR, the opposite of mania.
+      // Math.abs() treated both directions as equally "ekstrem mania", which
+      // would have fired this check on capitulation readings too.
+      { name: 'Perp Sentiment ekstrem (leveraged longs)', evaluate: (p, i) => { const ps = i.derivatives('Perp Sentiment Proxy'); return ps?.rawValue == null ? null : ps.rawValue < -20; } },
     ],
   },
   {
