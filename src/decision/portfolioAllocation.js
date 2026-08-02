@@ -33,11 +33,21 @@ export const ASSET_CATALOG = [
   },
 ];
 
-function bandToUSD(bandPct, portfolioSize) {
-  if (!bandPct || portfolioSize == null) return null;
+// Returns { usd, unavailableReason } instead of a bare null — `usd: null` has
+// two structurally different causes (bandPct itself not defined for this
+// phase, e.g. Fase 4's high-risk band; vs portfolioSize simply not supplied
+// yet) that a consumer reading only the number could never tell apart.
+// unavailableReason makes the cause explicit, same discipline as DataSource's
+// skipped/skipReason pair used everywhere else in this codebase.
+function bandToUSD(bandPct, portfolioSize, label) {
+  if (!bandPct) return { usd: null, unavailableReason: `${label} tidak didefinisikan untuk fase ini (bukan portfolioSize yang hilang)` };
+  if (portfolioSize == null) return { usd: null, unavailableReason: 'portfolioSize belum diset' };
   return {
-    min: parseFloat((portfolioSize * bandPct.min / 100).toFixed(2)),
-    max: parseFloat((portfolioSize * bandPct.max / 100).toFixed(2)),
+    usd: {
+      min: parseFloat((portfolioSize * bandPct.min / 100).toFixed(2)),
+      max: parseFloat((portfolioSize * bandPct.max / 100).toFixed(2)),
+    },
+    unavailableReason: null,
   };
 }
 
@@ -53,13 +63,30 @@ export function computeAllocation(riskAssessment, portfolioSize = null) {
     reasons.push(`portfolioSize ($${portfolioSize}) di bawah MIN_POSITION_USD ($${MIN_POSITION_USD}) — bahkan 1 posisi pun tidak feasible`);
   }
 
+  const core = bandToUSD(riskAssessment.coreBandPct, portfolioSize, 'coreBand');
+  const highRisk = bandToUSD(riskAssessment.highRiskBandPct, portfolioSize, 'highRiskBand');
+
+  // Point 2 fix: portfolioSize >= MIN_POSITION_USD only proves a SINGLE $50
+  // position fits somewhere in the total — it says nothing about whether a
+  // given band's own edge clears $50. E.g. portfolioSize=$150 at Fase 3
+  // (Core >=30%) gives coreBandUSD.min=$45, below MIN_POSITION_USD, with
+  // portfolioSize ($150) comfortably above it — the old check never looked at
+  // the band edges themselves, only the total.
+  for (const [label, band] of [['coreBand', core], ['highRiskBand', highRisk]]) {
+    if (band.usd != null && band.usd.min > 0 && band.usd.min < MIN_POSITION_USD) {
+      reasons.push(`${label} minimum ($${band.usd.min}) di bawah minPositionUSD ($${MIN_POSITION_USD}) — band ini secara matematis tidak feasible dengan constraint minimal per posisi`);
+    }
+  }
+
   return {
     riskProfile: riskAssessment.riskProfile,
     portfolioSize,
     coreBandPct: riskAssessment.coreBandPct,
-    coreBandUSD: bandToUSD(riskAssessment.coreBandPct, portfolioSize),
+    coreBandUSD: core.usd,
+    coreBandUnavailableReason: core.unavailableReason,
     highRiskBandPct: riskAssessment.highRiskBandPct,
-    highRiskBandUSD: bandToUSD(riskAssessment.highRiskBandPct, portfolioSize),
+    highRiskBandUSD: highRisk.usd,
+    highRiskBandUnavailableReason: highRisk.unavailableReason,
     maxActivePositions: MAX_ACTIVE_POSITIONS,
     minPositionUSD: MIN_POSITION_USD,
     assetCatalog: ASSET_CATALOG,

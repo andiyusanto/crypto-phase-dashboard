@@ -34,7 +34,23 @@ export function buildMarketStateRecord(decision, confidence, divergenceResult, p
     liquidityTrifectaScore: providersOutput.macro.liquidity.trifectaScore,
     liquidityStatus: providersOutput.macro.liquidity.overallStatus,
     macroStressLabel: providersOutput.macro.liquidity.macroStressLabel,
-    activeDivergences: divergenceResult.fired.map(d => ({ id: d.id, severity: d.severity })),
+    // Review point 3 fix: previously stripped to {id, severity} only, and
+    // dropped divergenceResult.evaluated/notEvaluable entirely. That made "0
+    // divergence fired" ambiguous in hindsight — could mean the market was
+    // genuinely calm, OR that most of the 23 rules were notEvaluable this run
+    // (data gaps) and never got a chance to fire. description/indicatorsInvolved
+    // kept too — a bare rule id is meaningless months later without re-reading
+    // divergenceEngine.js's source to know what it checked. No schema migration
+    // needed: active_divergences is already JSONB, this just uses more of it.
+    activeDivergences: {
+      total: divergenceResult.total,
+      evaluated: divergenceResult.evaluated,
+      notEvaluable: divergenceResult.notEvaluable,
+      fired: divergenceResult.fired.map(d => ({
+        id: d.id, description: d.description, severity: d.severity,
+        approximate: d.approximate, indicatorsInvolved: d.indicatorsInvolved,
+      })),
+    },
     isManualReview: decision.isManualReview,
     computedAt: new Date().toISOString(),
   };
