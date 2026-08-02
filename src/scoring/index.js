@@ -30,7 +30,10 @@ import { classifySignal } from './signalClassifier.js';
 
 // Fed Liquidity Trifecta + Macro Stress indicators — matches fedliquidity.js's own
 // grouping. Everything else emitted by the Macro provider is general Macro.
-const LIQUIDITY_INDICATOR_NAMES = new Set([
+// Exported so src/decision/confidenceScore.js can reuse the exact same set
+// instead of redeclaring it — two independently-maintained copies of this list
+// is exactly the class of drift this project's audit history keeps finding.
+export const LIQUIDITY_INDICATOR_NAMES = new Set([
   'Fed Balance Sheet (WALCL)', 'Reverse Repo (RRP)', 'Reserve Balances (WRESBAL)',
   'Treasury General Account (TGA)', 'HY Credit Spread', 'Yield Curve (10Y-2Y)', 'VIX',
 ]);

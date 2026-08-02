@@ -51,9 +51,11 @@ async function main() {
   console.log(`\n=== CONFIDENCE SCORE: ${confidence.level.toUpperCase()} ===`);
   console.log('  reasons:');
   confidence.reasons.forEach(r => console.log(`    - ${r}`));
-  console.log('  coverage by category:');
+  console.log(`  layer0: ${confidence.layer0.trifectaScore ?? '—'} (ratio=${confidence.layer0.ratio ?? 'n/a'}, high=${confidence.layer0.high}, weak=${confidence.layer0.weak})`);
+  console.log(`  layer1-3 agreement: ${confidence.layer1to3Agreement.ratio != null ? (confidence.layer1to3Agreement.ratio * 100).toFixed(0) + '%' : 'n/a'} (sample=${confidence.layer1to3Agreement.sampleSize})`);
+  console.log('  coverage by category (thin flagged with *):');
   confidence.coverageByCategory.forEach(c =>
-    console.log(`    ${c.category.padEnd(20)} ${c.scored}/${c.total}${c.ratio != null ? ` (${(c.ratio * 100).toFixed(0)}%)` : ' (no data)'}`)
+    console.log(`    ${c.thin ? '*' : ' '} ${c.category.padEnd(20)} ${c.scored}/${c.total}${c.ratio != null ? ` (${(c.ratio * 100).toFixed(0)}%)` : ' (no data)'}`)
   );
   console.log(`  divergences: ${confidence.divergencesFired} fired (${confidence.divergencesHighSeverity} high severity), ${confidence.divergencesNotEvaluable} not evaluable`);
 
