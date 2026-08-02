@@ -45,10 +45,30 @@ function idx(providersOutput) {
 
 // Each check returns true/false, or `null` if the data it needs isn't available
 // this run — never guessed.
+//
+// heuristicDurationDays PROVENANCE — revised after live web research (previously
+// unsourced numbers from general memory, the weakest-grounded figures in this
+// whole file at the time). Two tiers of confidence, both weaker than this
+// project's own internal precedents (Confidence Score's 1/3, 2/3, 70%) but no
+// longer bare guesses either:
+// 1. Liquidity Contraction & Liquidity Stabilization map onto well-studied,
+//    named public phenomena (bear markets, accumulation phases) with clustered
+//    historical data across 3 independent cycles — cited per-state below.
+// 2. The 7-state "expansion cluster" (BTC Leadership through Retail Mania) has
+//    NO external source, because nobody else divides a bull run into this
+//    project's specific 7 sub-rotations — only the SUM of this cluster maps to
+//    a publicly documented concept ("altseason", 2-8 months, avg 4-5,
+//    peak/explosive phase 4-8 weeks). The individual per-state split within
+//    that total remains this project's own proportional judgment, honestly
+//    still unverified state-by-state — only the aggregate is grounded.
 const STATES = [
   {
     id: 'Liquidity Contraction', legacyPhase: 0,
-    heuristicDurationDays: { min: 180, max: 540 }, // ~6-18 months, public BTC cycle knowledge (2018, 2022), unvalidated against this project's own data
+    // 3 independent historical bear markets (2014-15, 2018-19, 2022-23) cluster
+    // tightly at 363-410 days, avg 383 — narrower AND better-grounded than the
+    // original 180-540d guess. Source: CryptoRank/CoinGecko Research bear-market
+    // duration analysis.
+    heuristicDurationDays: { min: 350, max: 420 },
     expectedNext: ['Liquidity Stabilization'],
     checks: [
       { name: 'Fed Trifecta kontraksi', evaluate: (p) => p.macro?.liquidity?.overallStatus === 'DATA_UNAVAILABLE' ? null : p.macro.liquidity.overallStatus === 'KONTRAKSI' },
@@ -59,7 +79,12 @@ const STATES = [
   },
   {
     id: 'Liquidity Stabilization', legacyPhase: 1,
-    heuristicDurationDays: { min: 60, max: 180 }, // ~2-6 months
+    // Widened from the original 60-180d: documented accumulation phases run
+    // 12-18 months post-bottom, with the "acceleration phase" (~this state's
+    // exit point, when BTC starts sustained outperformance) beginning on
+    // average 7.8 months (~234d) in. Source: AInvest bear-market-bottom timing
+    // analysis.
+    heuristicDurationDays: { min: 60, max: 240 },
     expectedNext: ['BTC Leadership'], failBackTo: 'Liquidity Contraction',
     checks: [
       { name: 'Fed Trifecta stop memburuk', evaluate: (p) => p.macro?.liquidity?.overallStatus === 'DATA_UNAVAILABLE' ? null : p.macro.liquidity.overallStatus !== 'KONTRAKSI' },
@@ -70,7 +95,10 @@ const STATES = [
   },
   {
     id: 'BTC Leadership', legacyPhase: 2,
-    heuristicDurationDays: { min: 14, max: 90 },
+    // Part of the "expansion cluster" — see file header. Not independently
+    // sourced; this state's share of the externally-grounded 2-8 month
+    // altseason total.
+    heuristicDurationDays: { min: 14, max: 60 },
     expectedNext: ['ETH Leadership', 'Large Cap Rotation', 'Distribution'],
     checks: [
       { name: 'BTC 24h naik', evaluate: (p, i) => { const px = i.crypto('BTC Price Change 24h (%)'); return px?.rawValue == null ? null : px.rawValue > 0; } },
@@ -81,6 +109,7 @@ const STATES = [
   },
   {
     id: 'ETH Leadership', legacyPhase: 2,
+    // Expansion cluster — see file header (BTC Leadership comment).
     heuristicDurationDays: { min: 7, max: 30 },
     expectedNext: ['Large Cap Rotation', 'Distribution'],
     checks: [
@@ -94,7 +123,8 @@ const STATES = [
   },
   {
     id: 'Large Cap Rotation', legacyPhase: 2,
-    heuristicDurationDays: { min: 3, max: 21 },
+    // Expansion cluster — see file header.
+    heuristicDurationDays: { min: 5, max: 30 },
     expectedNext: ['Infrastructure Rotation', 'Distribution'],
     checks: [
       { name: 'SOL/BTC naik', evaluate: (p, i) => { const r = i.crypto('SOL/BTC ratio'); return r ? r.signal === 'naik' : null; } },
@@ -106,7 +136,8 @@ const STATES = [
   },
   {
     id: 'Infrastructure Rotation', legacyPhase: 2,
-    heuristicDurationDays: { min: 1, max: 14 },
+    // Expansion cluster — see file header.
+    heuristicDurationDays: { min: 3, max: 21 },
     expectedNext: ['DeFi Rotation', 'High Beta Rotation', 'Distribution'],
     confidenceCeiling: 'sedang', // Step 5's own finding: weakest instrumentation of all 10 states — no per-asset L2 fetcher exists
     checks: [
@@ -116,7 +147,8 @@ const STATES = [
   },
   {
     id: 'DeFi Rotation', legacyPhase: 3,
-    heuristicDurationDays: { min: 1, max: 14 },
+    // Expansion cluster — see file header.
+    heuristicDurationDays: { min: 3, max: 21 },
     expectedNext: ['High Beta Rotation', 'Distribution'],
     confidenceCeiling: 'sedang', // same instrumentation gap as Infrastructure Rotation
     checks: [
@@ -125,7 +157,12 @@ const STATES = [
   },
   {
     id: 'High Beta Rotation', legacyPhase: 3,
-    heuristicDurationDays: { min: 3, max: 21 },
+    // Together with Retail Mania below, this pair maps to altseason's
+    // documented "peak phase" (mid/small-cap explosive returns) — sourced at
+    // 4-8 weeks (28-56d) total. Split across the two states, upper bounds
+    // widened from the original 3-21d to reach that combined range. Source:
+    // Lambda Finance BTC dominance / altseason regime history.
+    heuristicDurationDays: { min: 7, max: 35 },
     expectedNext: ['Retail Mania', 'Distribution'],
     checks: [
       { name: 'Funding Streak ≥3 hari', evaluate: (p, i) => { const s = i.derivatives('Funding Rate Streak (days > 0.05%)'); return s?.rawValue == null ? null : s.rawValue >= 3; } },
@@ -134,7 +171,9 @@ const STATES = [
   },
   {
     id: 'Retail Mania', legacyPhase: 3,
-    heuristicDurationDays: { min: 3, max: 14 }, // historically short-lived
+    // Paired with High Beta Rotation above against the "peak phase" 4-8 week
+    // (28-56d) source — see that state's comment. Historically short-lived.
+    heuristicDurationDays: { min: 7, max: 21 },
     expectedNext: ['Distribution'], failBackTo: 'High Beta Rotation',
     checks: [
       { name: 'Google Trends ekstrem', evaluate: (p, i) => { const t = i.crypto('Google Trends "bitcoin"'); return t?.rawValue == null ? null : t.rawValue > 80; } },
@@ -145,7 +184,11 @@ const STATES = [
   },
   {
     id: 'Distribution', legacyPhase: 4,
-    heuristicDurationDays: { min: 14, max: 90 }, // more gradual than mania peak, per Step 5
+    // Source material only loosely bounds this ("a few weeks to some months"),
+    // no tight clustering like the bear-market data — widened upper bound from
+    // 90d to 120d to better cover "some months" rather than tightened, since
+    // the source itself doesn't support more precision than that.
+    heuristicDurationDays: { min: 14, max: 120 },
     expectedNext: ['Liquidity Contraction'], // closes the cycle
     checks: [
       { name: 'Exchange Reserve distribusi', evaluate: (p, i) => { const er = i.onchain('BTC Exchange Reserve (k BTC)'); return er ? er.signal === '🔴' : null; } },
