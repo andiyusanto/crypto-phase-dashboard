@@ -306,7 +306,7 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
       const mktB  = cm?.mktCapBillion;
       const txUsdB = (tv.avg7dBtc && btcPx) ? parseFloat((tv.avg7dBtc * btcPx / 1e9).toFixed(1)) : null;
       const nvt   = (mktB && txUsdB) ? parseFloat((mktB / txUsdB).toFixed(1)) : null;
-      lines.push(`**NVT**: ${nvt ?? '—'} · TxVol: ${tv.avg7dBtc.toLocaleString()} BTC/day ${nvt != null ? (nvt < 35 ? '✅ undervalued' : nvt < 65 ? '⚠️ fair' : '🔴 stretched') : ''}`);
+      lines.push(`**NVT**: ${nvt ?? '—'} · TxVol: ${tv.avg7dBtc.toLocaleString()} BTC/day ${nvt != null ? (nvt < 50 ? '✅ undervalued' : nvt < 150 ? '⚠️ fair' : nvt < 300 ? '🔴 elevated' : '🔴 sangat tinggi') : ''}`);
     }
     if (daily?.outputVolume?.avg7dBtc != null) {
       const ov = daily.outputVolume;
@@ -328,7 +328,7 @@ export function buildDataSummaryEmbed(daily, weekly, monthly, fed) {
     const ba4d = daily?.btcBasis?.annualizedPct ?? null;
     const fu4d = daily?.funding?.btc ?? null;
     if (ba4d != null && fu4d != null) {
-      const sk4d = ba4d < 0 ? '🔴 backwardation' : ba4d < 5 && fu4d > 0.05 ? '🔴 diverge Phase 4' : ba4d < 10 && fu4d > 0.03 ? '⚠️ hedging mulai' : '✅ normal';
+      const sk4d = ba4d < 0 ? '🔴 backwardation' : ba4d < 5 && fu4d > 0.05 ? '🔴 diverge Phase 4' : ba4d < 10 && fu4d > 0.03 ? '⚠️ hedging mulai' : ba4d > 15 && fu4d > 0.05 ? '⚠️ Phase 3 late' : '✅ normal';
       lines.push(`**Skew proxy**: basis ${ba4d}% ann · funding ${fu4d}% · ${sk4d}`);
     }
     const sn4d = daily?.crypto?.stablecoinSupply?.total ?? null;

@@ -1117,7 +1117,7 @@ export function formatDataSummary(daily, weekly, monthly, fed) {
     const ba4 = daily?.btcBasis?.annualizedPct ?? null;
     const fu4 = daily?.funding?.btc ?? null;
     const sk4 = ba4 != null && fu4 != null
-      ? (ba4 < 0 ? '🔴 backwardation' : ba4 < 5 && fu4 > 0.05 ? '🔴 diverge Phase 4' : ba4 < 10 && fu4 > 0.03 ? '⚠️ hedging mulai' : '✅ normal')
+      ? (ba4 < 0 ? '🔴 backwardation' : ba4 < 5 && fu4 > 0.05 ? '🔴 diverge Phase 4' : ba4 < 10 && fu4 > 0.03 ? '⚠️ hedging mulai' : ba4 > 15 && fu4 > 0.05 ? '⚠️ Phase 3 late' : '✅ normal')
       : '—';
     lines.push(`  Skew4  : basis ${ba4 != null ? ba4 + '% ann' : '—'} | funding ${fu4 ?? '—'}% | ${sk4}`);
     const sn4  = daily?.crypto?.stablecoinSupply?.total ?? null;
