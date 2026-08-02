@@ -19,11 +19,16 @@ export async function fetchWeeklyMacroIndicators(config = {}) {
     fetchMSCIEM(config.twelveDataKey),
   ]);
 
+  // Threshold quoted from formatter.js's THRESHOLD REFERENSI table (>4.5%
+  // bearish, 4.0-4.5% netral, <4.0% bullish) — not invented here, just wired in.
+  const yield10ySignal = yield10y?.value == null ? null
+    : yield10y.value > 4.5 ? '🔴' : yield10y.value < 4.0 ? '✅' : '⚠️';
+
   const indicators = [
     makeIndicator({
       name: 'US 10Y Yield', category: 'macro',
       measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
-      rawValue: yield10y?.value ?? null, signal: null,
+      rawValue: yield10y?.value ?? null, signal: yield10ySignal,
       bounds: { min: 0.5, max: 7, hint: 'cek unit (raw vs %)' },
       source: dataSourceFromLegacy('FRED', yield10y),
     }),
@@ -36,9 +41,12 @@ export async function fetchWeeklyMacroIndicators(config = {}) {
       source: dataSourceFromLegacy('FRED', nfci),
     }),
     makeIndicator({
+      // Threshold quoted from formatter.js's THRESHOLD REFERENSI table
+      // (>$100 bearish, $80-100 netral, <$80 bullish).
       name: 'Oil Brent (weekly)', category: 'macro',
       measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
-      rawValue: oil?.price ?? null, signal: null,
+      rawValue: oil?.price ?? null,
+      signal: oil?.price == null ? null : oil.price > 100 ? '🔴' : oil.price < 80 ? '✅' : '⚠️',
       bounds: { min: 30, max: 200, hint: 'cek source' },
       source: dataSourceFromLegacy('OilPriceAPI', oil),
     }),

@@ -22,11 +22,17 @@ export async function fetchDailyMacroIndicators(config = {}) {
     fetchGold(config.twelveDataKey),
   ]);
 
+  // Threshold quoted directly from formatter.js's existing THRESHOLD REFERENSI
+  // table (>104 bearish, 100-104 netral, <100 bullish) — not invented fresh here,
+  // just finally wired into a computed signal (Step 6 left this null).
+  const dxySignal = dxy?.value == null ? null
+    : dxy.value > 104 ? '🔴' : dxy.value < 100 ? '✅' : '⚠️';
+
   const indicators = [
     makeIndicator({
       name: 'DXY', category: 'macro',
       measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
-      rawValue: dxy?.value ?? null, signal: null,
+      rawValue: dxy?.value ?? null, signal: dxySignal,
       bounds: { min: 70, max: 120, hint: 'cek field (level vs %change) — sudah pernah salah source berbulan-bulan di project ini' },
       source: dataSourceFromLegacy('Yahoo/AlphaVantage', dxy),
     }),

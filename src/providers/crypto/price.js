@@ -48,9 +48,12 @@ export async function fetchCryptoPriceIndicators(config = {}) {
       source: src,
     }),
     makeIndicator({
+      // Threshold quoted from formatter.js's THRESHOLD REFERENSI table
+      // (<25 bearish, 25-60 netral, >60 bullish).
       name: 'Fear & Greed Index', category: 'crypto',
       measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH, // established external index, not self-invented
-      rawValue: fearGreed?.value ?? null, signal: null,
+      rawValue: fearGreed?.value ?? null,
+      signal: fearGreed?.value == null ? null : fearGreed.value < 25 ? '🔴' : fearGreed.value > 60 ? '✅' : '⚠️',
       bounds: { min: 0, max: 100, hint: 'out-of-bound = bug' },
       source: dataSourceFromLegacy('alternative.me', fearGreed),
     }),

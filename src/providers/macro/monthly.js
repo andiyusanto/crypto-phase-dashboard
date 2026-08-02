@@ -48,7 +48,11 @@ export async function fetchMonthlyMacroIndicators(fredApiKey) {
       // externally published composite — Step 4B's nuance, not a pure DIRECT metric.
       name: 'Global M2 YoY', category: 'macro',
       measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
-      rawValue: m2?.globalYoY ?? m2?.usYoY ?? null, signal: null,
+      rawValue: m2?.globalYoY ?? m2?.usYoY ?? null,
+      // Threshold quoted from formatter.js's THRESHOLD REFERENSI table (<0%
+      // kontraktif/bearish, 0-5% netral, >5% ekspansif kuat/bullish).
+      signal: (m2?.globalYoY ?? m2?.usYoY) == null ? null
+        : (m2.globalYoY ?? m2.usYoY) < 0 ? '🔴' : (m2.globalYoY ?? m2.usYoY) > 5 ? '✅' : '⚠️',
       bounds: null,
       source: dataSourceFromLegacy('FRED', m2),
     }),

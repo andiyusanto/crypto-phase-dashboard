@@ -61,9 +61,13 @@ export async function fetchCryptoMarketStructureIndicators(config = {}, cryptoRa
       source: makeDataSource({ provider: 'CoinMarketCap/CoinGecko', skipped: !cmc?.othersDominance && !othersDom }),
     }),
     makeIndicator({
+      // Threshold quoted from formatter.js's THRESHOLD REFERENSI table (TVL DeFi
+      // WoW: <-5% bearish, -5-+5% netral, >+5% bullish).
       name: 'TVL DeFi ($B)', category: 'crypto',
       measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
-      rawValue: defiTvl?.tvl ?? null, signal: null,
+      rawValue: defiTvl?.tvl ?? null,
+      signal: defiTvl?.changePercent == null ? null
+        : defiTvl.changePercent < -5 ? '🔴' : defiTvl.changePercent > 5 ? '✅' : '⚠️',
       bounds: { min: 30, max: 300, hint: 'cek unit' },
       source: dataSourceFromLegacy('DefiLlama', defiTvl),
     }),
@@ -86,9 +90,13 @@ export async function fetchCryptoMarketStructureIndicators(config = {}, cryptoRa
       source: makeDataSource({ provider: 'CoinGecko/CMC', skipped: stableTotal == null }),
     }),
     makeIndicator({
+      // Threshold quoted from formatter.js's THRESHOLD REFERENSI table
+      // (>6% risk-off/bearish, 3-6% netral, <3% risk-on/bullish).
       name: 'Stablecoin Dominance (%)', category: 'crypto',
       measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
-      rawValue: stableDomPct, signal: null, bounds: null,
+      rawValue: stableDomPct,
+      signal: stableDomPct == null ? null : stableDomPct > 6 ? '🔴' : stableDomPct < 3 ? '✅' : '⚠️',
+      bounds: null,
       source: makeDataSource({ provider: 'derived', skipped: stableDomPct == null }),
     }),
     makeIndicator({

@@ -15,17 +15,16 @@ import { dataSourceFromLegacy } from '../shared/dataSource.js';
 import { MEASUREMENT_TYPE, TRUST_TIER } from '../shared/confidenceTiers.js';
 
 export async function fetchFedLiquidityIndicators(fredApiKey) {
-  const fed = await fetchAllFedLiquidity(fredApiKey);
-
-  if (!fed || fed.skipped) {
-    return {
-      indicators: [],
-      trifectaScore: null,
-      overallStatus: 'DATA_UNAVAILABLE',
-      macroStressScore: null,
-      macroStressLabel: 'NO_DATA',
-    };
-  }
+  // NOTE: unlike a previous version of this file, a fully-skipped fetch (no FRED
+  // key) no longer short-circuits to an empty `indicators: []`. Every other Macro
+  // sub-module (monthly.js, weeklyMacro.js, dailyMacro.js) already returns one
+  // indicator object per field, individually marked skipped:true — this file was
+  // the odd one out, silently dropping all 7 Liquidity indicators (the
+  // highest-weighted category in Step 7's scoring) instead of reporting them as
+  // skipped like everything else. `fed` may now be `{skipped:true, reason}` or
+  // `null`; every field access below resolves to `undefined` in that case, and
+  // dataSourceFromLegacy() already handles that by marking the DataSource skipped.
+  const fed = (await fetchAllFedLiquidity(fredApiKey)) ?? {};
 
   const src = (field) => dataSourceFromLegacy('FRED', field);
 
@@ -86,9 +85,9 @@ export async function fetchFedLiquidityIndicators(fredApiKey) {
 
   return {
     indicators,
-    trifectaScore: fed.trifectaScore,
-    overallStatus: fed.overallStatus,
-    macroStressScore: fed.macroStressScore,
-    macroStressLabel: fed.macroStressLabel,
+    trifectaScore: fed.trifectaScore ?? null,
+    overallStatus: fed.overallStatus ?? 'DATA_UNAVAILABLE',
+    macroStressScore: fed.macroStressScore ?? null,
+    macroStressLabel: fed.macroStressLabel ?? 'NO_DATA',
   };
 }

@@ -78,9 +78,13 @@ export async function fetchDerivativesSnapshot(btcPrice = null) {
 
   const indicators = [
     makeIndicator({
+      // Threshold quoted from formatter.js's THRESHOLD REFERENSI table
+      // (<-0.05% bearish, -0.05-0.05% netral, >0.05% bullish — this project's own
+      // established convention, not reinterpreted here).
       name: 'BTC Funding Rate 8h (%)', category: 'derivatives',
       measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
-      rawValue: fundBtc, signal: null,
+      rawValue: fundBtc,
+      signal: fundBtc == null ? null : fundBtc < -0.05 ? '🔴' : fundBtc > 0.05 ? '✅' : '⚠️',
       bounds: { min: -1, max: 1, hint: 'raw decimal vs %' },
       source: makeDataSource({ provider: funding?.source ?? 'exchange aggregate', skipped: fundBtc == null }),
     }),
@@ -91,9 +95,18 @@ export async function fetchDerivativesSnapshot(btcPrice = null) {
       source: makeDataSource({ provider: 'derived (funding_rate_history)', skipped: streak.avgRate7d == null }),
     }),
     makeIndicator({
+      // Threshold quoted from formatter.js's THRESHOLD REFERENSI table ($15-30B
+      // netral, >$30B ekspansi/bullish). The table's bearish case is described as
+      // "kontraksi tajam" (a rate-of-change condition) rather than a clean
+      // absolute-level band — we only have the absolute level here, not a WoW
+      // change for OI, so <$15B is treated as the closest available proxy for
+      // that bearish case. Simplification is intentional and noted, not hidden.
       name: 'Open Interest BTC ($B)', category: 'derivatives',
       measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
-      rawValue: derivBundle?.oi?.totalBillion ?? null, signal: derivBundle?.oi?.trend ?? null, bounds: null,
+      rawValue: derivBundle?.oi?.totalBillion ?? null,
+      signal: derivBundle?.oi?.totalBillion == null ? null
+        : derivBundle.oi.totalBillion < 15 ? '🔴' : derivBundle.oi.totalBillion > 30 ? '✅' : '⚠️',
+      bounds: null,
       source: makeDataSource({ provider: derivBundle?.oi?.source ?? 'multi-exchange', skipped: !derivBundle?.oi }),
     }),
     makeIndicator({

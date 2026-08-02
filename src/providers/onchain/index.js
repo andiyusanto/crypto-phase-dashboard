@@ -109,15 +109,30 @@ export async function fetchOnChainSnapshot(btcPrice = null) {
       source: makeDataSource({ provider: 'CoinMetrics community', skipped: !coinMetrics?.exchangeReserve }),
     }),
     makeIndicator({
+      // Directional convention reused from the established "BTC Exchange Reserve
+      // 7d" band (formatter.js: rising reserve = whale deposit = distribusi =
+      // bearish; falling reserve = withdrawal = akumulasi = bullish) — net inflow
+      // to exchanges is the same underlying movement as rising reserve, just
+      // measured as a daily flow instead of a level change. Not a new invented
+      // interpretation, the sign convention this fetcher's own `label` field
+      // ("inflow"/"outflow") already encodes.
       name: 'BTC Exchange Flow (daily net, BTC)', category: 'onchain',
       measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
-      rawValue: coinMetrics?.exchangeFlow?.netflow ?? null, signal: coinMetrics?.exchangeFlow?.label ?? null, bounds: null,
+      rawValue: coinMetrics?.exchangeFlow?.netflow ?? null,
+      signal: coinMetrics?.exchangeFlow?.netflow == null ? null
+        : coinMetrics.exchangeFlow.netflow > 0 ? '🔴' : coinMetrics.exchangeFlow.netflow < 0 ? '✅' : '⚠️',
+      bounds: null,
       source: makeDataSource({ provider: 'CoinMetrics community', skipped: !coinMetrics?.exchangeFlow }),
     }),
     makeIndicator({
+      // Same reserve-direction convention as the daily Exchange Flow indicator
+      // above, applied to the weekly aggregate.
       name: 'BTC Exchange Netflow (weekly)', category: 'onchain',
       measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
-      rawValue: exNetflow?.netflow ?? null, signal: exNetflow?.label ?? null, bounds: null,
+      rawValue: exNetflow?.netflow ?? null,
+      signal: exNetflow?.netflow == null ? null
+        : exNetflow.netflow > 0 ? '🔴' : exNetflow.netflow < 0 ? '✅' : '⚠️',
+      bounds: null,
       source: dataSourceFromLegacy('CoinMetrics community', exNetflow),
     }),
     makeIndicator({
@@ -127,23 +142,41 @@ export async function fetchOnChainSnapshot(btcPrice = null) {
       source: makeDataSource({ provider: 'derived (CoinMetrics)', skipped: coinMetrics?.flowAcceleration == null }),
     }),
     makeIndicator({
+      // Threshold quoted from formatter.js's THRESHOLD REFERENSI table (Hash Rate
+      // WoW: <-5% miner capitulation/bearish, -1-+1% netral, >+1% miner
+      // confidence naik/bullish). Computed from `.weekChange`, not the `.trend`
+      // text field (which is a plain word like "naik", not a classified signal).
       name: 'Hash Rate (EH/s, 7d avg)', category: 'onchain',
       measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
-      rawValue: hashRate?.latestEH ?? null, signal: hashRate?.trend ?? null,
+      rawValue: hashRate?.latestEH ?? null,
+      signal: hashRate?.weekChange == null ? null
+        : hashRate.weekChange < -5 ? '🔴' : hashRate.weekChange > 1 ? '✅' : '⚠️',
       bounds: { min: 400, max: 1200, hint: 'cek unit (TH/s vs EH/s) atau stale data' },
       source: dataSourceFromLegacy('blockchain.info', hashRate),
     }),
     makeIndicator({
+      // Threshold quoted from formatter.js's THRESHOLD REFERENSI table (Active
+      // Addresses WoW: <-10% capitulation/bearish, -2-+2% netral, >+2% adoption
+      // naik/bullish). Computed from `.weekChange`, not the `.trend` text.
       name: 'Active Addresses (7d avg)', category: 'onchain',
       // CLAUDE.md's own documented proxy for CoinMetrics' blocked SplyAct1yr metric.
       measurementType: MEASUREMENT_TYPE.PROXY, trustTier: TRUST_TIER.HIGH,
-      rawValue: bcBundle?.activeAddresses?.avg7d ?? null, signal: bcBundle?.activeAddresses?.trend ?? null, bounds: null,
+      rawValue: bcBundle?.activeAddresses?.avg7d ?? null,
+      signal: bcBundle?.activeAddresses?.weekChange == null ? null
+        : bcBundle.activeAddresses.weekChange < -10 ? '🔴' : bcBundle.activeAddresses.weekChange > 2 ? '✅' : '⚠️',
+      bounds: null,
       source: makeDataSource({ provider: 'blockchain.info (documented proxy)', skipped: !bcBundle?.activeAddresses }),
     }),
     makeIndicator({
+      // Threshold quoted from formatter.js's THRESHOLD REFERENSI table (Miner
+      // Revenue WoW: <-20% capitulation risk/bearish, -2-+2% netral, >+2% miner
+      // confidence/bullish). Computed from `.weekChange`, not the `.trend` text.
       name: 'Miner Revenue ($M/day)', category: 'onchain',
       measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
-      rawValue: bcBundle?.minerRevenue?.revMillion ?? null, signal: bcBundle?.minerRevenue?.trend ?? null, bounds: null,
+      rawValue: bcBundle?.minerRevenue?.revMillion ?? null,
+      signal: bcBundle?.minerRevenue?.weekChange == null ? null
+        : bcBundle.minerRevenue.weekChange < -20 ? '🔴' : bcBundle.minerRevenue.weekChange > 2 ? '✅' : '⚠️',
+      bounds: null,
       source: makeDataSource({ provider: 'blockchain.info', skipped: !bcBundle?.minerRevenue }),
     }),
     makeIndicator({
