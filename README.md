@@ -242,6 +242,16 @@ nohup node src/scheduler.js > logs/scheduler.log 2>&1 &
 
 > **GCP**: Gunakan zone `asia-southeast1-a` (Singapore). Zone `us-central1-a` (Iowa) diblokir Binance Futures (HTTP 451 regulatory block). Fallback otomatis ke Gate.io/Hyperliquid/CoinGecko tetap berfungsi dari US zone, tapi Singapore mendapat akses penuh ke Binance.
 
+### Testing
+
+```bash
+npm test
+```
+
+Unit tests (`test/*.test.js`, pakai `node:test` bawaan Node — tanpa dependency tambahan) untuk domain layer yang murni/deterministik: Scoring Engine, DivergenceEngine, ConfidenceScore, StateMachine, RiskAssessment/PortfolioAllocation, dan AI Insight Engine's parser/validator. Semuanya jalan dari data sintetis, tidak butuh API key atau koneksi live.
+
+Script `scripts/smoke-test-*.js` dan `scripts/render-insight-card-dryrun.js` beda kategori — itu verifikasi manual terhadap data live (butuh API key asli), dijalankan langsung lewat `node scripts/<nama>.js`, bukan bagian dari `npm test`.
+
 ---
 
 ## Data Coverage

@@ -360,3 +360,5 @@ export function evaluateDivergences(providersOutput) {
     all: results,
   };
 }
+
+export { RULES };
