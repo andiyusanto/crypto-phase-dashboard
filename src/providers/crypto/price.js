@@ -42,6 +42,19 @@ export async function fetchCryptoPriceIndicators(config = {}) {
       source: src,
     }),
     makeIndicator({
+      // No established bullish/bearish band for a bare 24h% change in
+      // formatter.js — exists to give DivergenceEngine's rules (Step 8 Kategori
+      // B: hashrate-down-price-stable, trends-low-price-up, reserve-up-price-up)
+      // a real directional value instead of "not evaluable". 24h window, not a
+      // true WoW change — same 24h-proxy convention formatter.js's own
+      // dirFromDailyDiff() already uses elsewhere for alt ratios when weekly
+      // data is unavailable.
+      name: 'BTC Price Change 24h (%)', category: 'crypto',
+      measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
+      rawValue: crypto?.btc?.change24h ?? null, signal: null, bounds: null,
+      source: src,
+    }),
+    makeIndicator({
       name: 'ETH Price', category: 'crypto',
       measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
       rawValue: crypto?.eth?.price ?? null, signal: null, bounds: null,

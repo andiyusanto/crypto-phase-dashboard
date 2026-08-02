@@ -61,8 +61,16 @@ const RULES = [
   {
     id: 'btcdom-tvl-both-rising',
     description: 'BTC Dominance naik tapi TVL DeFi juga naik (alts accumulation senyap)',
-    indicatorsInvolved: ['BTC Dominance (%)', 'TVL DeFi ($B)'],
-    evaluate: () => notEvaluable('BTC Dominance WoW direction belum dihitung sebagai indicator (gap terdokumentasi sejak Step 7)'),
+    indicatorsInvolved: ['BTC Dominance WoW (pts)', 'TVL DeFi ($B)'],
+    // Closed — Step 8 Kategori B. "BTC Dominance naik" now uses the real WoW
+    // point-delta indicator instead of being unevaluable. TVL DeFi's own signal
+    // is already WoW%-based (✅ = >+5%), an exact match for "naik", not an
+    // approximation.
+    evaluate: (i) => {
+      const dom = i.crypto('BTC Dominance WoW (pts)'), tvl = i.crypto('TVL DeFi ($B)');
+      if (!dom || !tvl || dom.rawValue == null) return notEvaluable('BTC Dominance WoW atau TVL DeFi tidak tersedia run ini');
+      return evaluated(dom.rawValue > 0 && tvl.signal === '✅');
+    },
   },
   {
     id: 'nupl-high-sopr-low',
@@ -110,14 +118,27 @@ const RULES = [
   {
     id: 'hashrate-down-price-stable',
     description: 'Hash Rate turun tajam (WoW < -5%) tapi harga stabil/naik (miner capitulation tersembunyi — sering precede dump)',
-    indicatorsInvolved: ['Hash Rate (EH/s, 7d avg)', 'BTC Price'],
-    evaluate: () => notEvaluable('BTC price % change (24h atau WoW) belum di-expose sebagai indicator — hanya level harga yang tersedia'),
+    indicatorsInvolved: ['Hash Rate (EH/s, 7d avg)', 'BTC Price Change 24h (%)'],
+    // Closed — Step 8 Kategori B. "Harga stabil/naik" uses 24h change as proxy
+    // (not a true WoW window) — same 24h-proxy convention formatter.js's own
+    // dirFromDailyDiff() already uses elsewhere. "Stabil/naik" = change24h >= 0.
+    evaluate: (i) => {
+      const hr = i.onchain('Hash Rate (EH/s, 7d avg)'), px = i.crypto('BTC Price Change 24h (%)');
+      if (!hr || !px || px.rawValue == null) return notEvaluable('Hash Rate atau BTC Price Change 24h tidak tersedia run ini');
+      return evaluated(hr.signal === '🔴' && px.rawValue >= 0, true);
+    },
   },
   {
     id: 'stabledom-up-total2-up',
     description: 'Stablecoin Dominance naik WoW tapi TOTAL2 juga naik (money masuk tapi ke stablecoin, bukan risk-on)',
-    indicatorsInvolved: ['Stablecoin Dominance (%)', 'TOTAL2'],
-    evaluate: () => notEvaluable('Stablecoin Dominance WoW% dan TOTAL2 direction belum dihitung sebagai indicator'),
+    indicatorsInvolved: ['Stablecoin Dominance (%)', 'TOTAL2 WoW (%)'],
+    // Partially closed — Step 8 Kategori B added TOTAL2 WoW, but Stablecoin
+    // Dominance WoW% still doesn't exist (would need historical
+    // totalMarketCapBillion tracking that daily_snapshot doesn't store — a
+    // genuinely bigger lift, "Kategori C", not just exposing an existing field).
+    // Kept honestly not-evaluable rather than approximated from the level-based
+    // signal, same reasoning as oi-up-basis-negative.
+    evaluate: () => notEvaluable('TOTAL2 WoW sekarang tersedia, tapi Stablecoin Dominance WoW% masih belum ada — butuh histori totalMarketCapBillion yang belum dilacak (Kategori C)'),
   },
   {
     id: 'realizedmult-high-longshort-low',
@@ -147,8 +168,16 @@ const RULES = [
   {
     id: 'activeaddr-down-total2-up',
     description: 'Active Addresses turun WoW tapi TOTAL2 naik (harga naik tanpa on-chain adoption → rally tidak sustainable)',
-    indicatorsInvolved: ['Active Addresses (7d avg)', 'TOTAL2'],
-    evaluate: () => notEvaluable('TOTAL2 direction belum dihitung sebagai indicator; Active Addresses hanya punya 3-tier band, bukan raw WoW%'),
+    indicatorsInvolved: ['Active Addresses WoW (%)', 'TOTAL2 WoW (%)'],
+    // Closed — Step 8 Kategori B added both raw WoW% fields (previously only a
+    // 3-tier band existed for Active Addresses, and TOTAL2 had no direction at
+    // all). "Turun" = any negative WoW%, "naik" = any positive WoW%, matching
+    // the rule's own unqualified wording (no specific magnitude given).
+    evaluate: (i) => {
+      const aa = i.onchain('Active Addresses WoW (%)'), t2 = i.crypto('TOTAL2 WoW (%)');
+      if (!aa || !t2 || aa.rawValue == null || t2.rawValue == null) return notEvaluable('Active Addresses WoW atau TOTAL2 WoW tidak tersedia run ini');
+      return evaluated(aa.rawValue < 0 && t2.rawValue > 0);
+    },
   },
   {
     id: 'picycle-near-nupl-low',
@@ -169,8 +198,13 @@ const RULES = [
   {
     id: 'btc-above-200ma-nupl-low',
     description: 'BTC > +50% di atas 200d MA tapi NUPL < 0.5 (overextended price structure tapi holder belum euphoria → mid-cycle stretch, bukan top)',
-    indicatorsInvolved: ['BTC Price', 'NUPL proxy'],
-    evaluate: () => notEvaluable('BTC vs 200d MA gap% ada di data mentah (nuplProxy.ma200GapPct) tapi belum di-expose sebagai Indicator sendiri'),
+    indicatorsInvolved: ['BTC vs 200d MA (%)', 'NUPL proxy'],
+    // Closed — Step 8 Kategori B.
+    evaluate: (i) => {
+      const ma = i.onchain('BTC vs 200d MA (%)'), n = i.onchain('NUPL proxy');
+      if (!ma || !n || ma.rawValue == null || n.rawValue == null) return notEvaluable('BTC vs 200d MA atau NUPL proxy tidak tersedia run ini');
+      return evaluated(ma.rawValue > 50 && n.rawValue < 0.5);
+    },
   },
   {
     id: 'trends-high-feargreed-low',
@@ -185,14 +219,28 @@ const RULES = [
   {
     id: 'trends-low-price-up',
     description: 'Google Trends < 20 tapi BTC price naik (harga naik tanpa retail interest → whale/institutional driven)',
-    indicatorsInvolved: ['Google Trends "bitcoin"', 'BTC Price'],
-    evaluate: () => notEvaluable('BTC price % change belum di-expose sebagai indicator — hanya level harga yang tersedia'),
+    indicatorsInvolved: ['Google Trends "bitcoin"', 'BTC Price Change 24h (%)'],
+    // Closed — Step 8 Kategori B. 24h-proxy for "naik", same convention as
+    // hashrate-down-price-stable above.
+    evaluate: (i) => {
+      const t = i.crypto('Google Trends "bitcoin"'), px = i.crypto('BTC Price Change 24h (%)');
+      if (!t || !px || t.rawValue == null || px.rawValue == null) return notEvaluable('Google Trends atau BTC Price Change 24h tidak tersedia run ini (Google Trends butuh SERPAPI_API_KEY)');
+      return evaluated(t.rawValue < 20 && px.rawValue > 0, true);
+    },
   },
   {
     id: 'reserve-up-price-up',
     description: 'Exchange Reserve naik 7d tapi BTC price juga naik (whale deposit ke exchange sambil harga naik → distribusi tersembunyi)',
-    indicatorsInvolved: ['BTC Exchange Reserve (k BTC)', 'BTC Price'],
-    evaluate: () => notEvaluable('BTC price % change belum di-expose sebagai indicator — hanya level harga yang tersedia'),
+    indicatorsInvolved: ['BTC Exchange Reserve (k BTC)', 'BTC Price Change 24h (%)'],
+    // Closed — Step 8 Kategori B. "Naik 7d" for Exchange Reserve reuses the
+    // fetcher's own signal (🔴 = rising, per the same convention as
+    // reserve-up-sharp-nupl-low) — same unverified-exact-threshold caveat as
+    // that rule. "Harga naik" uses the 24h proxy, same convention as above.
+    evaluate: (i) => {
+      const er = i.onchain('BTC Exchange Reserve (k BTC)'), px = i.crypto('BTC Price Change 24h (%)');
+      if (!er || !px || px.rawValue == null) return notEvaluable('Exchange Reserve atau BTC Price Change 24h tidak tersedia run ini');
+      return evaluated(er.signal === '🔴' && px.rawValue > 0, true);
+    },
   },
   {
     id: 'reserve-down-sharp-mvrv-high',

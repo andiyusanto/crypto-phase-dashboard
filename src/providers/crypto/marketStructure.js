@@ -41,6 +41,26 @@ export async function fetchCryptoMarketStructureIndicators(config = {}, cryptoRa
     : stableGrowthWoW > -1  ? '⚠️ flat/stagnant'
     :                         '🔴 supply kontraksi — rotasi ke cash';
 
+  // --- Step 8 Phase 1, Kategori B: TOTAL2 WoW% and BTC Dominance WoW closure ---
+  // Same `prevWeek` snapshot already fetched above for Stablecoin Growth WoW —
+  // reused here, not a second db.js call. No established bullish/bearish band
+  // for either in formatter.js, so no `.signal` is computed — these exist only
+  // to give DivergenceEngine's rules a real directional value to check, per
+  // Step 8's Kategori B closure plan.
+  const total2Raw = cmc?.total2 ?? null;
+  const total2PrevWeek = prevWeek?.total2_trillion ?? null;
+  const total2WoWPct = (total2Raw != null && total2PrevWeek != null && total2PrevWeek > 0)
+    ? parseFloat(((total2Raw - total2PrevWeek) / total2PrevWeek * 100).toFixed(2))
+    : null;
+
+  const btcDomRaw = cryptoRaw?.btcDominance ?? null;
+  const btcDomPrevWeek = prevWeek?.btc_dominance ?? null;
+  // Point difference (not % change), matching formatter.js's own existing
+  // btcDomDeltaStr convention for this exact metric.
+  const btcDomWoWDelta = (btcDomRaw != null && btcDomPrevWeek != null)
+    ? parseFloat((btcDomRaw - btcDomPrevWeek).toFixed(2))
+    : null;
+
   const indicators = [
     makeIndicator({
       name: 'TOTAL2', category: 'crypto',
@@ -116,6 +136,32 @@ export async function fetchCryptoMarketStructureIndicators(config = {}, cryptoRa
         provider: 'derived (current vs 7d-ago daily_snapshot)',
         skipped: stableGrowthWoW == null,
         skipReason: stableGrowthWoW == null ? 'no 7d-ago snapshot available yet in daily_snapshot' : null,
+      }),
+    }),
+    makeIndicator({
+      // No established bullish/bearish band for TOTAL2 WoW in formatter.js —
+      // exists to give DivergenceEngine a real directional value (Step 8
+      // Kategori B), not for category scoring.
+      name: 'TOTAL2 WoW (%)', category: 'crypto',
+      measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
+      rawValue: total2WoWPct, signal: null, bounds: null,
+      source: makeDataSource({
+        provider: 'derived (current vs 7d-ago daily_snapshot)',
+        skipped: total2WoWPct == null,
+        skipReason: total2WoWPct == null ? 'no 7d-ago snapshot available yet, or TOTAL2 unavailable this run' : null,
+      }),
+    }),
+    makeIndicator({
+      // Point difference (not % change), matching formatter.js's own
+      // btcDomDeltaStr convention. No established bullish/bearish band —
+      // exists for DivergenceEngine (Step 8 Kategori B), not category scoring.
+      name: 'BTC Dominance WoW (pts)', category: 'crypto',
+      measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
+      rawValue: btcDomWoWDelta, signal: null, bounds: null,
+      source: makeDataSource({
+        provider: 'derived (current vs 7d-ago daily_snapshot)',
+        skipped: btcDomWoWDelta == null,
+        skipReason: btcDomWoWDelta == null ? 'no 7d-ago snapshot available yet, or BTC Dominance unavailable this run' : null,
       }),
     }),
   ];

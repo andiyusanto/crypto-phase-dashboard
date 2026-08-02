@@ -56,6 +56,21 @@ export async function fetchOnChainSnapshot(btcPrice = null) {
 
   const indicators = [
     makeIndicator({
+      // Already computed inside fetchNuplProxy() (daily.js), just never promoted
+      // to its own Indicator before now — Step 8 Kategori B closure, needed by
+      // DivergenceEngine's btc-above-200ma-nupl-low rule. formatter.js's own
+      // threshold table has a band for this (<-10% bearish, -10-+20% netral,
+      // >+20% bullish kuat) that was never wired into a `.signal` either — added
+      // here since it's directly quotable, not invented.
+      name: 'BTC vs 200d MA (%)', category: 'onchain',
+      measurementType: MEASUREMENT_TYPE.DIRECT, trustTier: TRUST_TIER.HIGH,
+      rawValue: nupl?.ma200GapPct ?? null,
+      signal: nupl?.ma200GapPct == null ? null
+        : nupl.ma200GapPct < -10 ? '🔴' : nupl.ma200GapPct > 20 ? '✅' : '⚠️',
+      bounds: null,
+      source: makeDataSource({ provider: 'derived (BTC price history, 200d MA)', skipped: !nupl }),
+    }),
+    makeIndicator({
       name: 'NUPL proxy', category: 'onchain',
       // Approximates true NUPL via a realized-price proxy, not actual UTXO
       // cost-basis distribution. Redundant with SOPR proxy / Realized Price
@@ -165,6 +180,15 @@ export async function fetchOnChainSnapshot(btcPrice = null) {
       signal: bcBundle?.activeAddresses?.weekChange == null ? null
         : bcBundle.activeAddresses.weekChange < -10 ? '🔴' : bcBundle.activeAddresses.weekChange > 2 ? '✅' : '⚠️',
       bounds: null,
+      source: makeDataSource({ provider: 'blockchain.info (documented proxy)', skipped: !bcBundle?.activeAddresses }),
+    }),
+    makeIndicator({
+      // Raw WoW% alongside the 3-tier signal above — DivergenceEngine's
+      // activeaddr-down-total2-up rule (Step 8 Kategori B) needs "any decline",
+      // not just the -10% threshold the 3-tier band checks for.
+      name: 'Active Addresses WoW (%)', category: 'onchain',
+      measurementType: MEASUREMENT_TYPE.PROXY, trustTier: TRUST_TIER.HIGH,
+      rawValue: bcBundle?.activeAddresses?.weekChange ?? null, signal: null, bounds: null,
       source: makeDataSource({ provider: 'blockchain.info (documented proxy)', skipped: !bcBundle?.activeAddresses }),
     }),
     makeIndicator({
