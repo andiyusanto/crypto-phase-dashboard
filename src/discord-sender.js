@@ -455,3 +455,113 @@ export async function sendAnalysisToDiscord(webhookUrl, provider, analysisText) 
     label: `${PROVIDER_NAMES[provider] || provider} analysis`,
   });
 }
+
+// ============================================
+// STEP 10 — INSIGHT CARD (Decision Engine + AI Insight Engine)
+//
+// Additive: fungsi baru, TIDAK mengubah fungsi yang sudah ada di atas atau
+// jalur produksi (src/index.js). Sama spirit dengan telegram-sender.js's
+// formatInsightForTelegram() — field-based embed pola buildDataSummaryEmbed()
+// di atas, tapi isinya Step 8/9's output (state/confidence/divergence/risk/
+// allocation + Insight JSON dari AI), bukan raw fetch data.
+// ============================================
+
+const CONFLICT_EMOJI = { 'Timteng': '🕌', 'Rusia-Ukraine': '⚔️', 'Taiwan': '🇹🇼' };
+const RISK_LEVEL_EMOJI = { rendah: '🟢', sedang: '🟡', tinggi: '🔴' };
+const ACTION_EMOJI = { HOLD: '⏸', ADD: '➕', TRIM: '✂️', WAIT: '⏳', HEDGE: '🛡' };
+const STATE_COLOR = { defensif: 0xE74C3C, moderat: 0xF1C40F, agresif: 0x2ECC71 };
+// Same fix as telegram-sender.js's formatInsightForTelegram(): decision.
+// geopoliticalFlag uses English region names from providers/geopolitical/
+// index.js, but War Premium below uses Indonesian labels for the same regions.
+const GEO_REGION_LABEL_ID = { 'Middle East': 'Timteng', 'Russia-Ukraine': 'Rusia-Ukraine', 'Taiwan': 'Taiwan' };
+
+function fmtUSD(n) { return n == null ? '—' : `$${n.toLocaleString('en-US')}`; }
+
+export function buildInsightEmbed(decision, confidence, riskAssessment, allocation, insight) {
+  const ts = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+  const fields = [];
+
+  const confLines = [`**Confidence**: ${confidence.level}`, ...confidence.reasons.slice(0, 3).map(r => `• ${r}`)];
+  if (decision.isManualReview) {
+    const geoLabels = decision.geopoliticalFlag.map(r => GEO_REGION_LABEL_ID[r] ?? r);
+    confLines.push(`⚠️ **MANUAL REVIEW**${geoLabels.length ? ` — geopolitik: ${geoLabels.join(', ')}` : ''}${decision.blockedByDivergence.length ? ` — divergence: ${decision.blockedByDivergence.join(', ')}` : ''}`);
+  }
+  pushFieldChunks(fields, '📊 State & Confidence', confLines, false);
+
+  pushFieldChunks(fields, '💰 Risk Profile', [
+    `**Profile**: ${riskAssessment.riskProfile ?? '—'}`,
+    `**Core**: ${riskAssessment.coreBandPct ? `${riskAssessment.coreBandPct.min}-${riskAssessment.coreBandPct.max}%` : '—'} (${fmtUSD(allocation.coreBandUSD?.min)}-${fmtUSD(allocation.coreBandUSD?.max)})`,
+    `**High-risk**: ${riskAssessment.highRiskBandPct ? `${riskAssessment.highRiskBandPct.min}-${riskAssessment.highRiskBandPct.max}%` : 'tidak didefinisikan fase ini'} (${allocation.highRiskBandUSD ? `${fmtUSD(allocation.highRiskBandUSD.min)}-${fmtUSD(allocation.highRiskBandUSD.max)}` : '—'})`,
+  ], false);
+
+  if (insight.parseFailed) {
+    pushFieldChunks(fields, '⚠️ AI Response', [`Gagal di-parse jadi JSON: ${insight.parseError}`, `Raw (truncated): ${insight.rawText.slice(0, 800)}`], false);
+    return {
+      username: 'Crypto Dashboard',
+      embeds: [{
+        title: `📊 ${decision.state} (Fase ${decision.legacyPhase ?? '?'})`,
+        color: 0x95A5A6,
+        fields,
+        footer: { text: `${ts} WIB · provider: ${insight.provider} · Step 8+9 Insight Card` },
+        timestamp: new Date().toISOString(),
+      }],
+    };
+  }
+
+  const p = insight.parsed;
+
+  if (!insight.valid) {
+    pushFieldChunks(fields, '⚠️ Validation Issues', insight.validationIssues, false);
+  }
+
+  if (p.warPremium?.length) {
+    pushFieldChunks(fields, '🌍 War Premium', p.warPremium.map(w =>
+      `${CONFLICT_EMOJI[w.conflict] ?? '🌐'} **${w.conflict}**: ${RISK_LEVEL_EMOJI[w.riskLevel] ?? ''} ${w.riskLevel} — ${w.update}${w.marketImpact ? ` _(${w.marketImpact})_` : ''}`
+    ), false);
+  }
+
+  if (p.allocation?.length) {
+    const allocLines = p.allocation.map(a =>
+      `**${a.asset}** (${a.layer}) — ${a.weightPct}%${a.nominalUSD != null ? ` (${fmtUSD(a.nominalUSD)})` : ''} — ${a.reason}`
+    );
+    allocLines.push(`**CASH** — ${p.cashPct}%${p.cashUSD != null ? ` (${fmtUSD(p.cashUSD)})` : ''}`);
+    pushFieldChunks(fields, '📦 Allocation', allocLines, false);
+  }
+
+  if (p.hype?.included) {
+    pushFieldChunks(fields, '⚡ $HYPE', [`rank ${p.hype.ranking ?? '—'} · ${p.hype.category ?? '—'} — ${p.hype.reason ?? ''}`], false);
+  }
+
+  if (p.actionItems?.length) {
+    pushFieldChunks(fields, '✅ Action Items', p.actionItems.map(a =>
+      `${ACTION_EMOJI[a.action] ?? '•'} **[${a.action}]** ${a.asset} — ${a.reason} _(trigger: ${a.trigger})_`
+    ), false);
+  }
+
+  if (p.aiCaveat) pushFieldChunks(fields, '⚠️ AI Caveat', [p.aiCaveat], false);
+
+  return {
+    username: 'Crypto Dashboard',
+    embeds: [{
+      title: `📊 ${decision.state} (Fase ${decision.legacyPhase ?? '?'})`,
+      description: p.narrative ?? undefined,
+      color: STATE_COLOR[riskAssessment.riskProfile] ?? PROVIDER_COLORS.default,
+      fields,
+      footer: { text: `${ts} WIB · provider: ${insight.provider} · Step 8+9 Insight Card` },
+      timestamp: new Date().toISOString(),
+    }],
+  };
+}
+
+// Tidak dipanggil dari index.js — dipicu manual/via script terpisah sampai
+// jalur ini sudah cukup teruji live untuk diwire ke produksi.
+export async function sendInsightToDiscord(webhookUrl, decision, confidence, riskAssessment, allocation, insight) {
+  if (!webhookUrl || webhookUrl.includes('your_discord_webhook')) {
+    console.warn('  ⚠️  Discord: DISCORD_WEBHOOK_URL belum diset, skip');
+    return { success: false, skipped: true };
+  }
+  const payload = buildInsightEmbed(decision, confidence, riskAssessment, allocation, insight);
+  await sendPayload(webhookUrl, payload);
+  console.log('    ✓ Insight card Discord terkirim');
+  return { success: true };
+}

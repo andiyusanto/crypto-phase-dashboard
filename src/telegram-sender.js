@@ -447,3 +447,116 @@ export async function sendDashboardToTelegram(config, data, analyses = {}) {
 
 // chalk_green placeholder — chalk diimport di index.js, bukan di sini
 function chalk_green(s) { return s; }
+
+// ============================================
+// STEP 10 — INSIGHT CARD (Decision Engine + AI Insight Engine)
+//
+// Additive: fungsi baru, TIDAK mengubah fungsi yang sudah ada di atas atau
+// jalur produksi (src/index.js). Beda dari formatFetchSummaryForTelegram()
+// yang render data mentah, ini render OUTPUT Step 8 (state/confidence/
+// divergence/risk/allocation, semua deterministik) + Step 9 (Insight JSON
+// dari AI — bagian yang genuinely masih judgment call: pilihan aset,
+// War Premium narrative, action items).
+//
+// Kalau insight.parseFailed (AI tidak balas JSON valid — bisa terjadi,
+// 6 provider beda-beda reliability-nya), tetap kirim state/confidence/risk
+// yang solid dari kode, plus raw text AI sebagai lampiran — bukan gagal total
+// diam-diam. Sama disiplin dengan DataSource.skipped pattern di seluruh
+// project ini: kegagalan adalah data, bukan alasan untuk tidak kirim apa-apa.
+// ============================================
+
+const CONFLICT_EMOJI = { 'Timteng': '🕌', 'Rusia-Ukraine': '⚔️', 'Taiwan': '🇹🇼' };
+const RISK_LEVEL_EMOJI = { rendah: '🟢', sedang: '🟡', tinggi: '🔴' };
+const ACTION_EMOJI = { HOLD: '⏸', ADD: '➕', TRIM: '✂️', WAIT: '⏳', HEDGE: '🛡' };
+// decision.geopoliticalFlag holds English region names straight from
+// src/providers/geopolitical/index.js's REGIONS map, but the War Premium
+// section below (and promptBuilder.js's own CONFLICT_LABELS) uses Indonesian
+// labels for the same 3 regions — without this, the same conflict shows up
+// under two different names in one card ("Russia-Ukraine" here, "Rusia-
+// Ukraine" below).
+const GEO_REGION_LABEL_ID = { 'Middle East': 'Timteng', 'Russia-Ukraine': 'Rusia-Ukraine', 'Taiwan': 'Taiwan' };
+
+function fmtUSD(n) { return n == null ? '—' : `$${n.toLocaleString('en-US')}`; }
+
+export function formatInsightForTelegram(decision, confidence, riskAssessment, allocation, insight) {
+  const ts = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+  const lines = [
+    `📊 *DASHBOARD — ${decision.state}* (Fase ${decision.legacyPhase ?? '?'})`,
+    `🗓 ${ts} WIB | provider: ${insight.provider}`,
+    `${'─'.repeat(32)}`,
+    '',
+    `Confidence: *${confidence.level}*`,
+    ...confidence.reasons.slice(0, 3).map(r => `  • ${r}`),
+  ];
+
+  if (decision.isManualReview) {
+    const geoLabels = decision.geopoliticalFlag.map(r => GEO_REGION_LABEL_ID[r] ?? r);
+    lines.push('', `⚠️ *MANUAL REVIEW FLAG AKTIF*${geoLabels.length ? ` — geopolitik: ${geoLabels.join(', ')}` : ''}${decision.blockedByDivergence.length ? ` — divergence: ${decision.blockedByDivergence.join(', ')}` : ''}`);
+  }
+
+  lines.push('', `💰 *RISK PROFILE*: ${riskAssessment.riskProfile ?? '—'}`);
+  lines.push(`Core: ${riskAssessment.coreBandPct ? `${riskAssessment.coreBandPct.min}-${riskAssessment.coreBandPct.max}%` : '—'} (${fmtUSD(allocation.coreBandUSD?.min)}-${fmtUSD(allocation.coreBandUSD?.max)})`);
+  lines.push(`High-risk: ${riskAssessment.highRiskBandPct ? `${riskAssessment.highRiskBandPct.min}-${riskAssessment.highRiskBandPct.max}%` : 'tidak didefinisikan fase ini'} (${allocation.highRiskBandUSD ? `${fmtUSD(allocation.highRiskBandUSD.min)}-${fmtUSD(allocation.highRiskBandUSD.max)}` : '—'})`);
+
+  if (insight.parseFailed) {
+    lines.push('', `⚠️ *AI response gagal di-parse jadi JSON* (${insight.parseError})`);
+    lines.push('Raw response AI (untuk debug):');
+    lines.push(insight.rawText.slice(0, 1500));
+    lines.push('', `${'─'.repeat(32)}`, `_Dashboard otomatis — Step 8 (kode) + Step 9 (AI)_`);
+    return lines.join('\n');
+  }
+
+  const p = insight.parsed;
+
+  if (!insight.valid) {
+    lines.push('', `⚠️ *Validation issues* (AI mungkin tidak patuh constraint):`);
+    insight.validationIssues.forEach(i => lines.push(`  • ${i}`));
+  }
+
+  if (p.warPremium?.length) {
+    lines.push('', `🌍 *WAR PREMIUM*`);
+    for (const w of p.warPremium) {
+      lines.push(`${CONFLICT_EMOJI[w.conflict] ?? '🌐'} ${w.conflict}: ${RISK_LEVEL_EMOJI[w.riskLevel] ?? ''} ${w.riskLevel} — ${w.update}`);
+      if (w.marketImpact) lines.push(`   dampak: ${w.marketImpact}`);
+    }
+  }
+
+  if (p.allocation?.length) {
+    lines.push('', `📦 *ALLOCATION* (portfolio ${fmtUSD(allocation.portfolioSize)})`);
+    for (const a of p.allocation) {
+      lines.push(`${a.asset} (${a.layer}) — ${a.weightPct}%${a.nominalUSD != null ? ` (${fmtUSD(a.nominalUSD)})` : ''} — ${a.reason}`);
+    }
+    lines.push(`CASH — ${p.cashPct}%${p.cashUSD != null ? ` (${fmtUSD(p.cashUSD)})` : ''}`);
+  }
+
+  if (p.hype?.included) {
+    lines.push('', `⚡ *$HYPE*: rank ${p.hype.ranking ?? '—'} | ${p.hype.category ?? '—'} — ${p.hype.reason ?? ''}`);
+  }
+
+  if (p.narrative) lines.push('', p.narrative);
+
+  if (p.actionItems?.length) {
+    lines.push('', `✅ *ACTION ITEMS*`);
+    for (const a of p.actionItems) {
+      lines.push(`${ACTION_EMOJI[a.action] ?? '•'} [${a.action}] ${a.asset} — ${a.reason} (trigger: ${a.trigger})`);
+    }
+  }
+
+  if (p.aiCaveat) lines.push('', `⚠️ *AI Caveat*: ${p.aiCaveat}`);
+
+  lines.push('', `${'─'.repeat(32)}`, `_Dashboard otomatis — Step 8 (kode) + Step 9 (AI)_`);
+  return lines.join('\n');
+}
+
+// `config` = {telegramBotToken, telegramChatId}, sisanya Decision/Insight
+// Engine outputs. Tidak dipanggil dari index.js — dipicu manual/via script
+// terpisah sampai jalur ini sudah cukup teruji live untuk diwire ke produksi.
+export async function sendInsightToTelegram(config, decision, confidence, riskAssessment, allocation, insight) {
+  const { telegramBotToken: botToken, telegramChatId: chatId } = config;
+  if (!botToken || !chatId) {
+    console.warn('  ⚠️  Telegram: TELEGRAM_BOT_TOKEN atau TELEGRAM_CHAT_ID tidak diset, skip');
+    return { success: false, skipped: true };
+  }
+  const text = formatInsightForTelegram(decision, confidence, riskAssessment, allocation, insight);
+  return sendToTelegram(text, { botToken, chatId, label: 'Insight Card' });
+}
