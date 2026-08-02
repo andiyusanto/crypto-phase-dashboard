@@ -38,6 +38,13 @@ Setiap AI provider, Telegram, dan Discord **sepenuhnya independen** — menjalan
                 (Bot API)                             (Webhook)
 ```
 
+> Diagram di atas adalah pipeline **produksi** yang aktif jalan (`src/index.js`
+> dan seterusnya). Ada juga sistem domain-modeled baru (`src/providers`,
+> `src/scoring`, `src/decision`, `src/insight`) yang additive/paralel — belum
+> dipanggil dari `src/index.js` sama sekali. Lihat
+> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) untuk detail lengkapnya
+> termasuk status integrasi.
+
 ---
 
 ## Setup
